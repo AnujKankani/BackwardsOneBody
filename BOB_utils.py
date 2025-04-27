@@ -140,7 +140,7 @@ def BOB_amplitude_given_Ap(Ap,t_tp_tau):
 def BOB_amplitude_given_A0(A0,t0_tp_tau,t_tp_tau):
     Ap = A0*np.cosh(t0_tp_tau)
     return BOB_amplitude_given_Ap(Ap,t_tp_tau)
-def construct_BOB_finite_t0(chif,mf,l,m,t0,Omega_0Ap,tp,what_to_create,start_before_tpeak = -50, end_after_tpeak = 50):
+def construct_BOB_finite_t0(chif,mf,l,m,t0,Omega_0,Ap,tp,what_to_create,start_before_tpeak = -50, end_after_tpeak = 50):
     what_to_create = what_to_create.lower()
     t = np.linspace(tp+start_before_tpeak,tp+end_after_tpeak,int(end_after_tpeak-start_before_tpeak)+1)
     
@@ -165,8 +165,7 @@ def construct_BOB_finite_t0(chif,mf,l,m,t0,Omega_0Ap,tp,what_to_create,start_bef
         exit()
     BOB = kuibit_ts(t,amp*np.exp(-1j*phase))
     return BOB
-
-def construct_BOB(chif,mf,l,m,Ap,tp,what_to_create,start_before_tpeak = -50, end_after_tpeak = 50):
+def construct_BOB_minf_t0(chif,mf,l,m,Ap,tp,what_to_create,start_before_tpeak = -50, end_after_tpeak = 50):
     what_to_create = what_to_create.lower()
     t = np.linspace(tp+start_before_tpeak,tp+end_after_tpeak,int(end_after_tpeak-start_before_tpeak)+1)
     
@@ -192,7 +191,38 @@ def construct_BOB(chif,mf,l,m,Ap,tp,what_to_create,start_before_tpeak = -50, end
     BOB = kuibit_ts(t,amp*np.exp(-1j*phase))
     return BOB
 
-    
+def construct_BOB(chif,mf,l,m,t,y,what_to_create,minf_t0 = True,t0=-20,w_0=0,start_before_tpeak = -50, end_after_tpeak = 50):
+    if(minf_t0 is False and (w_0<=0)):
+        print("provide a valid initial waveform frequency. Exiting ...")
+        exit()
+    ts = kuibit_ts(t,y)
+    Ap = ts.abs_max()
+    tp = ts.time_at_maximum()
+
+    if(minf_t0):
+        BOB = construct_BOB_minf_t0(chif,mf,l,m,Ap,tp,what_to_create,start_before_tpeak=start_before_tpeak,end_after_tpeak=end_after_tpeak)
+    else:
+        Omega_0 = w_0/m
+        BOB = construct_BOB_finite_t0(chif,mf,l,m,t0,Omega_0,Ap,tp,what_to_create,start_before_tpeak=start_before_tpeak,end_after_tpeak=end_after_tpeak)
+    return BOB
+def construct_BOB_for_strain(chif,mf,l,m,t,y,what_to_create,minf_t0 = True,t0=-20,w_0=0,start_before_tpeak = -50, end_after_tpeak = 50):
+    #TODO: create BOB for psi4/news and get approximate strain
+    pass
+    # what_to_create = what_to_create.lower()
+    # if(minf_t0 is False and (w_0<=0)):
+    #     print("provide a valid initial waveform frequency. Exiting ...")
+    #     exit()
+    # ts = kuibit_ts(t,y)
+    # Ap = ts.abs_max()
+    # tp = ts.time_at_maximum()
+
+    # if(minf_t0):
+    #     BOB = construct_BOB_minf_t0(chif,mf,l,m,Ap,tp,what_to_create,start_before_tpeak=start_before_tpeak,end_after_tpeak=end_after_tpeak)
+    # else:
+    #     Omega_0 = w_0/m
+    #     BOB = construct_BOB_finite_t0(chif,mf,l,m,t0,Omega_0,Ap,tp,what_to_create,start_before_tpeak=start_before_tpeak,end_after_tpeak=end_after_tpeak)
+    # #BOB = create_strain_for_BOB(BOB)
+    # return BOB
 def test_phase_freq_t0_inf():
     #numerically differentiate the phase to make sure it matches our frequency
     chif = 0.5
