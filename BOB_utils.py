@@ -9,7 +9,136 @@ import sxs
 import utils
 import qnm
 
+"""
+============
 
+This module provides the `BOB` class and related utilities for constructing and analyzing 
+Backwards One-Body (BOB) quantities. It includes methods for initializing BOB with various 
+data sources, constructing BOB quantities, and performing tests on phase and frequency 
+calculations.
+
+Classes
+-------
+BOB
+    A class for constructing and analyzing Backwards One-Body (BOB) quantities.
+
+Functions
+---------
+test_phase_freq_t0_inf()
+    Test the phase and frequency calculations for t0 = infinity.
+
+test_phase_freq_finite_t0()
+    Test the phase and frequency calculations for finite t0.
+
+BOB Class
+---------
+The `BOB` class provides methods for constructing BOB quantities such as strain, news, and psi4. 
+It supports initialization with SXS data, CCE data, or manually provided data. The class also 
+includes methods for fitting parameters, aligning phases, and constructing BOB quantities 
+based on the specified configuration.
+
+Attributes
+----------
+- `minf_t0` : bool
+    Indicates whether t0 is set to infinity.
+- `start_before_tpeak` : float
+    Start time relative to the peak time.
+- `end_after_tpeak` : float
+    End time relative to the peak time.
+- `t0` : float
+    Initial time.
+- `tp` : float
+    Peak time.
+- `phase_alignment_time` : float
+    Time for phase alignment.
+- `what_is_BOB_building` : str
+    Specifies the type of BOB quantity being constructed.
+- `l`, `m` : int
+    Spherical harmonic indices.
+- `Phi_0` : float
+    Initial phase.
+- `perform_phase_alignment` : bool
+    Whether to perform phase alignment.
+- `resample_dt` : float
+    Resampling time step.
+- `t` : numpy.ndarray
+    Time array.
+- `strain_tp`, `news_tp`, `psi4_tp` : float
+    Peak times for strain, news, and psi4 data.
+
+Methods
+-------
+- `what_should_BOB_create`
+    Property to get or set the type of BOB quantity to create.
+- `set_initial_time`
+    Property to get or set the initial time.
+- `set_phase_alignment_time`
+    Property to get or set the phase alignment time.
+- `hello_world()`
+    Prints a welcome message.
+- `meet_the_creator()`
+    Prints the creator's ASCII face.
+- `fit_omega(x, Omega_0)`
+    Fits the frequency Omega.
+- `fit_phase(x, Omega_0, Phi_0)`
+    Fits the phase Phi.
+- `fit_Omega0()`
+    Fits the initial frequency Omega_0.
+- `fit_Omega0_and_Phi0()`
+    Fits both Omega_0 and Phi_0.
+- `BOB_strain_freq_finite_t0()`
+    Computes the strain frequency for finite t0.
+- `BOB_strain_phase_finite_t0()`
+    Computes the strain phase for finite t0.
+- `BOB_news_freq_finite_t0()`
+    Computes the news frequency for finite t0.
+- `BOB_news_phase_finite_t0_numerically()`
+    Computes the news phase for finite t0 numerically.
+- `BOB_psi4_freq_finite_t0()`
+    Computes the psi4 frequency for finite t0.
+- `BOB_psi4_phase_finite_t0()`
+    Computes the psi4 phase for finite t0.
+- `BOB_strain_freq()`
+    Computes the strain frequency for t0 = infinity.
+- `BOB_strain_phase()`
+    Computes the strain phase for t0 = infinity.
+- `BOB_news_freq()`
+    Computes the news frequency for t0 = infinity.
+- `BOB_news_phase()`
+    Computes the news phase for t0 = infinity.
+- `BOB_psi4_freq()`
+    Computes the psi4 frequency for t0 = infinity.
+- `BOB_psi4_phase()`
+    Computes the psi4 phase for t0 = infinity.
+- `BOB_amplitude_given_Ap()`
+    Computes the amplitude given the peak amplitude.
+- `BOB_amplitude_given_A0(A0)`
+    Computes the amplitude given the initial amplitude (not implemented).
+- `phase_alignment(phase)`
+    Aligns the phase with the data.
+- `construct_BOB_finite_t0()`
+    Constructs BOB quantities for finite t0.
+- `construct_BOB_minf_t0()`
+    Constructs BOB quantities for t0 = infinity.
+- `construct_BOB()`
+    Constructs BOB quantities based on the configuration.
+- `initialize_with_sxs_data(sxs_id, l=2, m=2)`
+    Initializes BOB with SXS data.
+- `initialize_with_cce_data(cce_id, l=2, m=2, perform_superrest_transformation=False)`
+    Initializes BOB with CCE data.
+- `initialize_with_NR_psi4_data(t, y, mf, chif, l=2, m=2)`
+    Initializes BOB with numerical relativity psi4 data.
+- `initialize_manually(mf, chif, l, m, **kwargs)`
+    Manually initializes BOB with specified parameters.
+
+Testing Functions
+-----------------
+- `test_phase_freq_t0_inf()`
+    Tests the phase and frequency calculations for t0 = infinity.
+- `test_phase_freq_finite_t0()`
+    Tests the phase and frequency calculations for finite t0.
+
+"""
 class BOB:
     def __init__(self,print_sean_face=False):
         qnm.download_data()
@@ -435,7 +564,6 @@ class BOB:
         self.Ap = self.psi4_data.abs_max()
         #self.tp = self.psi4_data.time_at_maximum()
         self.psi4_tp = self.psi4_data.time_at_maximum()
-
     def initialize_manually(self,mf,chif,l,m,**kwargs):
         self.mf = mf
         self.chif = chif
@@ -445,6 +573,12 @@ class BOB:
         self.w_r,self.tau = utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
         for key, value in kwargs.items():
             setattr(self, key, value)
+    def get_psi4_data(self):
+        return self.psi4_data.t,self.psi4_data.y
+    def get_news_data(self):
+        return self.news_data.t,self.news_data.y
+    def get_strain_data(self):
+        return self.strain_data.t,self.strain_data.y
 def test_phase_freq_t0_inf():
     #numerically differentiate the phase to make sure it matches our frequency
     chif = 0.5
