@@ -25,7 +25,7 @@ BOB_utils.initialize_with_sxs(SXS_id,l=2,m=2)
 #Way #2: Pass in the cce id (Ex: 1, 10, etc..). Specify if you want to perform the superrest transformation. The first time takes about ~20 minutes, then it is quick after that. 
 CCE_id = 1
 supperrest = False
-BOB_utils.initialize_with_cce(CCE_id,perform_superrest_transformation=perform_superrest_transformation)
+BOB_utils.initialize_with_cce(CCE_id,perform_superrest_transformation=superrest)
 
 #When we load in SXS or CCE data, the psi4, news and strain data is all saved.
 
@@ -46,7 +46,6 @@ BOB_utils.initialize_with_NR_psi4_data(t,y,mf,chif,l=2,m=2)
 #The first step is to define what we want to create BOB for.
 #NOTE: THIS SHOULD ALWAYS BE THE FIRST STEP POST INITIALIZATION
 BOB.what_should_BOB_create = "psi4" #options are psi4, news, strain, strain_using_psi4, strain_using_news
-#If we want to use a finite t0 value, we need to specify it. By default BOB will use t0 = -infinity and Omega_0 = Omega_ISCO
 
 #By default BOB chooses t0=-inf and Omega_0 = Omega_ISCO
 t,y = BOB.construct_BOB()
@@ -62,7 +61,7 @@ BOB.phase_alignment_time = 50
 #Or we can best fit Omega_0 and Phi_0
 BOB.optimize_Omega0_and_Phi0 = True
 
-#We can set t0 to some finite value. Omega_0 will be set to the corresponding waveform value. The time is with respect to the provided NR data
+#We can set t0 to some finite value. Omega_0 will be set to the corresponding waveform value. The time is with respect to the peak of the provided NR data
 BOB.set_initial_time = -10
 
 #We can also access the NR data we loaded into BOB 
