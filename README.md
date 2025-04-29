@@ -11,11 +11,13 @@ Assuming BOB is for psi4
 2. Psi4 taking t0 = -inf and Omega_0 = Omega_ISCO
 3. Psi4 taking t0=-inf and Omega_0 is best fit
 4. Strain obtained by building BOB for psi4 and taking |h| = |psi4|/(w_BOB^2)
+   
 Assuming BOB is for news
 1. News with a finite t0 value. Omega_0 is calculated from the waveform
 2. News taking t0 = -inf and Omega_0 = Omega_ISCO
 3. News taking t0=-inf and Omega_0 is best fit
 4. Strain obtained by building BOB for News and taking |h| = |N|/(w_BOB^2)
+   
 Assuming BOB is for strain
 1. Strain with a finite t0 value. Omega_0 is calculated from the waveform
 2. Strain taking t0 = -inf and Omega_0 = Omega_ISCO
