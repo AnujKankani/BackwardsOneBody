@@ -1,6 +1,6 @@
 import numpy as np
 from kuibit.timeseries import TimeSeries as kuibit_ts
-import qnmfits # we use qnmfits because it does the mass rescaling of the qnms by default and I really like the interface
+import qnm
 #some useful functions
 def find_nearest_index(array, value):
     array = np.asarray(array)
@@ -25,7 +25,7 @@ def get_kuibit_frequency_lm(w,l,m):
 def get_phase(ts):
     return kuibit_ts(ts.t,-np.unwrap(np.angle(ts.y)))
 def get_frequency(ts):
-    return kuibit_ts(ts.t,-np.gradient(np.unwrap(np.angle(ts.y))))
+    return kuibit_ts(ts.t,-ts.phase_angular_velocity().y)
 def get_r_isco(chi,M):
     #Bardeen Press Teukolskly eq 2.21
     #defined for prograde orbits
@@ -43,9 +43,12 @@ def get_Omega_isco(chi,M):
     a = chi*M
     Omega = np.sqrt(M)/(r_isco**1.5 + a*np.sqrt(M)) # = dphi/dt
     return Omega
-def get_qnm(chif,M,l,m,n):
-    omega_qnm, all_C, ells = qnmfits.read_qnms.qnm_from_tuple((l,m,n,1),chif,M=M)
-    w_r = omega_qnm.real
+def get_qnm(chif,Mf,l,m,n=0):
+    #omega_qnm, all_C, ells = qnmfits.read_qnms.qnm_from_tuple((l,m,n,1),chif,M=M)
+    grav_lmn = qnm.modes_cache(s=-2,l=l,m=m,n=n)
+    omega_qnm, A, C = grav_lmn(a=chif) #qnm package uses M = 1 so a = chi here
+    omega_qnm /= Mf #rescale to remnant black hole mass
+    w_r = omega_qnm.real 
     imag_qnm = np.abs(omega_qnm.imag)
     tau = 1./imag_qnm
     return w_r,tau
