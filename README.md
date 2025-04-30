@@ -3,7 +3,7 @@
 
 ## 🌀 What is the Backwards One Body Model?
 
-The **Backwards One Body (BOB) model** is a fully analytical approach to modeling gravitational waveforms from black hole binary mergers, as described in [McWilliams, S. T., arXiv:1810.00040](https://arxiv.org/abs/1810.00040). The BOB model is based on the physical insight that, during the late stages of binary evolution, the spacetime dynamics of the binary system closely resemble a linear perturbation of the final, stationary black hole remnant-even before the actual merger.
+The **Backwards One Body (BOB) model** is a fully analytical approach to modeling gravitational waveforms from black hole binary mergers, as described in [arXiv:1810.00040](https://arxiv.org/abs/1810.00040). The BOB model is based on the physical insight that, during the late stages of binary evolution, the spacetime dynamics of the binary system closely resemble a linear perturbation of the final, stationary black hole remnant-even before the actual merger.
 
 **Key features of the BOB model:**
 - **Analytical accuracy:** Accurately models the late inspiral, merger, and ringdown phases for arbitrary mass ratios and spins, including higher harmonics.
