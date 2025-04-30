@@ -164,6 +164,8 @@ class BOB:
 
         self.optimize_Omega0 = False
         self.optimize_Omega0_and_Phi0 = False
+
+        self.NR_based_on_BOB_ts = None
     @property
     def what_should_BOB_create(self):
         return self.what_is_BOB_building
@@ -274,10 +276,14 @@ class BOB:
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
-        freq_ts = gen_utils.get_phase(self.data)
-        freq_ts = freq_ts.resampled(temp_ts)
-        freq_ts.y = freq_ts.y/self.m
-        popt,pcov = curve_fit(self.fit_phase,temp_ts,freq_ts.y,bounds=([0,-np.inf],[self.Omega_QNM,np.inf]))
+        phase_ts = gen_utils.get_phase(self.data)
+        phase_ts = phase_ts.resampled(temp_ts)
+        phase_ts.y = phase_ts.y/self.m
+        try:
+            popt,pcov = curve_fit(self.fit_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM,5000]))
+        except:
+            print("fit failed")
+            popt = [self.Omega_ISCO,0]
         self.Omega_0 = popt[0]
         self.Phi_0 = popt[1]
         self.t = old_ts
@@ -488,6 +494,9 @@ class BOB:
             BOB_ts = self.construct_BOB_minf_t0()
         else:
             BOB_ts = self.construct_BOB_finite_t0()
+        
+        self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
+
         return BOB_ts.t,BOB_ts.y
     def initialize_with_sxs_data(self,sxs_id,l=2,m=2): 
         print("loading SXS data")

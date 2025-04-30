@@ -1,6 +1,8 @@
 import numpy as np
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import qnm
+from quaternion.calculus import spline_definite_integral as sdi
+
 #some useful functions
 def find_nearest_index(array, value):
     array = np.asarray(array)
@@ -60,7 +62,7 @@ def mismatch(BOB_data,NR_data,t0,tf):
     #Both the BOB and NR data should be identical in time
     
     #first we need to ensure the two time arrays are identical
-    if (not(np.array_equal(BOB.t,data.t))):
+    if (not(np.array_equal(BOB_data.t,NR_data.t))):
         raise ValueError("Time arrays must be identical")
     
     peak_time = NR_data.time_at_maximum()
@@ -76,4 +78,4 @@ def mismatch(BOB_data,NR_data,t0,tf):
     
     mismatch = (numerator/np.sqrt(denominator1*denominator2))
 
-    return mismatch   
+    return 1.-mismatch   
