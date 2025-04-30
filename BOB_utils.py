@@ -6,7 +6,7 @@ from scipy.special import expi as Ei
 from scipy.optimize import curve_fit
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
-import utils
+import gen_utils
 import qnm
 
 """
@@ -201,8 +201,8 @@ class BOB:
             print("Please specify BOB.what_should_BOB_create first. Exiting...")
             exit()
         self.minf_t0 = False
-        freq = utils.get_frequency(self.data)
-        closest_idx = utils.find_nearest_index(freq.t,value)
+        freq = gen_utils.get_frequency(self.data)
+        closest_idx = gen_utils.find_nearest_index(freq.t,value)
         w0 = freq.y[closest_idx]
         self.Omega_0 = w0/self.m
         self.t0 = value
@@ -255,7 +255,7 @@ class BOB:
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
-        freq_ts = utils.get_frequency(self.data)
+        freq_ts = gen_utils.get_frequency(self.data)
         freq_ts = freq_ts.resampled(temp_ts)
         freq_ts.y = freq_ts.y/self.m
         popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,bounds=[0,self.Omega_QNM])
@@ -274,7 +274,7 @@ class BOB:
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
-        freq_ts = utils.get_phase(self.data)
+        freq_ts = gen_utils.get_phase(self.data)
         freq_ts = freq_ts.resampled(temp_ts)
         freq_ts.y = freq_ts.y/self.m
         popt,pcov = curve_fit(self.fit_phase,temp_ts,freq_ts.y,bounds=([0,-np.inf],[self.Omega_QNM,np.inf]))
@@ -422,9 +422,9 @@ class BOB:
         temp_ts = self.data
         if("using" in self.__what_to_create):
             temp_ts = self.strain_data
-        BOB_t_index = utils.find_nearest_index(self.t,self.phase_alignment_time+self.tp)
-        data_t_index = utils.find_nearest_index(temp_ts.t,self.t[BOB_t_index])
-        data_phase = utils.get_phase(temp_ts)
+        BOB_t_index = gen_utils.find_nearest_index(self.t,self.phase_alignment_time+self.tp)
+        data_t_index = gen_utils.find_nearest_index(temp_ts.t,self.t[BOB_t_index])
+        data_phase = gen_utils.get_phase(temp_ts)
         phase_difference = phase[BOB_t_index] - data_phase.y[data_t_index] 
         phase  = phase - phase_difference
         return phase
@@ -495,23 +495,23 @@ class BOB:
         self.mf = sim.metadata.remnant_mass
         self.chif = sim.metadata.remnant_dimensionless_spin
         self.chif = np.linalg.norm(self.chif)
-        self.Omega_ISCO = utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
-        self.w_r,self.tau = utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
+        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
         self.Omega_QNM = self.w_r/self.m
 
         h = sim.h
         h = h.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
-        h = utils.get_kuibit_lm(h,self.l,self.m)
+        h = gen_utils.get_kuibit_lm(h,self.l,self.m)
         peak_strain_time = h.time_at_maximum()
         self.strain_tp = peak_strain_time
         #h.t = h.t - peak_strain_time
 
         psi4 = sim.psi4
         psi4 = psi4.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
-        psi4 = utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
+        psi4 = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
         self.psi4_tp = psi4.time_at_maximum()
         #psi4.t = psi4.t = peak_strain_time
 
@@ -532,14 +532,14 @@ class BOB:
 
         self.mf = abd.bondi_rest_mass()[-1]
         self.chif = np.linalg.norm(abd.bondi_dimensionless_spin()[-1])
-        self.Omega_ISCO = utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
-        self.w_r,self.tau = utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
+        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
         self.Omega_QNM = self.w_r/self.m
-        h = utils.get_kuibit_lm(abd.h,self.l,self.m).fixed_timestep_resampled(self.resample_dt)
-        psi4 = utils.get_kuibit_lm_psi4(abd.psi4,self.l,self.m).fixed_timestep_resampled(self.resample_dt)
+        h = gen_utils.get_kuibit_lm(abd.h,self.l,self.m).fixed_timestep_resampled(self.resample_dt)
+        psi4 = gen_utils.get_kuibit_lm_psi4(abd.psi4,self.l,self.m).fixed_timestep_resampled(self.resample_dt)
         news = h.differentiated(1)
 
         self.strain_tp = h.time_at_maximum()
@@ -555,9 +555,9 @@ class BOB:
         self.chif = chif
         self.l = l
         self.m = m
-        self.Omega_ISCO = utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.Omega_0 = self.Omega_ISCO
-        self.w_r,self.tau = utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
+        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
         self.Omega_QNM = self.w_r/self.m
         self.psi4_data = ts
         #self.data = self.psi4_data
@@ -567,10 +567,10 @@ class BOB:
     def initialize_manually(self,mf,chif,l,m,**kwargs):
         self.mf = mf
         self.chif = chif
-        self.Omega_ISCO = utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.l = l
         self.m = m
-        self.w_r,self.tau = utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
+        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
         for key, value in kwargs.items():
             setattr(self, key, value)
     def get_psi4_data(self):
@@ -583,9 +583,9 @@ def test_phase_freq_t0_inf():
     #numerically differentiate the phase to make sure it matches our frequency
     chif = 0.5
     mf = 0.975
-    w_r,tau = utils.get_qnm(chif,mf,2,2,0)
+    w_r,tau = gen_utils.get_qnm(chif,mf,2,2,0)
     Omega_QNM = w_r/2. 
-    Omega_ISCO = utils.get_Omega_isco(chif,mf)
+    Omega_ISCO = gen_utils.get_Omega_isco(chif,mf)
     tp = 0
     t = np.linspace(-50+tp,50+tp,201)
     t_tp_tau = (t-tp)/tau
@@ -642,9 +642,9 @@ def test_phase_freq_t0_inf():
 def test_phase_freq_finite_t0():
     chif = 0.5
     mf = 0.975
-    w_r,tau = utils.get_qnm(chif,mf,2,2,0)
+    w_r,tau = gen_utils.get_qnm(chif,mf,2,2,0)
     Omega_QNM = w_r/2. 
-    Omega_ISCO = utils.get_Omega_isco(chif,mf)
+    Omega_ISCO = gen_utils.get_Omega_isco(chif,mf)
     Omega_0 = Omega_QNM/2
     tp = 0
     t0 = -50
