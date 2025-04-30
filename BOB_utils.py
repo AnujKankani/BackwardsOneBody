@@ -248,6 +248,16 @@ class BOB:
             Phi,Omega = self.BOB_strain_phase()
     
         return Phi   
+    def fit_phase_only(self,x,Phi_0):
+        self.Phi_0 = Phi_0
+        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
+            Phi,Omega = self.BOB_psi4_phase()
+        if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
+            Phi,Omega = self.BOB_news_phase()
+        if(self.__what_to_create=="strain"):
+            Phi,Omega = self.BOB_strain_phase()
+    
+        return Phi   
     def fit_Omega0(self):
         print("searching for best fit")
         if(self.minf_t0 is False):
@@ -272,6 +282,35 @@ class BOB:
         self.Omega_0 = popt[0]
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
+        print("finished fitting process")
+    def fit_Phi0(self):
+        print("searching for best fit")
+        if("using" in self.__what_to_create):
+            self.perform_phase_alignment=True
+        else:
+            self.perform_phase_alignment = False
+        if(self.minf_t0 is False):
+            print("You are setup for a finite t0 right now. Exiting...")
+            exit()
+        if(self.end_after_tpeak<100):
+            temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
+        else:
+            temp_ts = np.linspace(self.tp,self.tp+100,501)
+        old_ts = self.t
+        self.t = temp_ts
+        self.t_tp_tau = (self.t - self.tp)/self.tau
+        phase_ts = gen_utils.get_phase(self.data)
+        phase_ts = phase_ts.resampled(temp_ts)
+        phase_ts.y = phase_ts.y/self.m
+        try:
+            popt,pcov = curve_fit(self.fit_phase_only,temp_ts,phase_ts.y,bounds=([-5000],[5000]))
+        except:
+            print("fit failed, setting Phi_0 = 0. Setting perform_phase_alignment=True")
+            self.perform_phase_alignment = True
+            popt = [0]
+        self.Phi_0 = popt[0]
+        self.t = old_ts
+        self.t_tp_tau = (self.t - self.tp)/self.tau   
         print("finished fitting process")
     def fit_Omega0_and_Phi0(self):
         print("searching for best fit")
@@ -303,6 +342,10 @@ class BOB:
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau   
         print("finished fitting process")
+    def fit_Omega0_and_then_Phi0(self):
+        #This will first fit for Omega_0 and then fit for Phi_0
+        self.fit_Omega0()
+        self.fit_Phi0()
     def BOB_strain_freq_finite_t0(self):
         Omega_ratio = self.Omega_0/self.Omega_QNM
         tanh_t_tp_tau_m1 = np.tanh(self.t_tp_tau)-1
