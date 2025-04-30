@@ -249,22 +249,32 @@ class BOB:
     
         return Phi   
     def fit_Omega0(self):
+        print("searching for best fit")
         if(self.minf_t0 is False):
             print("You are setup for a finite t0 right now. Exiting...")
             exit()
         #we only fit over a range of [tp,tp+30] to avoid NR noise at later times
-        temp_ts = np.linspace(self.tp,self.tp+30,301)
+        if(self.end_after_tpeak<100):
+            temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
+        else:
+            temp_ts = np.linspace(self.tp,self.tp+100,501)
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
         freq_ts = gen_utils.get_frequency(self.data)
         freq_ts = freq_ts.resampled(temp_ts)
         freq_ts.y = freq_ts.y/self.m
-        popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,bounds=[0,self.Omega_QNM])
+        try:
+            popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,bounds=[0,self.Omega_QNM])
+        except:
+            print("fit failed, setting Omega_0 = Omega_ISCO")
+            popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
+        print("finished fitting process")
     def fit_Omega0_and_Phi0(self):
+        print("searching for best fit")
         if("using" in self.__what_to_create):
             self.perform_phase_alignment=True
         else:
@@ -272,7 +282,10 @@ class BOB:
         if(self.minf_t0 is False):
             print("You are setup for a finite t0 right now. Exiting...")
             exit()
-        temp_ts = np.linspace(self.tp,self.tp+30,301)
+        if(self.end_after_tpeak<100):
+            temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
+        else:
+            temp_ts = np.linspace(self.tp,self.tp+100,501)
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
@@ -282,12 +295,14 @@ class BOB:
         try:
             popt,pcov = curve_fit(self.fit_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM,5000]))
         except:
-            print("fit failed")
+            print("fit failed, setting Omega_0 = Omega_ISCO and Phi_0 = 0. Setting perform_phase_alignment=True")
+            self.perform_phase_alignment = True
             popt = [self.Omega_ISCO,0]
         self.Omega_0 = popt[0]
         self.Phi_0 = popt[1]
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau   
+        print("finished fitting process")
     def BOB_strain_freq_finite_t0(self):
         Omega_ratio = self.Omega_0/self.Omega_QNM
         tanh_t_tp_tau_m1 = np.tanh(self.t_tp_tau)-1
