@@ -227,9 +227,9 @@ class BOB:
         ascii_funcs.print_sean_face()
     def fit_omega(self,x,Omega_0):
         self.Omega_0 = Omega_0
-        if(self.__what_to_create=="psi4"):
+        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
             Omega = self.BOB_psi4_freq()
-        if(self.__what_to_create=="news"):
+        if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
             Omega = self.BOB_news_freq()
         if(self.__what_to_create=="strain"):
             Omega = self.BOB_strain_freq()
