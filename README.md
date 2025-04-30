@@ -1,39 +1,39 @@
-# BackwardsOneBody
+ (Generated via Perplexity AI)
+---
 
-This code generates [BOB](https://arxiv.org/abs/1810.00040) waveforms. This code is still in development and may contain bugs.
+## 🌀 What is the Backwards One Body Model?
 
-Packages required:
+The **Backwards One Body (BOB) model** is a fully analytical approach to modeling gravitational waveforms from black hole binary mergers, as described in [McWilliams, S. T., arXiv:1810.00040](https://arxiv.org/abs/1810.00040). The BOB model is based on the physical insight that, during the late stages of binary evolution, the spacetime dynamics of the binary system closely resemble a linear perturbation of the final, stationary black hole remnant-even before the actual merger.
 
-kuibit
+**Key features of the BOB model:**
+- **Analytical accuracy:** Accurately models the late inspiral, merger, and ringdown phases for arbitrary mass ratios and spins, including higher harmonics.
+- **Minimal assumptions:** Assumes only that nonlinear effects remain small throughout the coalescence.
+- **Physical foundation:** Relies on the tendency of the binary spacetime to behave like a perturbation of the merger remnant, reducing the need for phenomenological parameters.
+- **Wide applicability:** Demonstrated to agree with state-of-the-art numerical relativity simulations across a broad parameter space, down to the innermost stable circular orbit (ISCO) of the remnant.
 
-sxs
+The BOB model provides a powerful, physically motivated, and computationally efficient tool for gravitational wave data analysis and theoretical studies.
 
-qnmfits (if using cce data NOTE: On windows this will require WSL). If you won't be loading in CCE data you do not need to install this package.
+---
 
-See detailed_documentation.py for examples on how to use the code.
+## 🚀 Features
 
-Here is a full list of possible waveforms that can be generated.
+- **Multiple waveform types:** Generate Psi4, News, and Strain waveforms
+- **Flexible assumptions:** Choose between finite or infinite $t_0$ and various $\Omega_0$ options (auto, ISCO, best-fit)
+- **Phase alignment:** Align phases at a specific time or via best-fit
+- **Data compatibility:** Works with SXS, CCE or psi4 data from NR simulations
+- **Easy visualization:** Plot and compare waveforms
+- **Extensible and under active development**
 
-Assuming BOB is for psi4
-1. Psi4 with a finite t0 value. Omega_0 is automatically calculated from the waveform
-2. Psi4 taking t0 = -inf and Omega_0 = Omega_ISCO
-3. Psi4 taking t0=-inf and Omega_0 is best fit
-4. Strain obtained by building BOB for psi4 and taking |h| = |psi4|/(w_BOB^2)
-   
-Assuming BOB is for news
-1. News with a finite t0 value. Omega_0 is automatically calculated from the waveform
-2. News taking t0 = -inf and Omega_0 = Omega_ISCO
-3. News taking t0=-inf and Omega_0 is best fit
-4. Strain obtained by building BOB for News and taking |h| = |N|/(w_BOB)
-   
-Assuming BOB is for strain
-1. Strain with a finite t0 value. Omega_0 is automatically calculated from the waveform
-2. Strain taking t0 = -inf and Omega_0 = Omega_ISCO
-3. Strain taking t0=-inf and Omega_0 is best fit
+---
 
-Additionaly, the phase alignment can be done at a specific time or this can also be best fit.
+## 📦 Installation
 
-Notes:
-1. The biggest problems occur when you use a finite t0 value. The corresponding Omega_0 value may result in imaginary frequencies, so this needs to be worked on a little bit.
-2. No closed form solution was found for the phase when assuming BOB builds the news for finite t0 values, so the phase is integrated numerically.
-2. 
+### Requirements
+
+- Python 3.7+
+- [`kuibit`](https://github.com/SRombetto/kuibit)
+- [`sxs`](https://github.com/sxs-collaboration/sxs)
+- [`qnmfits`](https://github.com/sxs-collaboration/qnmfits) *(only needed for CCE data; Windows users need [WSL](https://docs.microsoft.com/en-us/windows/wsl/))*
+
+### Install via pip
+
