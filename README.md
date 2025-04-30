@@ -9,7 +9,7 @@ The **Backwards One Body (BOB) model** is a fully analytical approach to modelin
 - **Analytical accuracy:** Accurately models the late inspiral, merger, and ringdown phases for arbitrary mass ratios and spins, including higher harmonics.
 - **Minimal assumptions:** Assumes only that nonlinear effects remain small throughout the coalescence.
 - **Physical foundation:** Relies on the tendency of the binary spacetime to behave like a perturbation of the merger remnant, reducing the need for phenomenological parameters.
-- **Wide applicability:** Demonstrated to agree with state-of-the-art numerical relativity simulations across a broad parameter space, down to the innermost stable circular orbit (ISCO) of the remnant.
+- **Wide applicability:** Demonstrated to agree with state-of-the-art numerical relativity simulations.
 
 The BOB model provides a powerful, physically motivated, and computationally efficient tool for gravitational wave data analysis and theoretical studies.
 
