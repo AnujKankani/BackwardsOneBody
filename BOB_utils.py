@@ -166,6 +166,8 @@ class BOB:
         self.optimize_Omega0_and_Phi0 = False
 
         self.NR_based_on_BOB_ts = None
+        self.start_fit_before_tpeak = 0
+        self.end_fit_after_tpeak = 100
     @property
     def what_should_BOB_create(self):
         return self.what_is_BOB_building
@@ -188,8 +190,7 @@ class BOB:
             self.Ap = self.strain_data.abs_max()
             self.tp = self.strain_data.time_at_maximum()
         else:
-            print("INVALID CHOICE FOR WHAT TO CREATE. VALID CHOICES ARE psi4, news, or strain. EXITING...")
-            exit()
+            raise ValueError("Invalid choice for what to create. Valid choices are 'psi4', 'news', 'strain', 'strain_using_psi4', or 'strain_using_news'.")
         self.__what_to_create = value
         self.t = np.linspace(self.start_before_tpeak+self.tp,self.end_after_tpeak+self.tp,10*(int((self.end_after_tpeak-self.start_before_tpeak))+1))
         self.t_tp_tau = (self.t - self.tp)/self.tau
@@ -200,8 +201,7 @@ class BOB:
     @set_initial_time.setter
     def set_initial_time(self,value):
         if(self.what_is_BOB_building == "Nothing"):
-            print("Please specify BOB.what_should_BOB_create first. Exiting...")
-            exit()
+            raise ValueError("Please specify BOB.what_should_BOB_create first.")
         self.minf_t0 = False
         freq = gen_utils.get_frequency(self.data)
         closest_idx = gen_utils.find_nearest_index(freq.t,value)
@@ -259,10 +259,8 @@ class BOB:
     
         return Phi   
     def fit_Omega0(self):
-        print("searching for best fit")
         if(self.minf_t0 is False):
-            print("You are setup for a finite t0 right now. Exiting...")
-            exit()
+            raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
         #we only fit over a range of [tp,tp+30] to avoid NR noise at later times
         if(self.end_after_tpeak<100):
             temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
@@ -282,22 +280,18 @@ class BOB:
         self.Omega_0 = popt[0]
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
-        print("finished fitting process")
     def fit_Phi0(self):
-        print("searching for best fit")
         if("using" in self.__what_to_create):
             self.perform_phase_alignment=True
         else:
             self.perform_phase_alignment = False
         if(self.minf_t0 is False):
-            print("You are setup for a finite t0 right now. Exiting...")
-            exit()
-        if(self.end_after_tpeak<100):
-            temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
-        else:
-            temp_ts = np.linspace(self.tp,self.tp+100,501)
+            raise ValueError("You are setup for a finite t0 right now. Phi0 fitting is only defined for t0 = infinity.")
+        if(self.end_after_tpeak<self.end_fit_after_tpeak):
+            self.end_fit_after_tpeak = self.end_after_tpeak
+        temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
         old_ts = self.t
-        self.t = temp_ts
+        self.t = temp_ts    
         self.t_tp_tau = (self.t - self.tp)/self.tau
         phase_ts = gen_utils.get_phase(self.data)
         phase_ts = phase_ts.resampled(temp_ts)
@@ -311,20 +305,16 @@ class BOB:
         self.Phi_0 = popt[0]
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau   
-        print("finished fitting process")
     def fit_Omega0_and_Phi0(self):
-        print("searching for best fit")
         if("using" in self.__what_to_create):
             self.perform_phase_alignment=True
         else:
             self.perform_phase_alignment = False
         if(self.minf_t0 is False):
-            print("You are setup for a finite t0 right now. Exiting...")
-            exit()
-        if(self.end_after_tpeak<100):
-            temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
-        else:
-            temp_ts = np.linspace(self.tp,self.tp+100,501)
+            raise ValueError("You are setup for a finite t0 right now. Omega0 and Phi0 fitting is only defined for t0 = infinity.")
+        if(self.end_after_tpeak<self.end_fit_after_tpeak):
+            self.end_fit_after_tpeak = self.end_after_tpeak
+        temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
@@ -376,12 +366,10 @@ class BOB:
             print("Imaginary Frequency Obtained Due To Bad Omega_0")
             return np.full_like(F,-1)
         return np.sqrt(Omega2)
-
     def BOB_news_phase_finite_t0_numerically(self):
         Omega = self.BOB_news_freq_finite_t0()
         if(Omega[0] == -1):
-            print("BAD OMEGA_0")
-            return -1
+            raise ValueError("BAD OMEGA_0")
         
         Phase = cumulative_trapezoid(Omega,self.t,initial=0)
 
@@ -398,8 +386,7 @@ class BOB:
     def BOB_psi4_phase_finite_t0(self):
         Omega = self.BOB_psi4_freq_finite_t0()
         if(Omega[0]==-1):
-            print("BAD OMEGA_0")
-            return -1
+            raise ValueError("BAD OMEGA_0")
         # We use here the alternative definition of arctan
         # arctanh(x) = 0.5*ln( (1+x)/(1-x) )
         Omega4_plus , Omega4_minus = (self.Omega_QNM**4 + self.Omega_0**4) , (self.Omega_QNM**4 - self.Omega_0**4)
@@ -437,8 +424,7 @@ class BOB:
         return np.sqrt(Omega2)
     def BOB_news_phase(self):
         if(self.Omega_0==0):
-            print("Omega_0 cannot be zero")
-            return -1            
+            raise ValueError("Omega_0 cannot be zero")            
         Omega = self.BOB_news_freq()
         Omega_plus_Q  = Omega + self.Omega_QNM
         Omega_minus_Q = np.abs(Omega - self.Omega_QNM)
@@ -504,8 +490,7 @@ class BOB:
             Phi,Omega = self.BOB_psi4_phase_finite_t0()
             phase = self.m*Phi
         else:
-            print("Invalid option in BOB.__what_to_create. Valid options are psi4,news,strain,strain_using_news, or strain_using_psi4 Exiting...")
-            exit()
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
         if(self.perform_phase_alignment):
             phase = self.phase_alignment(phase)
@@ -535,8 +520,7 @@ class BOB:
             Phi,Omega = self.BOB_psi4_phase()
             phase = self.m*Phi
         else:
-            print("Invalid option in BOB.__what_to_create. Valid options are psi4,news,strain,strain_using_news, or strain_using_psi4 Exiting...")
-            exit()
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
         
         if(self.perform_phase_alignment):
             phase = self.phase_alignment(phase)
