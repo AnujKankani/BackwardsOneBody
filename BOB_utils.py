@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import cumulative_trapezoid
 from scipy.special import expi as Ei
-from scipy.optimize import curve_fit
+from scipy.optimize import least_squares, curve_fit
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
 import gen_utils
@@ -164,10 +164,12 @@ class BOB:
 
         self.optimize_Omega0 = False
         self.optimize_Omega0_and_Phi0 = False
+        self.optimize_Phi0 = False
+        self.optimize_Omega0_and_then_Phi0 = False
 
         self.NR_based_on_BOB_ts = None
         self.start_fit_before_tpeak = 0
-        self.end_fit_after_tpeak = 100
+        self.end_fit_after_tpeak = self.end_after_tpeak
     @property
     def what_should_BOB_create(self):
         return self.what_is_BOB_building
@@ -237,7 +239,7 @@ class BOB:
             Omega = self.BOB_strain_freq()
     
         return Omega
-    def fit_phase(self,x,Omega_0,Phi_0):
+    def fit_omega_and_phase(self,x,Omega_0,Phi_0):
         self.Phi_0 = Phi_0
         self.Omega_0 = Omega_0
         if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
@@ -259,21 +261,28 @@ class BOB:
     
         return Phi   
     def fit_Omega0(self):
+        """
+        Fits the initial angular frequency of the QNM (Omega_0) by fitting the frequency of the data to the QNM frequency.
+        Only works for t0 = -infinity.
+        """
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
-        #we only fit over a range of [tp,tp+30] to avoid NR noise at later times
-        if(self.end_after_tpeak<100):
-            temp_ts = np.linspace(self.tp,self.end_after_tpeak,int(self.end_after_tpeak-self.tp)*10+1)
-        else:
-            temp_ts = np.linspace(self.tp,self.tp+100,501)
+        if(self.end_after_tpeak<self.end_fit_after_tpeak):
+            print("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
+            self.end_fit_after_tpeak = self.end_after_tpeak
+
+        #Since we may only want to fit ove a limited sample, we create a temporary time array
+        temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
+        #For simplicity we will temporary set the BOB time array to this temporary time array. This will be reverted at the end of the function
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
+
         freq_ts = gen_utils.get_frequency(self.data)
         freq_ts = freq_ts.resampled(temp_ts)
         freq_ts.y = freq_ts.y/self.m
         try:
-            popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,bounds=[0,self.Omega_QNM])
+            popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM])
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO")
             popt = [self.Omega_ISCO]
@@ -281,6 +290,8 @@ class BOB:
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
     def fit_Phi0(self):
+        #There is no reason to fit Phi0 to psi4 if we want to end up with a phase aligned strain, but we allow it for simplicity
+        #But if are creating strain from psi4/news we should make sure the finite time phase alignment is done at the end still
         if("using" in self.__what_to_create):
             self.perform_phase_alignment=True
         else:
@@ -289,7 +300,10 @@ class BOB:
             raise ValueError("You are setup for a finite t0 right now. Phi0 fitting is only defined for t0 = infinity.")
         if(self.end_after_tpeak<self.end_fit_after_tpeak):
             self.end_fit_after_tpeak = self.end_after_tpeak
+        
+        #Since we may only want to fit ove a limited sample, we create a temporary time array
         temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
+        #For simplicity we will temporary set the BOB time array to this temporary time array. This will be reverted at the end of the function
         old_ts = self.t
         self.t = temp_ts    
         self.t_tp_tau = (self.t - self.tp)/self.tau
@@ -314,7 +328,10 @@ class BOB:
             raise ValueError("You are setup for a finite t0 right now. Omega0 and Phi0 fitting is only defined for t0 = infinity.")
         if(self.end_after_tpeak<self.end_fit_after_tpeak):
             self.end_fit_after_tpeak = self.end_after_tpeak
+        
+        #Since we may only want to fit ove a limited sample, we create a temporary time array
         temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
+        #For simplicity we will temporary set the BOB time array to this temporary time array. This will be reverted at the end of the function
         old_ts = self.t
         self.t = temp_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau
@@ -322,7 +339,7 @@ class BOB:
         phase_ts = phase_ts.resampled(temp_ts)
         phase_ts.y = phase_ts.y/self.m
         try:
-            popt,pcov = curve_fit(self.fit_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM,5000]))
+            popt,pcov = curve_fit(self.fit_omega_and_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM,5000]))
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO and Phi_0 = 0. Setting perform_phase_alignment=True")
             self.perform_phase_alignment = True
@@ -521,12 +538,22 @@ class BOB:
         BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*phase))
         return BOB_ts
     def construct_BOB_minf_t0(self):
+        #In principle we should just return the Omega and Phi from the fitting process, but I'm not doing that right now for simplicity
+        #The fitting process is already going to do a bunch of calls to the phase/freq functions, so one more isn't going to make a big difference anyways
         if(self.optimize_Omega0_and_Phi0 is True):
             self.fit_Omega0_and_Phi0()
+        elif(self.optimize_Omega0_and_then_Phi0 is True):
+            self.fit_Omega0_and_then_Phi0()
+        #Omega0 should always be optimized before Phi0
         elif(self.optimize_Omega0 is True):
             self.fit_Omega0()
+            if(self.optimize_Phi0 is True):
+                self.fit_Phi0()
+        elif(self.optimize_Phi0 is True):
+            self.fit_Phi0()
         else:
             pass
+        #Again, the fitting process already defines Omega and Phi, but I'm just recalculating them here for simplicity
         phase = None
         if(self.__what_to_create=="strain" or self.__what_to_create=="h"):
             Phi,Omega = self.BOB_strain_phase()
@@ -541,6 +568,7 @@ class BOB:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
         
         if(self.perform_phase_alignment):
+            print("manual phase alignment called")
             phase = self.phase_alignment(phase)
         amp = self.BOB_amplitude_given_Ap()
         if(self.__what_to_create=="strain_using_news"):
