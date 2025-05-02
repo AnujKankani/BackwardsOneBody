@@ -331,7 +331,6 @@ class BOB:
         self.Phi_0 = popt[1]
         self.t = old_ts
         self.t_tp_tau = (self.t - self.tp)/self.tau   
-        print("finished fitting process")
     def fit_Omega0_and_then_Phi0(self):
         #This will first fit for Omega_0 and then fit for Phi_0
         self.fit_Omega0()
@@ -366,6 +365,25 @@ class BOB:
             print("Imaginary Frequency Obtained Due To Bad Omega_0")
             return np.full_like(F,-1)
         return np.sqrt(Omega2)
+    def BOB_news_phase_finite_t0(self):
+        #assuumes Omega_q^2<2*F
+        F = (self.Omega_QNM**2 - self.Omega_0**2)/(1-np.tanh(self.t0_tp_tau))
+        if(self.Omega_QNM**2>=2*F):
+            raise ValueError("Bad Omega_0")
+        Omega = self.BOB_news_freq_finite_t0()
+        Omega_minus_q = np.abs(Omega-self.Omega_QNM)
+        Omega_plus_q = np.abs(Omega+self.Omega_QNM)
+
+        outer1 = self.Omega_QNM*self.tau/2
+        inner1 = np.log(Omega_plus_q/Omega_minus_q)
+        term1 = outer1*inner1
+
+        outer2 = (self.Omega_QNM**2 - 2*F)*self.tau/(np.sqrt(2*F-self.Omega_QNM**2))
+        inner2 = np.arctan(Omega/np.sqrt(2*F-self.Omega_QNM**2))
+        term2 = outer2*inner2
+
+        Phi = term1 + term2 + self.Phi_0
+        return Phi,Omega
     def BOB_news_phase_finite_t0_numerically(self):
         Omega = self.BOB_news_freq_finite_t0()
         if(Omega[0] == -1):
@@ -696,30 +714,38 @@ def test_phase_freq_finite_t0():
     w_r,tau = gen_utils.get_qnm(chif,mf,2,2,0)
     Omega_QNM = w_r/2. 
     Omega_ISCO = gen_utils.get_Omega_isco(chif,mf)
-    Omega_0 = Omega_QNM/2
-    tp = 0
-    t0 = -50
-    t = np.linspace(-50+tp,50+tp,201)
-    t_tp_tau = (t-tp)/tau
-    t0_tp_tau = (t0-tp)/tau
+    Omega_0 = Omega_ISCO
+    
+    
 
     BOB_obj = BOB()
+    BOB_obj.tp = 0
+    #BOB_obj.start_before_tp = -500
+    #BOB_obj.end_after_tpeak = 100
+    #t = np.linspace(BOB_obj.start_before_tp,BOB_obj.end_after_tpeak,201)
+    t = BOB_obj.t
+    tp = 0
+    t0 = -20
+    t_tp_tau = (t-tp)/tau
+    t0_tp_tau = (t0-tp)/tau
     BOB_obj.Omega_0 = Omega_0
     BOB_obj.Omega_QNM = Omega_QNM
+    print("Omega_0 = ",Omega_0)
+    print("Omega_QNM = ",Omega_QNM)
     BOB_obj.t0_tp_tau = t0_tp_tau
     BOB_obj.t_tp_tau = t_tp_tau
     BOB_obj.tau = tau
     BOB_obj.t = t
-
-    
+    print(len(t))
+    print(len(BOB_obj.t_tp_tau))    
     Psi4_Omega = kuibit_ts(t,BOB_obj.BOB_psi4_freq_finite_t0())
-    Psi4_Phi   = kuibit_ts(t,BOB_obj.BOB_psi4_phase_finite_t0())
+    Psi4_Phi   = kuibit_ts(t,BOB_obj.BOB_psi4_phase_finite_t0()[0])
 
     News_Omega = kuibit_ts(t,BOB_obj.BOB_news_freq_finite_t0())
-    News_Phi   = kuibit_ts(t,BOB_obj.BOB_news_phase_finite_t0_numerically())
+    News_Phi   = kuibit_ts(t,BOB_obj.BOB_news_phase_finite_t0_numerically()[0])
 
     Strain_Omega = kuibit_ts(t,BOB_obj.BOB_strain_freq_finite_t0())
-    Strain_Phi   = kuibit_ts(t,BOB_obj.BOB_strain_phase_finite_t0())
+    Strain_Phi   = kuibit_ts(t,BOB_obj.BOB_strain_phase_finite_t0()[0])
 
     dPsi4_Phi_dt   = Psi4_Phi.differentiated(1)
     dNews_Phi_dt   = News_Phi.differentiated(1)
@@ -758,8 +784,8 @@ def test_phase_freq_finite_t0():
 
 
 if __name__=="__main__":
-    pass
+    #pass
     #print("Welcome to the Wonderful World of BOB!! All Hail Our Glorius Leader Sean! (totally not a cult)")
     #welcome_to_BOB()
     #print_sean_face()
-    #test_phase_freq_finite_t0()
+    test_phase_freq_finite_t0()
