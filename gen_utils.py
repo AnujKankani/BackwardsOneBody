@@ -2,6 +2,7 @@ import numpy as np
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import qnm
 from quaternion.calculus import spline_definite_integral as sdi
+import matplotlib.pyplot as plt
 
 #some useful functions
 def find_nearest_index(array, value):
@@ -25,7 +26,12 @@ def get_kuibit_frequency_lm(w,l,m):
     #want positive
     return kuibit_ts(ts_temp.t,-ts_temp.y)
 def get_phase(ts):
-    return kuibit_ts(ts.t,-np.unwrap(np.angle(ts.y)))
+    y = np.unwrap(np.angle(ts.y))
+    #we want to make sure the phase is positive near merger so this how we check for now
+    #TODO: make this better
+    if(y[-1]<0):
+        y = -y
+    return kuibit_ts(ts.t,y)
 def get_frequency(ts):
     return kuibit_ts(ts.t,-ts.phase_angular_velocity().y)
 def get_r_isco(chi,M):
