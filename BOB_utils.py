@@ -46,7 +46,7 @@ class BOB:
     @what_should_BOB_create.setter
     def what_should_BOB_create(self,value):
         val = value.lower()
-        if(val=="psi4" or val=="p4" or val=="strain_using_psi4"):
+        if(val=="psi4" or val=="p4" or val=="strain_using_psi4" or val=="news_using_psi4"):
             self.what_is_BOB_building = "psi4"
             self.data = self.psi4_data
             self.Ap = self.psi4_data.abs_max()
@@ -155,6 +155,8 @@ class BOB:
     def fit_Phi0(self):
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Phi0 fitting is only defined for t0 = infinity.")
+        if("using" in self.__what_to_create):
+            raise ValueError("fit_Phi0 should never be called if we are building strain from psi4/news or news from psi4. You should raise an issue on the github if you see this...")
         if(self.end_after_tpeak<self.end_fit_after_tpeak):
             self.end_fit_after_tpeak = self.end_after_tpeak
         
@@ -165,9 +167,9 @@ class BOB:
         phase_ts = phase_ts.resampled(temp_ts)
         phase_ts.y = phase_ts.y/np.abs(self.m)
 
-        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
+        if(self.__what_to_create=="psi4"):
             Phi,Omega = self.BOB_psi4_phase()
-        if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
+        if(self.__what_to_create=="news"):
             Phi,Omega = self.BOB_news_phase()
         if(self.__what_to_create=="strain"):
             Phi,Omega = self.BOB_strain_phase()
@@ -176,7 +178,6 @@ class BOB:
         
         #since Phi_0 is just a constant, the lsq optimized value is just mean(NR_phase - BOB_phase)
         self.Phi_0 = np.mean(phase_ts.y - Phi.y)
-
     def fit_Omega0_and_Phi0(self):
         if(self.perform_phase_alignment is False):
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_Phi0")
@@ -364,41 +365,110 @@ class BOB:
     def phase_alignment(self,phase):
         temp_ts = self.data
         #if we are creating strain by constructing BOB for news/psi4, we want to perform the phase alignment on the NR strain data since strain is the final output
-        if("using" in self.__what_to_create):
+        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
             temp_ts = self.strain_data
+        if(self.__what_to_create=="news_using_psi4"):
+            temp_ts = self.news_data
         BOB_t_index = gen_utils.find_nearest_index(self.t,self.phase_alignment_time+self.tp)
         data_t_index = gen_utils.find_nearest_index(temp_ts.t,self.t[BOB_t_index])
         data_phase = gen_utils.get_phase(temp_ts)
         phase_difference = phase[BOB_t_index] - data_phase.y[data_t_index] 
         phase  = phase - phase_difference
         return phase
+    def rescale_amplitude(self,amp):
+        #we only rescale amplitude in the cases where we are creating strain using news/psi4 or news using psi4
+        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
+            strain_amp_max = self.strain_data.abs_max()
+            rescale_factor = strain_amp_max/np.max(amp)
+            amp = amp*rescale_factor
+        elif(self.__what_to_create=="news_using_psi4"):
+            news_amp_max = self.news_data.abs_max()
+            rescale_factor = news_amp_max/np.max(amp)
+            amp = amp*rescale_factor
+        else:
+            raise ValueError("Rescale amplitude not implemented for this case... You should probably raise an issue on the github if you see this error")
+        return amp
+    def realign_amplitude(self,amp):
+        #we only perform a time alignment in the cases where we are creating strain using news/psi4 or news using psi4
+        #In the other cases tp should be the same as the NR tp by construction
+        #The amplitude will not peak at the same time as self.tp b/c the amplitude has been rescales such as |h| = |psi4|/w^2 already, so the peak time has changed
+        amp_peak_index = np.argmax(amp)
+        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
+            strain_time_peak = self.strain_data.time_at_maximum()
+            delta_t = self.t[amp_peak_index] - strain_time_peak
+            self.t = self.t - delta_t
+        elif(self.__what_to_create=="news_using_psi4"):
+            news_time_peak = self.news_data.time_at_maximum()
+            delta_t = self.t[amp_peak_index] - news_time_peak
+            self.t = self.t - delta_t
+        else:
+            raise ValueError("Realign amplitude not implemented for this case... You should probably raise an issue on the github if you see this error")
+        
     def construct_BOB_finite_t0(self):
         #Perform parameter sanity checks
         if(self.optimize_Omega0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
             raise ValueError("Cannot optimize Omega0 for finite t0 values. Make sure optimize_Omega0 = False, optimize_Omega0_and_Phi0 = False, and optimize_Omega0_and_then_Phi0 = False")
 
+        old_perform_phase_alignment = self.perform_phase_alignment
+        old_optimize_Phi0 = self.optimize_Phi0
+
+        if(self.optimize_Phi0 is True and "using" not in self.__what_to_create):
+            self.fit_Phi0()
+            self.perform_phase_alignment = False
+        
         phase = None
-        if(self.__what_to_create=="strain" or self.__what_to_create=="h"):
+        if(self.__what_to_create=="strain"):
             Phi,Omega = self.BOB_strain_phase_finite_t0()
-            phase = self.m*Phi
-        elif(self.__what_to_create=="news" or self.__what_to_create=="n" or self.__what_to_create=="strain_using_news"):
+            phase = np.abs(self.m)*Phi
+        elif(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
             Phi,Omega = self.BOB_news_phase_finite_t0_numerically()
-            phase = self.m*Phi
-        elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
+            phase = np.abs(self.m)*Phi
+        elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
             Phi,Omega = self.BOB_psi4_phase_finite_t0()
-            phase = self.m*Phi
+            phase = np.abs(self.m)*Phi
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        if(self.perform_phase_alignment):
-            phase = self.phase_alignment(phase)
+        
 
         amp = self.BOB_amplitude_given_Ap()
-        if(self.__what_to_create=="strain_using_news"):
+        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
+            #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
+            amp = self.rescale_amplitude(amp)
+            self.realign_amplitude(amp)
         if(self.__what_to_create=="strain_using_psi4"):
             amp = amp/((np.abs(self.m)*Omega)**2)
+            #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
+            amp = self.rescale_amplitude(amp)
+            self.realign_amplitude(amp)
+        
+        if(self.perform_phase_alignment):
+            if("using" in self.__what_to_create and self.optimize_Phi0):
+                #we do this manually here for simplicity
+                if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
+                    strain_tp = self.strain_data.time_at_maximum()
+                    temp_ts = np.linspace(strain_tp + self.start_fit_before_tpeak,strain_tp + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak - self.start_fit_before_tpeak)*10 + 1)
+                    temp_phase = kuibit_ts(self.t,phase).resampled(temp_ts)
+                    phase_strain = gen_utils.get_phase(self.strain_data).resampled(temp_ts)
+                    self.Phi_0 = np.mean(phase_strain.y - temp_phase.y)/np.abs(self.m)
+                    phase = phase + self.Phi_0*np.abs(self.m)    
+                elif(self.__what_to_create=="news_using_psi4"):
+                    news_tp = self.news_data.time_at_maximum()
+                    temp_ts = np.linspace(news_tp + self.start_fit_before_tpeak,news_tp + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak - self.start_fit_before_tpeak)*10 + 1)
+                    temp_phase = kuibit_ts(self.t,phase).resampled(temp_ts)
+                    phase_news = gen_utils.get_phase(self.news_data).resampled(temp_ts)
+                    self.Phi_0 = np.mean(phase_news.y - temp_phase.y)/np.abs(self.m)
+                    phase = phase + self.Phi_0*np.abs(self.m)
+                else:
+                    raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")    
+            else:
+                phase = self.phase_alignment(phase)
+
         BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*phase))
+
+        self.perform_phase_alignment = old_perform_phase_alignment
+        self.optimize_Phi0 = old_optimize_Phi0
         return BOB_ts
     def construct_BOB_minf_t0(self):
         #In principle we should just return the Omega and Phi from the fitting process, but I'm not doing that right now for simplicity
@@ -430,35 +500,63 @@ class BOB:
         elif(self.optimize_Omega0 is True):
             self.fit_Omega0()
             if(self.optimize_Phi0 is True):
-                self.fit_Phi0()
-                self.perform_phase_alignment = False
-        elif(self.optimize_Phi0 is True):
+                if("using" not in self.__what_to_create):
+                    self.fit_Phi0()
+                    self.perform_phase_alignment = False
+        elif(self.optimize_Phi0 is True and "using" not in self.__what_to_create):
             self.fit_Phi0()
             self.perform_phase_alignment = False
         else:
             pass
         #Again, the fitting process already defines Omega and Phi, but I'm just recalculating them here for simplicity
         phase = None
-        if(self.__what_to_create=="strain" or self.__what_to_create=="h"):
+        if(self.__what_to_create=="strain"):
             Phi,Omega = self.BOB_strain_phase()
             phase = np.abs(self.m)*Phi
-        elif(self.__what_to_create=="news" or self.__what_to_create=="n" or self.__what_to_create=="strain_using_news"):
+        elif(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
             Phi,Omega = self.BOB_news_phase()
             phase = np.abs(self.m)*Phi
-        elif(self.__what_to_create=="psi4" or self.__what_to_create=="p4" or self.__what_to_create=="strain_using_psi4"):
+        elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
             Phi,Omega = self.BOB_psi4_phase()
             phase = np.abs(self.m)*Phi
         else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")
         
-        if(self.perform_phase_alignment):
-            print("performing manual phase alignment")
-            phase = self.phase_alignment(phase)
+        
+
         amp = self.BOB_amplitude_given_Ap()
-        if(self.__what_to_create=="strain_using_news"):
+        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
+            #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
+            amp = self.rescale_amplitude(amp)
+            self.realign_amplitude(amp)
         if(self.__what_to_create=="strain_using_psi4"):
             amp = amp/((np.abs(self.m)*Omega)**2)
+            #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
+            amp = self.rescale_amplitude(amp)
+            self.realign_amplitude(amp)
+
+        if(self.perform_phase_alignment):
+            if("using" in self.__what_to_create and self.optimize_Phi0):
+                #we do this manually here for simplicity
+                if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
+                    strain_tp = self.strain_data.time_at_maximum()
+                    temp_ts = np.linspace(strain_tp + self.start_fit_before_tpeak,strain_tp + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak - self.start_fit_before_tpeak)*10 + 1)
+                    temp_phase = kuibit_ts(self.t,phase).resampled(temp_ts)
+                    phase_strain = gen_utils.get_phase(self.strain_data).resampled(temp_ts)
+                    self.Phi_0 = np.mean(phase_strain.y - temp_phase.y)/np.abs(self.m)
+                    phase = phase + self.Phi_0*np.abs(self.m)    
+                elif(self.__what_to_create=="news_using_psi4"):
+                    news_tp = self.news_data.time_at_maximum()
+                    temp_ts = np.linspace(news_tp + self.start_fit_before_tpeak,news_tp + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak - self.start_fit_before_tpeak)*10 + 1)
+                    temp_phase = kuibit_ts(self.t,phase).resampled(temp_ts)
+                    phase_news = gen_utils.get_phase(self.news_data).resampled(temp_ts)
+                    self.Phi_0 = np.mean(phase_news.y - temp_phase.y)/np.abs(self.m)
+                    phase = phase + self.Phi_0*np.abs(self.m)
+                else:
+                    raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")    
+            else:
+                phase = self.phase_alignment(phase)
 
         BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*phase))
         #restore old settings
