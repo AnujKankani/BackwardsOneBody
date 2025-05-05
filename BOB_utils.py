@@ -101,7 +101,7 @@ class BOB:
         ascii_funcs.print_sean_face()
     def fit_omega(self,x,Omega_0):
         self.Omega_0 = Omega_0
-        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
+        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
             Omega = self.BOB_psi4_freq()
         if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
             Omega = self.BOB_news_freq()
@@ -112,7 +112,7 @@ class BOB:
     def fit_omega_and_phase(self,x,Omega_0,Phi_0):
         self.Phi_0 = Phi_0
         self.Omega_0 = Omega_0
-        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4"):
+        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
             Phi,Omega = self.BOB_psi4_phase()
         if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
             Phi,Omega = self.BOB_news_phase()
@@ -144,6 +144,7 @@ class BOB:
         freq_ts = gen_utils.get_frequency(self.data)
         freq_ts = freq_ts.resampled(temp_ts)
         freq_ts.y = freq_ts.y/np.abs(self.m)
+        
         try:
             popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM])
         except:
@@ -565,6 +566,8 @@ class BOB:
         self.optimize_Omega0_and_Phi0 = old_optimize_Omega0_and_Phi0
         self.optimize_Omega0_and_then_Phi0 = old_optimize_Omega0_and_then_Phi0
         self.optimize_Omega0 = old_optimize_Omega0
+        self.Phi_0 = 0
+        self.Omega_0 = self.Omega_ISCO
         return BOB_ts
     def construct_BOB_current_quadrupole(self):
         pass
@@ -777,12 +780,14 @@ class BOB:
         self.news_tp = newsm.time_at_maximum()
 
         self.strain_data = hm
+        self.full_strain_data = h
         self.strain_mm_data = hmm
 
         self.news_data = newsm
         self.news_mm_data = newsmm
 
         self.psi4_data = psi4m
+        self.full_psi4_data = psi4
         self.psi4_mm_data = psi4mm
     def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False):
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
@@ -801,23 +806,27 @@ class BOB:
         self.m = m
         self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),0)
         self.Omega_QNM = self.w_r/np.abs(self.m)
+        
+        h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
+        hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
+        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
 
-        h = gen_utils.get_kuibit_lm(abd.h,self.l,self.m).fixed_timestep_resampled(self.resample_dt)
-        hmm = gen_utils.get_kuibit_lm(abd.h,self.l,-self.m).fixed_timestep_resampled(self.resample_dt)
+        psi4 = abd.psi4.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
+        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
+        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)
 
-        psi4 = gen_utils.get_kuibit_lm_psi4(abd.psi4,self.l,self.m).fixed_timestep_resampled(self.resample_dt)
-        psi4mm = gen_utils.get_kuibit_lm_psi4(abd.psi4,self.l,-self.m).fixed_timestep_resampled(self.resample_dt)
-
-        news = h.differentiated(1)
+        newsm = hm.differentiated(1)
         newsmm = hmm.differentiated(1)
 
-        self.strain_tp = h.time_at_maximum()
-        self.news_tp = news.time_at_maximum()
-        self.psi4_tp = psi4.time_at_maximum()
+        self.strain_tp = hm.time_at_maximum()
+        self.news_tp = newsm.time_at_maximum()
+        self.psi4_tp = psi4m.time_at_maximum()
 
-        self.strain_data = h
-        self.news_data = news
-        self.psi4_data = psi4
+        self.full_strain_data = h
+        self.full_psi4_data = psi4
+        self.strain_data = hm
+        self.news_data = newsm
+        self.psi4_data = psi4m
         self.strain_mm_data = hmm
         self.news_mm_data = newsmm
         self.psi4_mm_data = psi4mm
@@ -845,12 +854,39 @@ class BOB:
         self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),0)
         for key, value in kwargs.items():
             setattr(self, key, value)
-    def get_psi4_data(self):
-        return self.psi4_data.t,self.psi4_data.y
-    def get_news_data(self):
-        return self.news_data.t,self.news_data.y
-    def get_strain_data(self):
-        return self.strain_data.t,self.strain_data.y
+    def get_psi4_data(self,**kwargs):
+        if('l' in kwargs):
+            l = kwargs['l']
+        else:
+            l = self.l
+        if('m' in kwargs):
+            m = kwargs['m']
+        else:
+            m = self.m
+        temp_ts = gen_utils.get_kuibit_lm_psi4(self.full_psi4_data,l,m)
+        return temp_ts.t,temp_ts.y
+    def get_news_data(self,**kwargs):
+        if('l' in kwargs):
+            l = kwargs['l']
+        else:
+            l = self.l
+        if('m' in kwargs):
+            m = kwargs['m']
+        else:
+            m = self.m
+        temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m).differentiated(1)
+        return temp_ts.t,temp_ts.y
+    def get_strain_data(self,**kwargs):
+        if('l' in kwargs):
+            l = kwargs['l']
+        else:
+            l = self.l
+        if('m' in kwargs):
+            m = kwargs['m']
+        else:
+            m = self.m
+        temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m)
+        return temp_ts.t,temp_ts.y
 def test_phase_freq_t0_inf():
 
     #numerically differentiate the phase to make sure it matches our frequency
