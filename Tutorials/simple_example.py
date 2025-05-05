@@ -6,7 +6,7 @@ import BOB_utils
 
 BOB = BOB_utils.BOB()
 BOB.initialize_with_sxs_data("SXS:BBH:2325") #equal mass and non spinning case
-BOB.what_should_BOB_create = "news" #options are psi4, news, strain, strain_using_psi4, strain_using_news
+BOB.what_should_BOB_create = "news" #options are psi4, news, strain, strain_using_psi4, strain_using_news or news_using_psi4
 t,y = BOB.construct_BOB() #By default this will take t0=-infinity, Omega_0 = Omega_ISCO and perform a phase alignment at t_peak + 10M 
 NR_news_t, NR_news_y = BOB.get_news_data()
 
