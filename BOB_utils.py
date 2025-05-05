@@ -403,8 +403,7 @@ class BOB:
             delta_t = self.t[amp_peak_index] - news_time_peak
             self.t = self.t - delta_t
         else:
-            raise ValueError("Realign amplitude not implemented for this case... You should probably raise an issue on the github if you see this error")
-        
+            raise ValueError("Realign amplitude not implemented for this case... You should probably raise an issue on the github if you see this error")      
     def construct_BOB_finite_t0(self):
         #Perform parameter sanity checks
         if(self.optimize_Omega0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
@@ -738,7 +737,7 @@ class BOB:
         
 
         # return new_ts,mass_wave
-    def construct_BOB(self):
+    def construct_BOB(self,print_mismatch=False,mismatch_time = [0,100]):
         if(self.minf_t0):
             BOB_ts = self.construct_BOB_minf_t0()
         else:
@@ -746,6 +745,14 @@ class BOB:
         
         self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
 
+        if(print_mismatch):
+            if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
+                mismatch = gen_utils.mismatch(BOB_ts,self.strain_data.resampled(BOB_ts.t),mismatch_time[0],mismatch_time[1])
+            elif(self.__what_to_create=="news_using_psi4"):
+                mismatch = gen_utils.mismatch(BOB_ts,self.news_data.resampled(BOB_ts.t),mismatch_time[0],mismatch_time[1])
+            else:
+                mismatch = gen_utils.mismatch(BOB_ts,self.NR_based_on_BOB_ts,mismatch_time[0],mismatch_time[1])
+            print("Mismatch = ",mismatch)
         return BOB_ts.t,BOB_ts.y
     def initialize_with_sxs_data(self,sxs_id,l=2,m=2): 
         print("loading SXS data")

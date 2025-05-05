@@ -60,7 +60,7 @@ def get_qnm(chif,Mf,l,m,n=0):
     imag_qnm = np.abs(omega_qnm.imag)
     tau = 1./imag_qnm
     return w_r,tau
-def mismatch(BOB_data,NR_data,t0,tf):
+def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     #I am writing my own mismatch code here to minimize package dependencies, because apparently every gravitational wave package depends on the qnm package downstream
     #And when the qnm package changes, it breaks everything upstream
 
@@ -69,7 +69,10 @@ def mismatch(BOB_data,NR_data,t0,tf):
     
     #first we need to ensure the two time arrays are identical
     if (not(np.array_equal(BOB_data.t,NR_data.t))):
-        raise ValueError("Time arrays must be identical")
+        if(resample_NR_to_BOB):
+            NR_data = NR_data.resampled(BOB_data.t)
+        else:
+            raise ValueError("Time arrays must be identical or set resample_NR_to_BOB to True")
     
     peak_time = NR_data.time_at_maximum()
     
