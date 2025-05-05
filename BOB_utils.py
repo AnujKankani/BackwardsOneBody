@@ -40,6 +40,8 @@ class BOB:
         self.NR_based_on_BOB_ts = None
         self.start_fit_before_tpeak = 0
         self.end_fit_after_tpeak = self.end_after_tpeak
+        self.perform_final_time_alignment=True
+        self.perform_final_amplitude_rescaling=True
     @property
     def what_should_BOB_create(self):
         return self.what_is_BOB_building
@@ -435,13 +437,17 @@ class BOB:
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
-            amp = self.rescale_amplitude(amp)
-            self.realign_amplitude(amp)
+            if(self.perform_final_amplitude_rescaling):
+                amp = self.rescale_amplitude(amp)
+            if(self.perform_final_time_alignment):      
+                self.realign_amplitude(amp)
         if(self.__what_to_create=="strain_using_psi4"):
             amp = amp/((np.abs(self.m)*Omega)**2)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
-            amp = self.rescale_amplitude(amp)
-            self.realign_amplitude(amp)
+            if(self.perform_final_amplitude_rescaling):
+                amp = self.rescale_amplitude(amp)
+            if(self.perform_final_time_alignment):
+                self.realign_amplitude(amp)
         
         if(self.perform_phase_alignment):
             if("using" in self.__what_to_create and self.optimize_Phi0):
@@ -528,13 +534,17 @@ class BOB:
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
-            amp = self.rescale_amplitude(amp)
-            self.realign_amplitude(amp)
+            if(self.perform_final_amplitude_rescaling):
+                amp = self.rescale_amplitude(amp)
+            if(self.perform_final_time_alignment):
+                self.realign_amplitude(amp)
         if(self.__what_to_create=="strain_using_psi4"):
             amp = amp/((np.abs(self.m)*Omega)**2)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
-            amp = self.rescale_amplitude(amp)
-            self.realign_amplitude(amp)
+            if(self.perform_final_amplitude_rescaling):
+                amp = self.rescale_amplitude(amp)
+            if(self.perform_final_time_alignment):
+                self.realign_amplitude(amp)
 
         if(self.perform_phase_alignment):
             if("using" in self.__what_to_create and self.optimize_Phi0):
