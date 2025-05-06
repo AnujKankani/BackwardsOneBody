@@ -383,10 +383,12 @@ class BOB:
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
             strain_amp_max = self.strain_data.abs_max()
             rescale_factor = strain_amp_max/np.max(amp)
+            print("rescale factor is ",rescale_factor)
             amp = amp*rescale_factor
         elif(self.__what_to_create=="news_using_psi4"):
             news_amp_max = self.news_data.abs_max()
             rescale_factor = news_amp_max/np.max(amp)
+            print("rescale factor is ",rescale_factor)
             amp = amp*rescale_factor
         else:
             raise ValueError("Rescale amplitude not implemented for this case... You should probably raise an issue on the github if you see this error")
@@ -813,7 +815,11 @@ class BOB:
         if(perform_superrest_transformation):
             print("performing superrest transformation")
             print("this may take ~20 minutes the first time")
-            abd = qnmfits.utils.to_superrest_frame(abd, t0=300)
+            # We can extract individual spherical-harmonic modes like this:
+            h = abd.h
+            h22 = h.data[:,h.index(2,2)]
+            tp = h.t[np.argmax(np.abs(h22))]
+            abd = qnmfits.utils.to_superrest_frame(abd, t0 = tp - 300)
 
         self.mf = abd.bondi_rest_mass()[-1]
         self.chif = np.linalg.norm(abd.bondi_dimensionless_spin()[-1])
@@ -823,7 +829,8 @@ class BOB:
         self.m = m
         self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),0)
         self.Omega_QNM = self.w_r/np.abs(self.m)
-        
+
+
         h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
         hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
         hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
