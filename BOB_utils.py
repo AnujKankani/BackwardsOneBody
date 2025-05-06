@@ -818,8 +818,8 @@ class BOB:
             # We can extract individual spherical-harmonic modes like this:
             h = abd.h
             h22 = h.data[:,h.index(2,2)]
-            tp = h.t[np.argmax(np.abs(h22))]
-            abd = qnmfits.utils.to_superrest_frame(abd, t0 = tp - 300)
+            h.t -= h.t[np.argmax(np.abs(h22))]
+            abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
 
         self.mf = abd.bondi_rest_mass()[-1]
         self.chif = np.linalg.norm(abd.bondi_dimensionless_spin()[-1])
