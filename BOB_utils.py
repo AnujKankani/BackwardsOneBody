@@ -1,8 +1,7 @@
+# pyright: reportUnreachable=false
 #construct all BOB related quantities here
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import cumulative_trapezoid
-from scipy.special import expi as Ei
 from scipy.optimize import least_squares, curve_fit
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
@@ -13,7 +12,6 @@ import BOB_terms
 class BOB:
     def __init__(self):
         qnm.download_data()
-
         #some default values
         self.minf_t0 = True
         self.start_before_tpeak = -50
@@ -45,28 +43,69 @@ class BOB:
         self.perform_final_amplitude_rescaling=True
     @property
     def what_should_BOB_create(self):
-        return self.what_is_BOB_building
+        return self.__what_to_create
     @what_should_BOB_create.setter
     def what_should_BOB_create(self,value):
         val = value.lower()
         if(val=="psi4" or val=="p4" or val=="strain_using_psi4" or val=="news_using_psi4"):
-            self.what_is_BOB_building = "psi4"
+            self.__what_to_create = "psi4"
             self.data = self.psi4_data
             self.Ap = self.psi4_data.abs_max()
             self.tp = self.psi4_data.time_at_maximum()
         elif(val=="news" or val=="n" or val=="strain_using_news"):
-            self.what_is_BOB_building = "news"
+            self.__what_to_create = "news"
             self.data = self.news_data
             self.Ap = self.news_data.abs_max()
             self.tp = self.news_data.time_at_maximum()
         elif(val=="strain" or val=="h"):
-            self.what_is_BOB_building = "strain"
+            self.__what_to_create = "strain"
             self.data = self.strain_data
             self.Ap = self.strain_data.abs_max()
             self.tp = self.strain_data.time_at_maximum()
+        elif(val=="mass_quadrupole" or val=="mass_wave" or val=="current_quadrupole" or val=="current_wave" or val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain" or val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news" or val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
+            NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("strain")
+            self.mass_quadrupole_data = NR_mass
+            self.current_quadrupole_data = NR_current
+            if('mass' in val):
+                self.__what_to_create = "mass_quadrupole_with_strain"
+                self.data = self.mass_quadrupole_data
+                self.Ap = self.mass_quadrupole_data.abs_max()
+                self.tp = self.mass_quadrupole_data.time_at_maximum()
+            else:
+                self.__what_to_create = "current_quadrupole_with_strain"
+                self.data = self.current_quadrupole_data
+                self.Ap = self.current_quadrupole_data.abs_max()
+                self.tp = self.current_quadrupole_data.time_at_maximum()      
+        elif(val=="mass_quadrupole_with_news" or val=="mass_wave_with_news" or val=="current_quadrupole_with_news" or val=="current_wave_with_news"):
+            NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("news")
+            self.mass_quadrupole_data = NR_mass
+            self.current_quadrupole_data = NR_current
+            if('mass' in val):
+                self.__what_to_create = "mass_quadrupole_with_news"
+                self.data = self.mass_quadrupole_data
+                self.Ap = self.mass_quadrupole_data.abs_max()
+                self.tp = self.mass_quadrupole_data.time_at_maximum()
+            else:
+                self.__what_to_create = "current_quadrupole_with_news"
+                self.data = self.current_quadrupole_data
+                self.Ap = self.current_quadrupole_data.abs_max()
+                self.tp = self.current_quadrupole_data.time_at_maximum()      
+        elif(val=="mass_quadrupole_with_psi4" or val=="mass_wave_with_psi4" or val=="current_quadrupole_with_psi4" or val=="current_wave_with_psi4"):
+            NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("psi4")
+            self.mass_quadrupole_data = NR_mass
+            self.current_quadrupole_data = NR_current
+            if('mass' in val):
+                self.__what_to_create = "mass_quadrupole_with_psi4"
+                self.data = self.mass_quadrupole_data
+                self.Ap = self.mass_quadrupole_data.abs_max()
+                self.tp = self.mass_quadrupole_data.time_at_maximum()
+            else:
+                self.__what_to_create = "current_quadrupole_with_psi4"
+                self.data = self.current_quadrupole_data
+                self.Ap = self.current_quadrupole_data.abs_max()
+                self.tp = self.current_quadrupole_data.time_at_maximum()      
         else:
-            raise ValueError("Invalid choice for what to create. Valid choices are 'psi4', 'news', 'strain', 'strain_using_psi4', or 'strain_using_news'.")
-        self.__what_to_create = value
+            raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
         self.t = np.linspace(self.start_before_tpeak+self.tp,self.end_after_tpeak+self.tp,10*(int((self.end_after_tpeak-self.start_before_tpeak))+1))
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
@@ -102,24 +141,27 @@ class BOB:
         import ascii_funcs
         #ascii_funcs.welcome_to_BOB()
         ascii_funcs.print_sean_face()
+    def valid_choices(self):
+        print("valid choices for what_should_BOB_create are: ")
+        print(" psi4\n news\n strain\n strain_using_psi4\n strain_using_news\n news_using_psi4\n mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
     def fit_omega(self,x,Omega_0):
         self.Omega_0 = Omega_0
-        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
+        if('psi4' in self.__what_to_create):
             Omega = BOB_terms.BOB_psi4_freq(self)
-        if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
+        if('news' in self.__what_to_create):
             Omega = BOB_terms.BOB_news_freq(self)
-        if(self.__what_to_create=="strain"):
+        if('strain' in self.__what_to_create):
             Omega = BOB_terms.BOB_strain_freq(self)
     
         return Omega
     def fit_omega_and_phase(self,x,Omega_0,Phi_0):
         self.Phi_0 = Phi_0
         self.Omega_0 = Omega_0
-        if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
+        if('psi4' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_psi4_phase(self)
-        if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
+        if('news' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_news_phase(self)
-        if(self.__what_to_create=="strain"):
+        if('strain' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_strain_phase(self)
     
         return Phi   
@@ -171,11 +213,11 @@ class BOB:
         phase_ts = phase_ts.resampled(temp_ts)
         phase_ts.y = phase_ts.y/np.abs(self.m)
 
-        if(self.__what_to_create=="psi4"):
+        if('psi4' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_psi4_phase(self)
-        if(self.__what_to_create=="news"):
+        if('news' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_news_phase(self)
-        if(self.__what_to_create=="strain"):
+        if('strain' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_strain_phase(self)
 
         Phi = kuibit_ts(self.t,Phi).resampled(temp_ts)
@@ -276,17 +318,17 @@ class BOB:
             self.perform_phase_alignment = False
         
         phase = None
-        if(self.__what_to_create=="strain"):
+        if('strain' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_strain_phase_finite_t0(self)
             phase = np.abs(self.m)*Phi
-        elif(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
+        elif('news' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_news_phase_finite_t0_numerically(self)
             phase = np.abs(self.m)*Phi
-        elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
+        elif('psi4' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_psi4_phase_finite_t0(self)
             phase = np.abs(self.m)*Phi
         else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Use get_valid_choices() to get a list of valid choices.")
 
         
 
@@ -324,11 +366,11 @@ class BOB:
                     self.Phi_0 = np.mean(phase_news.y - temp_phase.y)/np.abs(self.m)
                     phase = phase + self.Phi_0*np.abs(self.m)
                 else:
-                    raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")    
+                    raise ValueError("Invalid option for BOB.what_should_BOB_create. Use get_valid_choices() to get a list of valid choices.")    
             else:
                 phase = self.phase_alignment(phase)
 
-        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*phase))
+        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
 
         self.perform_phase_alignment = old_perform_phase_alignment
         self.optimize_Phi0 = old_optimize_Phi0
@@ -373,17 +415,17 @@ class BOB:
             pass
         #Again, the fitting process already defines Omega and Phi, but I'm just recalculating them here for simplicity
         phase = None
-        if(self.__what_to_create=="strain"):
+        if('strain' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_strain_phase(self)
             phase = np.abs(self.m)*Phi
-        elif(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
+        elif('news' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_news_phase(self)
             phase = np.abs(self.m)*Phi
-        elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
+        elif('psi4' in self.__what_to_create):
             Phi,Omega = BOB_terms.BOB_psi4_phase(self)
             phase = np.abs(self.m)*Phi
         else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Use get_valid_choices() to get a list of valid choices.")
         
         
 
@@ -421,11 +463,11 @@ class BOB:
                     self.Phi_0 = np.mean(phase_news.y - temp_phase.y)/np.abs(self.m)
                     phase = phase + self.Phi_0*np.abs(self.m)
                 else:
-                    raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")    
+                    raise ValueError("Invalid option for BOB.what_should_BOB_create. Use get_valid_choices() to get a list of valid choices.")    
             else:
                 phase = self.phase_alignment(phase)
 
-        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*phase))
+        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
         #restore old settings
         self.perform_phase_alignment = old_perform_phase_alignment
         self.optimize_Phi0 = old_optimize_Phi0
@@ -435,175 +477,313 @@ class BOB:
         self.Phi_0 = 0
         self.Omega_0 = self.Omega_ISCO
         return BOB_ts
-    def construct_BOB_current_quadrupole(self):
-        pass
-    def construct_BOB_mass_quadrupole(self,perform_phase_alignment_first = False):
-        pass
-        # #Comstruct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  
-        # #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
-
-        # #perform_phase_alignment_first tells us whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
-
-        # #Parameter check
-        # if(perform_phase_alignment_first is False):
-        #     if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
-        #         raise ValueError("Cannot perform phase alignment on the final mass wave and optimize Omega0 and Phi0 at the same time.\n \
-        #         If you want to optimize Omega0 for the (l,+/-m) modes and do a phase alignment on the final mass wave \n\
-        #         set optimize_Omega0 = True and optimize_Phi0 = True.")
+    def construct_NR_mass_and_current_quadrupole(self,what_to_create):
+        #construct the mass and current quadrupole waves from the NR data
+        if(what_to_create=="psi4"):
+            NR_lm = self.psi4_data
+            NR_lmm = self.psi4_mm_data
+        elif(what_to_create=="news"):
+            NR_lm = self.news_data
+            NR_lmm = self.news_mm_data
+        elif(what_to_create=="strain"):
+            NR_lm = self.strain_data
+            NR_lmm = self.strain_mm_data
+        else:
+            raise ValueError("Invalid option for what_to_create in construct_NR_mass_and_current_quadrupole. If you see this error, please raise a issue on the github.")
         
-        # #save current settings if we want to perform phase_alignment on the final mass wave
-        # #This and the parameter check above will disable all phase alignment options when constructing the (l,+/-m) modes
-        # if(perform_phase_alignment_first is False):
-        #     old_perform_phase_alignment = self.perform_phase_alignment
-        #     self.perform_phase_alignment = False
+        NR_current = NR_lm.y - (-1)**np.abs(self.m)*np.conj(NR_lmm.y)
+        NR_current = 1j/np.sqrt(2)*NR_current
+        NR_current = kuibit_ts(NR_lm.t,NR_current)
 
-        #     old_optimize_Phi0 = self.optimize_Phi0
-        #     self.optimize_Phi0 = False
+        NR_mass = NR_lm.y + (-1)**np.abs(self.m)*np.conj(NR_lmm.y)
+        NR_mass = NR_mass/np.sqrt(2)
+        NR_mass = kuibit_ts(NR_lm.t,NR_mass)
+
+        return NR_current,NR_mass
+    def construct_BOB_current_quadrupole_naturally(self,perform_phase_alignment_first = False):
+        #Comstruct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
+        #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
+
+        #perform_phase_alignment_first tells us whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
+
+        #Parameter check
+        if(perform_phase_alignment_first is False):
+            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
+                raise ValueError("Cannot perform phase alignment on the final mass wave and optimize Omega0 and Phi0 at the same time.\n \
+                If you want to optimize Omega0 for the (l,+/-m) modes and do a phase alignment on the final mass wave \n\
+                set optimize_Omega0 = True and optimize_Phi0 = True.")
         
-        # #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
-        # #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
+        #save current settings if we want to perform phase_alignment on the final mass wave
+        #This and the parameter check above will disable all phase alignment options when constructing the (l,+/-m) modes
+        if(perform_phase_alignment_first is False):
+            old_perform_phase_alignment = self.perform_phase_alignment
+            self.perform_phase_alignment = False
 
-        # t_lm,y_lm = self.construct_BOB()
-        # old_ts = self.t
-        # NR_lm = self.data.y
-
-        # plt.plot(t_lm,y_lm,label='BOB')
-        # plt.plot(self.data.t,NR_lm,label='NR')
-        # plt.title('l,m')
-        # plt.legend()
-        # plt.show()
-
-
-        # #the (l,-m) mode should have its own Ap and tp
-        # #so we manually set this up here
-        # old_m = self.m
-        # self.m = -self.m
-        # if(self.__what_to_create=="psi4"):
-        #     self.data = self.psi4_mm_data
-        #     self.Ap = self.psi4_mm_data.abs_max()
-        #     self.tp = self.psi4_mm_data.time_at_maximum()
-        # elif(self.__what_to_create=="news"):
-        #     self.data = self.news_mm_data
-        #     self.Ap = self.news_mm_data.abs_max()
-        #     self.tp = self.news_mm_data.time_at_maximum()
-        # elif(self.__what_to_create=="strain"):
-        #     self.data = self.strain_mm_data
-        #     self.Ap = self.strain_mm_data.abs_max()
-        #     self.tp = self.strain_mm_data.time_at_maximum()
-        # else:
-        #     raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
-
-        # #TODO: Do i need to change the QNMs for the (l,-m) mode or do I keep the (l,m) QNMs?
-
-        # #self.w_r, self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,-self.m,0)
-        # #self.Omega_QNM = self.w_r/self.m #we keep Omega_QNM positive
-        # self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
-        # self.t_tp_tau = (self.t - self.tp)/self.tau
+            old_optimize_Phi0 = self.optimize_Phi0
+            self.optimize_Phi0 = False
         
-        # t_lmm,y_lmm = self.construct_BOB()
-        # if(t_lm[0]>t_lmm[0]):
-        #     #lmm starts before lm so we want to start with lm and end with lmm
-        #     union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
-        # else:
-        #     #lm starts before lmm so we want to start with lmm and end with lm
-        #     union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+        #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
+        #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
 
-        # #resample the BOB timeseries to the common timeseries
-        # self.t = union_ts
-        # temp_ts = kuibit_ts(t_lm,y_lm).resampled(union_ts)
-        # y_lm = temp_ts.y
-        # t_lm = temp_ts.t
+        t_lm,y_lm = self.construct_BOB()
+        NR_lm = self.data.y
 
-        # temp_ts = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
-        # y_lmm = temp_ts.y
-        # t_lmm = temp_ts.t
+        #save settings to restore at the end
+        old_ts = self.t
+        old_m = self.m
+        old_perform_phase_alignment = self.perform_phase_alignment
+        old_optimize_Phi0 = self.optimize_Phi0
         
+        #construct (l,-m) mode
+        self.m = -self.m
+        if(self.__what_to_create=="psi4"):
+            self.data = self.psi4_mm_data
+            self.Ap = self.psi4_mm_data.abs_max()
+            self.tp = self.psi4_mm_data.time_at_maximum()
+        elif(self.__what_to_create=="news"):
+            self.data = self.news_mm_data
+            self.Ap = self.news_mm_data.abs_max()
+            self.tp = self.news_mm_data.time_at_maximum()
+        elif(self.__what_to_create=="strain"):
+            self.data = self.strain_mm_data
+            self.Ap = self.strain_mm_data.abs_max()
+            self.tp = self.strain_mm_data.time_at_maximum()
+        else:
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+
+        self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
+        self.t_tp_tau = (self.t - self.tp)/self.tau
         
+        t_lmm,y_lmm = self.construct_BOB()
+        #create a common timeseries for both modes
+        if(t_lm[0]>t_lmm[0]): 
+            #lmm starts before lm so we want to start with lm and end with lmm
+            union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+        else:
+            #lm starts before lmm so we want to start with lmm and end with lm
+            union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
 
-        # NR_lmm = self.data.y
-        # phase_lmm = gen_utils.get_phase(kuibit_ts(t_lmm,y_lmm))
-        # phase_NR_lmm = gen_utils.get_phase(kuibit_ts(self.data.t,NR_lmm).resampled(t_lmm))
-        # plt.plot(t_lmm,phase_lmm,label='BOB')
-        # plt.plot(t_lmm,phase_NR_lmm,label='NR')
-        # plt.title('(l,-m) phase after all construction and phase alignment')
-        # plt.legend()
-        # plt.show()
-
-        # plt.plot(t_lmm,y_lmm,label='BOB')
-        # plt.plot(self.data.t,NR_lmm,label='NR')
-        # plt.legend()
-        # plt.show()
-
+        #resample the BOB timeseries to the common timeseries
+        self.t = union_ts
+        BOB_lm = kuibit_ts(t_lm,y_lm).resampled(union_ts)
+        BOB_lmm = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
         
-        # mass_wave = y_lm + (-1)**np.abs(self.m) * np.conj(y_lmm)
-        # mass_wave = mass_wave/np.sqrt(2)
+        NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
+        NR_lmm = self.data.resampled(union_ts)
 
+        current_wave = BOB_lm.y - (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
+        current_wave = 1j*current_wave/np.sqrt(2)
 
-        # NR_mass = NR_lm + (-1)**np.abs(self.m) * np.conj(NR_lmm)
-        # NR_mass = NR_mass/np.sqrt(2)
-        # self.mass_wave_data = kuibit_ts(self.data.t,NR_mass)
+        NR_current = NR_lm.y - (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
+        NR_current = 1j*NR_current/np.sqrt(2)
 
-        # #restore the old settings and use the user choices to perform the appropriate phase alignment on the mass wave
-        # #Note we purposely don't allow phase alignments on the (l,+/-m) modes and the mass wave since that is using NR data twice for what is one free parameter
-        # if(perform_phase_alignment_first is False):
-        #     self.perform_phase_alignment = old_perform_phase_alignment
-        #     self.optimize_Phi0 = old_optimize_Phi0
+        self.current_quadrupole_data = kuibit_ts(union_ts,NR_current)
 
-        # temp_ts = kuibit_ts(self.t,mass_wave)
-        # t_peak = temp_ts.time_at_maximum()
-        # mass_phase = gen_utils.get_phase(temp_ts)
-        # NR_phase = gen_utils.get_phase(kuibit_ts(self.data.t,NR_mass))
+        #restore the old settings and use the user choices to perform the appropriate phase alignment on the mass wave
+        #Note we purposely don't allow phase alignments on the (l,+/-m) modes and the mass wave since that is using NR data twice for what is one free parameter
+        if(perform_phase_alignment_first is False):
+            self.perform_phase_alignment = old_perform_phase_alignment
+            self.optimize_Phi0 = old_optimize_Phi0
+
+        temp_ts = kuibit_ts(union_ts,current_wave)
+        t_peak = temp_ts.time_at_maximum()
+        BOB_phase = gen_utils.get_phase(temp_ts)
+        NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_current))
 
         
-        # if(self.perform_phase_alignment):
-        #     if(self.optimize_Phi0):
-        #         #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
-        #         #the peak time is chosen to be the peak time of the mass wave
-        #         temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
-        #         temp_NR_phase = NR_phase.resampled(temp_ts)
-        #         temp_mass_phase = mass_phase.resampled(temp_ts)
+        if(self.perform_phase_alignment):
+            if(self.optimize_Phi0):
+                #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
+                #the peak time is chosen to be the peak time of the mass wave
+                temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
+                temp_NR_phase = NR_phase.resampled(temp_ts)
+                temp_BOB_phase = BOB_phase.resampled(temp_ts)
                 
-        #         #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
-        #         self.Phi_0 = np.mean(temp_NR_phase.y - temp_mass_phase.y)
+                #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
+                self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
+                BOB_phase.y = BOB_phase.y + self.Phi_0
+                BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
                 
-        #     else:
-        #         mass_phase = kuibit_ts(self.t,self.phase_alignment(mass_phase.y))
+            else:
+                #temporary work around
+                self.Phi_0 = 0
+                old_data = self.data
+                self.data = self.current_wave_data
+                phase = self.phase_alignment(BOB_phase.y)
+                self.data = old_data
+                BOB_phase.y = phase
+                BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
             
-        #     mass_phase.y = mass_phase.y + self.Phi_0
-        #     mass_wave = np.abs(mass_wave)*np.exp(-1j*mass_phase.y)
-        # #restore (l,m) and (l,-m) as automatic data
-        # if(self.__what_to_create=="psi4"):
-        #     self.data = self.psi4_data
-        #     self.Ap = self.psi4_data.abs_max()
-        #     self.tp = self.psi4_data.time_at_maximum()
-        # elif(self.__what_to_create=="news"):
-        #     self.data = self.news_data
-        #     self.Ap = self.news_data.abs_max()
-        #     self.tp = self.news_data.time_at_maximum()
-        # elif(self.__what_to_create=="strain"):
-        #     self.data = self.strain_data
-        #     self.Ap = self.strain_data.abs_max()
-        #     self.tp = self.strain_data.time_at_maximum()
-        # else:
-        #     raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
-        
-        # new_ts = self.t
-        # #revert back to the timeseries for the (l,m) mode
-        # self.t = old_ts
-        # self.m = old_m
+        else:
+            BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
 
-        # #plot final phases
-        # phase_BOB = gen_utils.get_phase(kuibit_ts(new_ts,mass_wave))
-        # phase_NR = gen_utils.get_phase(kuibit_ts(self.data.t,self.mass_wave_data.y))
-        
-        # plt.plot(phase_BOB.t,phase_BOB.y,label='BOB')
-        # plt.plot(phase_NR.t,phase_NR.y,label='NR')
-        # plt.title('Phase')
-        # plt.legend()
-        # plt.show()
+        #restore (l,m) and (l,-m) as automatic data
+        if(self.__what_to_create=="psi4"):
+            self.data = self.psi4_data
+            self.Ap = self.psi4_data.abs_max()
+            self.tp = self.psi4_data.time_at_maximum()
+        elif(self.__what_to_create=="news"):
+            self.data = self.news_data
+            self.Ap = self.news_data.abs_max()
+            self.tp = self.news_data.time_at_maximum()
+        elif(self.__what_to_create=="strain"):
+            self.data = self.strain_data
+            self.Ap = self.strain_data.abs_max()
+            self.tp = self.strain_data.time_at_maximum()
+        else:
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+        #revert back to the timeseries for the (l,m) mode
+        self.t = old_ts
+        self.m = old_m
+        self.t_tp_tau = (self.t - self.tp)/self.tau
+        self.perform_phase_alignment = old_perform_phase_alignment
+        self.optimize_Phi0 = old_optimize_Phi0
+        self.Phi_0 = 0
         
 
-        # return new_ts,mass_wave
+        return union_ts,BOB_current_wave
+    def construct_BOB_mass_quadrupole_naturally(self,perform_phase_alignment_first = False):
+        #Comstruct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
+        #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
+
+        #perform_phase_alignment_first tells us whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
+
+        #Parameter check
+        if(perform_phase_alignment_first is False):
+            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
+                raise ValueError("Cannot perform phase alignment on the final mass wave and optimize Omega0 and Phi0 at the same time.\n \
+                If you want to optimize Omega0 for the (l,+/-m) modes and do a phase alignment on the final mass wave \n\
+                set optimize_Omega0 = True and optimize_Phi0 = True.")
+        
+        #save current settings if we want to perform phase_alignment on the final mass wave
+        #This and the parameter check above will disable all phase alignment options when constructing the (l,+/-m) modes
+        if(perform_phase_alignment_first is False):
+            old_perform_phase_alignment = self.perform_phase_alignment
+            self.perform_phase_alignment = False
+
+            old_optimize_Phi0 = self.optimize_Phi0
+            self.optimize_Phi0 = False
+        
+        #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
+        #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
+
+        t_lm,y_lm = self.construct_BOB()
+        NR_lm = self.data.y
+
+        #save settings to restore at the end
+        old_ts = self.t
+        old_m = self.m
+        old_perform_phase_alignment = self.perform_phase_alignment
+        old_optimize_Phi0 = self.optimize_Phi0
+        
+        #construct (l,-m) mode
+        self.m = -self.m
+        if(self.__what_to_create=="psi4"):
+            self.data = self.psi4_mm_data
+            self.Ap = self.psi4_mm_data.abs_max()
+            self.tp = self.psi4_mm_data.time_at_maximum()
+        elif(self.__what_to_create=="news"):
+            self.data = self.news_mm_data
+            self.Ap = self.news_mm_data.abs_max()
+            self.tp = self.news_mm_data.time_at_maximum()
+        elif(self.__what_to_create=="strain"):
+            self.data = self.strain_mm_data
+            self.Ap = self.strain_mm_data.abs_max()
+            self.tp = self.strain_mm_data.time_at_maximum()
+        else:
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+
+        self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
+        self.t_tp_tau = (self.t - self.tp)/self.tau
+        
+        t_lmm,y_lmm = self.construct_BOB()
+        #create a common timeseries for both modes
+        if(t_lm[0]>t_lmm[0]): 
+            #lmm starts before lm so we want to start with lm and end with lmm
+            union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+        else:
+            #lm starts before lmm so we want to start with lmm and end with lm
+            union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+
+        #resample the BOB timeseries to the common timeseries
+        self.t = union_ts
+        BOB_lm = kuibit_ts(t_lm,y_lm).resampled(union_ts)
+        BOB_lmm = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
+        
+        NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
+        NR_lmm = self.data.resampled(union_ts)
+
+        mass_wave = BOB_lm.y + (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
+        mass_wave = mass_wave/np.sqrt(2)
+
+        NR_mass = NR_lm.y + (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
+        NR_mass = NR_mass/np.sqrt(2)
+
+        self.mass_quadrupole_data = kuibit_ts(union_ts,NR_mass)
+
+        #restore the old settings and use the user choices to perform the appropriate phase alignment on the mass wave
+        #Note we purposely don't allow phase alignments on the (l,+/-m) modes and the mass wave since that is using NR data twice for what is one free parameter
+        if(perform_phase_alignment_first is False):
+            self.perform_phase_alignment = old_perform_phase_alignment
+            self.optimize_Phi0 = old_optimize_Phi0
+
+        temp_ts = kuibit_ts(union_ts,mass_wave)
+        t_peak = temp_ts.time_at_maximum()
+        BOB_phase = gen_utils.get_phase(temp_ts)
+        NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_mass))
+
+        
+        if(self.perform_phase_alignment):
+            if(self.optimize_Phi0):
+                #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
+                #the peak time is chosen to be the peak time of the mass wave
+                temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
+                temp_NR_phase = NR_phase.resampled(temp_ts)
+                temp_BOB_phase = BOB_phase.resampled(temp_ts)
+                
+                #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
+                self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
+                BOB_phase.y = BOB_phase.y + self.Phi_0
+                BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
+                
+            else:
+                #temporary work around
+                self.Phi_0 = 0
+                old_data = self.data
+                self.data = self.mass_wave_data
+                phase = self.phase_alignment(BOB_phase.y)
+                self.data = old_data
+                BOB_phase.y = phase
+                BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
+            
+        else:
+            BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
+
+        #restore (l,m) and (l,-m) as automatic data
+        if(self.__what_to_create=="psi4"):
+            self.data = self.psi4_data
+            self.Ap = self.psi4_data.abs_max()
+            self.tp = self.psi4_data.time_at_maximum()
+        elif(self.__what_to_create=="news"):
+            self.data = self.news_data
+            self.Ap = self.news_data.abs_max()
+            self.tp = self.news_data.time_at_maximum()
+        elif(self.__what_to_create=="strain"):
+            self.data = self.strain_data
+            self.Ap = self.strain_data.abs_max()
+            self.tp = self.strain_data.time_at_maximum()
+        else:
+            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+        #revert back to the timeseries for the (l,m) mode
+        self.t = old_ts
+        self.m = old_m
+        self.t_tp_tau = (self.t - self.tp)/self.tau
+        self.perform_phase_alignment = old_perform_phase_alignment
+        self.optimize_Phi0 = old_optimize_Phi0
+        self.Phi_0 = 0
+        
+
+        return union_ts,BOB_mass_wave
     def construct_BOB(self,print_mismatch=False,mismatch_time = [0,100]):
         if(self.minf_t0):
             BOB_ts = self.construct_BOB_minf_t0()
