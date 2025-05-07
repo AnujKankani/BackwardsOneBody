@@ -62,7 +62,7 @@ class BOB:
             self.data = self.strain_data
             self.Ap = self.strain_data.abs_max()
             self.tp = self.strain_data.time_at_maximum()
-        elif(val=="mass_quadrupole" or val=="mass_wave" or val=="current_quadrupole" or val=="current_wave" or val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain" or val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news" or val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
+        elif(val=="mass_quadrupole" or val=="mass_wave" or val=="current_quadrupole" or val=="current_wave" or val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
             NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
