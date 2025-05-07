@@ -8,6 +8,7 @@ from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
 import gen_utils
 import qnm
+import BOB_terms
 
 class BOB:
     def __init__(self):
@@ -104,22 +105,22 @@ class BOB:
     def fit_omega(self,x,Omega_0):
         self.Omega_0 = Omega_0
         if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
-            Omega = self.BOB_psi4_freq()
+            Omega = BOB_terms.BOB_psi4_freq(self)
         if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
-            Omega = self.BOB_news_freq()
+            Omega = BOB_terms.BOB_news_freq(self)
         if(self.__what_to_create=="strain"):
-            Omega = self.BOB_strain_freq()
+            Omega = BOB_terms.BOB_strain_freq(self)
     
         return Omega
     def fit_omega_and_phase(self,x,Omega_0,Phi_0):
         self.Phi_0 = Phi_0
         self.Omega_0 = Omega_0
         if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
-            Phi,Omega = self.BOB_psi4_phase()
+            Phi,Omega = BOB_terms.BOB_psi4_phase(self)
         if(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
-            Phi,Omega = self.BOB_news_phase()
+            Phi,Omega = BOB_terms.BOB_news_phase(self)
         if(self.__what_to_create=="strain"):
-            Phi,Omega = self.BOB_strain_phase()
+            Phi,Omega = BOB_terms.BOB_strain_phase(self)
     
         return Phi   
     def fit_phase_only_given_phase(self,phase,phi0):
@@ -171,11 +172,11 @@ class BOB:
         phase_ts.y = phase_ts.y/np.abs(self.m)
 
         if(self.__what_to_create=="psi4"):
-            Phi,Omega = self.BOB_psi4_phase()
+            Phi,Omega = BOB_terms.BOB_psi4_phase(self)
         if(self.__what_to_create=="news"):
-            Phi,Omega = self.BOB_news_phase()
+            Phi,Omega = BOB_terms.BOB_news_phase(self)
         if(self.__what_to_create=="strain"):
-            Phi,Omega = self.BOB_strain_phase()
+            Phi,Omega = BOB_terms.BOB_strain_phase(self)
 
         Phi = kuibit_ts(self.t,Phi).resampled(temp_ts)
         
@@ -214,152 +215,6 @@ class BOB:
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_then_Phi0")
         self.fit_Omega0()
         self.fit_Phi0()
-    def BOB_strain_freq_finite_t0(self):
-        Omega_ratio = self.Omega_0/self.Omega_QNM
-        tanh_t_tp_tau_m1 = np.tanh(self.t_tp_tau)-1
-        tanh_t0_tp_tau_m1 = np.tanh(self.t0_tp_tau)-1
-        #frequency 
-        Omega = self.Omega_QNM*(Omega_ratio**(tanh_t_tp_tau_m1/tanh_t0_tp_tau_m1))
-        return Omega
-    def BOB_strain_phase_finite_t0(self):
-        Omega = self.BOB_strain_freq_finite_t0
-        outer = self.Omega_QNM*self.tau/2
-        Omega_ratio = self.Omega_0/self.Omega_QNM
-        tp_t0_tau = -self.t0_tp_tau
-        tanh_tp_t0_tau_p1 = np.tanh(tp_t0_tau)+1
-        tanh_t_tp_tau_p1 = np.tanh(self.t_tp_tau)+1
-        tanh_t_tp_tau_m1 = np.tanh(self.t_tp_tau)-1
-
-        term1 = (Omega_ratio**(2./tanh_tp_t0_tau_p1))
-        term2 = -np.log(Omega_ratio)*tanh_t_tp_tau_p1/tanh_tp_t0_tau_p1
-        term3 = -np.log(Omega_ratio)*tanh_t_tp_tau_m1/tanh_tp_t0_tau_p1
-        inner = term1*Ei(term2) - Ei(term3)
-        result = outer*inner
-        Phi = result + self.Phi_0
-        return Phi,Omega
-    def BOB_news_freq_finite_t0(self):
-        F = (self.Omega_QNM**2 - self.Omega_0**2)/(1-np.tanh(self.t0_tp_tau))
-        Omega2 = self.Omega_QNM**2 + F*(np.tanh(self.t_tp_tau) - 1)
-        if(np.min(Omega2)<0):
-            print("Imaginary Frequency Obtained Due To Bad Omega_0")
-            return np.full_like(F,-1)
-        return np.sqrt(Omega2)
-    def BOB_news_phase_finite_t0(self):
-        #assuumes Omega_q^2<2*F
-        F = (self.Omega_QNM**2 - self.Omega_0**2)/(1-np.tanh(self.t0_tp_tau))
-        if(self.Omega_QNM**2>=2*F):
-            raise ValueError("Bad Omega_0")
-        Omega = self.BOB_news_freq_finite_t0()
-        Omega_minus_q = np.abs(Omega-self.Omega_QNM)
-        Omega_plus_q = np.abs(Omega+self.Omega_QNM)
-
-        outer1 = self.Omega_QNM*self.tau/2
-        inner1 = np.log(Omega_plus_q/Omega_minus_q)
-        term1 = outer1*inner1
-
-        outer2 = (self.Omega_QNM**2 - 2*F)*self.tau/(np.sqrt(2*F-self.Omega_QNM**2))
-        inner2 = np.arctan(Omega/np.sqrt(2*F-self.Omega_QNM**2))
-        term2 = outer2*inner2
-
-        Phi = term1 + term2 + self.Phi_0
-        return Phi,Omega
-    def BOB_news_phase_finite_t0_numerically(self):
-        Omega = self.BOB_news_freq_finite_t0()
-        if(Omega[0] == -1):
-            raise ValueError("BAD OMEGA_0")
-        
-        Phase = cumulative_trapezoid(Omega,self.t,initial=0)
-
-        return Phase+self.Phi_0,Omega
-    def BOB_psi4_freq_finite_t0(self):
-        Omega4_plus , Omega4_minus = (self.Omega_QNM**4 + self.Omega_0**4) , (self.Omega_QNM**4 - self.Omega_0**4)
-        k = Omega4_minus/(1-np.tanh((self.t0_tp_tau)))
-        X = self.Omega_0**4 + k*(np.tanh(self.t_tp_tau) - np.tanh(self.t0_tp_tau))
-        if(np.min(X)<0):
-            print("Imaginary Frequency Obtained Due To Bad Omega_0")
-            return np.full_like(X,-1)
-        Omega = (X)**0.25
-        return Omega
-    def BOB_psi4_phase_finite_t0(self):
-        Omega = self.BOB_psi4_freq_finite_t0()
-        if(Omega[0]==-1):
-            raise ValueError("BAD OMEGA_0")
-        # We use here the alternative definition of arctan
-        # arctanh(x) = 0.5*ln( (1+x)/(1-x) )
-        Omega4_plus , Omega4_minus = (self.Omega_QNM**4 + self.Omega_0**4) , (self.Omega_QNM**4 - self.Omega_0**4)
-        k = Omega4_minus/(1-np.tanh((self.t0_tp_tau)))
-        KappaP = (self.Omega_0**4 + k*(1-np.tanh(self.t0_tp_tau)))**0.25
-        KappaM = (self.Omega_0**4 - k*(1+np.tanh(self.t0_tp_tau)))**0.25
-        arctanhP = KappaP*self.tau*(0.5*np.log(((1+(Omega/KappaP))*(1-(self.Omega_0/KappaP)))/(((1-(Omega/KappaP)))*(1+(self.Omega_0/KappaP)))))
-        arctanhM = KappaM*self.tau*(0.5*np.log(((1+(Omega/KappaM))*(1-(self.Omega_0/KappaM)))/(((1-(Omega/KappaM)))*(1+(self.Omega_0/KappaM)))))
-        arctanP  = KappaP*self.tau*(np.arctan(Omega/KappaP) - np.arctan(self.Omega_0/KappaP))
-        arctanM  = KappaM*self.tau*(np.arctan(Omega/KappaM) - np.arctan(self.Omega_0/KappaM))
-        Phi = arctanhP+arctanP-arctanhM-arctanM
-        return Phi + self.Phi_0, Omega
-    def BOB_strain_freq(self):
-        Omega_ratio = self.Omega_0/self.Omega_QNM
-        tanh_t_tp_tau_m1 = np.tanh(self.t_tp_tau)-1
-        Omega = self.Omega_QNM*(Omega_ratio**(tanh_t_tp_tau_m1/(-2.)))
-        return Omega
-    def BOB_strain_phase(self):
-        Omega = self.BOB_strain_freq()
-        outer = self.tau/2
-        Omega_ratio = self.Omega_QNM/self.Omega_0
-        tanh_t_tp_tau_p1 = np.tanh(self.t_tp_tau)+1
-        tanh_t_tp_tau_m1 = np.tanh(self.t_tp_tau)-1
-
-        term1 = np.log(np.sqrt(Omega_ratio))*tanh_t_tp_tau_p1
-        term2 = np.log(np.sqrt(Omega_ratio))*tanh_t_tp_tau_m1
-        inner  = self.Omega_0*Ei(term1) - self.Omega_QNM*Ei(term2)
-
-        Phi = outer*inner + self.Phi_0
-        return Phi,Omega
-    def BOB_news_freq(self):
-        Omega_minus = self.Omega_QNM**2 - self.Omega_0**2
-        Omega_plus  = self.Omega_QNM**2 + self.Omega_0**2
-        Omega2 = Omega_minus*np.tanh(self.t_tp_tau)/2 + Omega_plus/2
-        return np.sqrt(Omega2)
-    def BOB_news_phase(self):
-        if(self.Omega_0==0):
-            raise ValueError("Omega_0 cannot be zero")            
-        Omega = self.BOB_news_freq()
-        Omega_plus_Q  = Omega + self.Omega_QNM
-        Omega_minus_Q = np.abs(Omega - self.Omega_QNM)
-        Omega_plus_0  = Omega + self.Omega_0
-        Omega_minus_0 = np.abs(Omega - self.Omega_0)
-        outer = self.tau/2
-
-        inner1 = np.log(Omega_plus_Q) - np.log(Omega_minus_Q)
-        inner2 = np.log(Omega_plus_0) - np.log(Omega_minus_0)
-
-        result = outer*(self.Omega_QNM*inner1 - self.Omega_0*inner2)
-
-        Phi = result+self.Phi_0 
-        
-        return Phi,Omega
-    def BOB_psi4_freq(self):
-        Omega4_plus , Omega4_minus = (self.Omega_QNM**4 + self.Omega_0**4) , (self.Omega_QNM**4 - self.Omega_0**4)
-        k = Omega4_minus/(2.)
-        Omega = (self.Omega_0**4 + k*(np.tanh(self.t_tp_tau) + 1))**0.25
-        return Omega
-    def BOB_psi4_phase(self):
-        Omega = self.BOB_psi4_freq()
-        Omega_minus_q0 = self.Omega_QNM - self.Omega_0
-        Omega_plus_q0  = self.Omega_QNM + self.Omega_0
-
-        outer = (np.sqrt(Omega_minus_q0*Omega_plus_q0)*self.tau)/(2*np.sqrt(np.abs(Omega_minus_q0))*np.sqrt(np.abs(Omega_plus_q0)))
-        inner1 = self.Omega_QNM*(np.log(np.abs(Omega+self.Omega_QNM)) - np.log(np.abs(Omega-self.Omega_QNM)))
-        inner2 = -self.Omega_0 * (np.log(np.abs(Omega+self.Omega_0)) - np.log(np.abs(Omega-self.Omega_0)))
-        inner3 = 2*self.Omega_QNM*np.arctan(Omega/self.Omega_QNM)
-        inner4 = -2*self.Omega_0*np.arctan(Omega/self.Omega_0)
-
-        result = outer*(inner1+inner2+inner3+inner4)
-
-        Phi = result + self.Phi_0
-        return Phi,Omega
-    def BOB_amplitude_given_Ap(self):
-        amp = self.Ap/np.cosh(self.t_tp_tau)
-        return amp 
     def BOB_amplitude_given_A0(self,A0):
         pass
         #TODO
@@ -422,20 +277,20 @@ class BOB:
         
         phase = None
         if(self.__what_to_create=="strain"):
-            Phi,Omega = self.BOB_strain_phase_finite_t0()
+            Phi,Omega = BOB_terms.BOB_strain_phase_finite_t0(self)
             phase = np.abs(self.m)*Phi
         elif(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
-            Phi,Omega = self.BOB_news_phase_finite_t0_numerically()
+            Phi,Omega = BOB_terms.BOB_news_phase_finite_t0_numerically(self)
             phase = np.abs(self.m)*Phi
         elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
-            Phi,Omega = self.BOB_psi4_phase_finite_t0()
+            Phi,Omega = BOB_terms.BOB_psi4_phase_finite_t0(self)
             phase = np.abs(self.m)*Phi
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
         
 
-        amp = self.BOB_amplitude_given_Ap()
+        amp = BOB_terms.BOB_amplitude_given_Ap(self)
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
@@ -519,20 +374,20 @@ class BOB:
         #Again, the fitting process already defines Omega and Phi, but I'm just recalculating them here for simplicity
         phase = None
         if(self.__what_to_create=="strain"):
-            Phi,Omega = self.BOB_strain_phase()
+            Phi,Omega = BOB_terms.BOB_strain_phase(self)
             phase = np.abs(self.m)*Phi
         elif(self.__what_to_create=="news" or self.__what_to_create=="strain_using_news"):
-            Phi,Omega = self.BOB_news_phase()
+            Phi,Omega = BOB_terms.BOB_news_phase(self)
             phase = np.abs(self.m)*Phi
         elif(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4"):
-            Phi,Omega = self.BOB_psi4_phase()
+            Phi,Omega = BOB_terms.BOB_psi4_phase(self)
             phase = np.abs(self.m)*Phi
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', 'strain_using_psi4', or 'news_using_psi4'.")
         
         
 
-        amp = self.BOB_amplitude_given_Ap()
+        amp = BOB_terms.BOB_amplitude_given_Ap(self)
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
