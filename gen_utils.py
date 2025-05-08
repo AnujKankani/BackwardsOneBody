@@ -61,6 +61,7 @@ def get_qnm(chif,Mf,l,m,n=0):
     tau = 1./imag_qnm
     return w_r,tau
 def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
+
     #I am writing my own mismatch code here to minimize package dependencies, because apparently every gravitational wave package depends on the qnm package downstream
     #And when the qnm package changes, it breaks everything upstream
 
@@ -88,3 +89,61 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     mismatch = (numerator/np.sqrt(denominator1*denominator2))
 
     return 1.-mismatch   
+
+def estimate_parameters(BOB,t0=0,tf=100,print_verbose=False):
+    #we use a grid search across mass and spins
+    #in theory scipy optimize should be more efficient, but in testing it has mixed results
+    #we start with a coarse search with dm, dchi = 0.01, then refine it with dm, dchi = 0.001, then dm, dchi = 0.0001
+    def grid_search(mass_range,spin_range):
+        min_mass = mass_range[0]
+        min_spin = spin_range[0]
+        min_mismatch = 1e10
+        for M in mass_range:
+            for chi in spin_range:            
+                w_r,tau = get_qnm(chi,M,BOB.l,BOB.m)
+
+                BOB.mf = M
+                BOB.chif = chi
+                BOB.Omega_QNM = w_r/np.abs(BOB.m)
+                BOB.Omega_ISCO = get_Omega_isco(chi,M)
+                BOB.Omega_0 = BOB.Omega_ISCO
+                BOB.Phi_0 = 0
+                BOB.w_r = w_r
+                BOB.tau = tau
+                BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
+
+                t,y = BOB.construct_BOB()
+                BOB_ts = kuibit_ts(t,y)
+                NR_ts = BOB.NR_based_on_BOB_ts
+                mismatch_val = mismatch(BOB_ts,NR_ts,t0,tf)
+                if(mismatch_val < min_mismatch):
+                    min_mismatch = mismatch_val
+                    min_mass = M
+                    min_spin = chi
+        return min_mass,min_spin,min_mismatch
+
+    mass_range = np.arange(0.75,1.0,0.01)
+    spin_range = np.arange(0.0,1.0-0.001,0.01)
+    min_mass,min_spin,min_mismatch = grid_search(mass_range,spin_range)
+    if(print_verbose):
+        print("\ncoarse search min mismatch = ",min_mismatch)
+        print("coarse search min mass = ",min_mass)
+        print("coarse search min spin = ",min_spin)
+    #we choose 0.02 instead of 0.01 as a safety cushion since the coarse search is a ballpark value
+    mass_range = np.arange(min_mass-0.02,min_mass+0.02,0.001)
+    spin_range = np.arange(min_spin-0.02,min_spin+0.02,0.001)
+    min_mass,min_spin,min_mismatch = grid_search(mass_range,spin_range)
+    if(print_verbose):
+        print("\nfine search min mismatch = ",min_mismatch)
+        print("fine search min mass = ",min_mass)
+        print("fine search min spin = ",min_spin)
+    mass_range = np.arange(min_mass-0.002,min_mass+0.002,0.0001)
+    spin_range = np.arange(min_spin-0.002,min_spin+0.002,0.0001)
+    min_mass,min_spin,min_mismatch = grid_search(mass_range,spin_range)
+    if(print_verbose):
+        print("\nvery fine search min mismatch = ",min_mismatch)
+        print("very fine search min mass = ",min_mass)
+        print("very fine search min spin = ",min_spin,"\n")
+    
+    return min_mass,min_spin,min_mismatch
+

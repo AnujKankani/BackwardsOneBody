@@ -242,7 +242,7 @@ class BOB:
         phase_ts = phase_ts.resampled(temp_ts)
         phase_ts.y = phase_ts.y/np.abs(self.m)
         try:
-            popt,pcov = curve_fit(self.fit_omega_and_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM,5000]))
+            popt,pcov = curve_fit(self.fit_omega_and_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM-1e-5,5000]))
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO and Phi_0 = 0. Setting perform_phase_alignment=True")
             self.perform_phase_alignment = True
@@ -802,7 +802,7 @@ class BOB:
             print("Mismatch = ",mismatch)
         return BOB_ts.t,BOB_ts.y
     def initialize_with_sxs_data(self,sxs_id,l=2,m=2): 
-        print("loading SXS data")
+        print("loading SXS data: ",sxs_id)
         sim = sxs.load(sxs_id)
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
