@@ -47,22 +47,22 @@ class BOB:
     @what_should_BOB_create.setter
     def what_should_BOB_create(self,value):
         val = value.lower()
-        if(val=="psi4" or val=="p4" or val=="strain_using_psi4" or val=="news_using_psi4"):
-            self.__what_to_create = "psi4"
+        if(val=="psi4" or val=="strain_using_psi4" or val=="news_using_psi4"):
+            self.__what_to_create = val
             self.data = self.psi4_data
             self.Ap = self.psi4_data.abs_max()
             self.tp = self.psi4_data.time_at_maximum()
-        elif(val=="news" or val=="n" or val=="strain_using_news"):
-            self.__what_to_create = "news"
+        elif(val=="news" or val=="strain_using_news"):
+            self.__what_to_create = val
             self.data = self.news_data
             self.Ap = self.news_data.abs_max()
             self.tp = self.news_data.time_at_maximum()
-        elif(val=="strain" or val=="h"):
-            self.__what_to_create = "strain"
+        elif(val=="strain"):
+            self.__what_to_create = val
             self.data = self.strain_data
             self.Ap = self.strain_data.abs_max()
             self.tp = self.strain_data.time_at_maximum()
-        elif(val=="mass_quadrupole" or val=="mass_wave" or val=="current_quadrupole" or val=="current_wave" or val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
+        elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
             NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -76,7 +76,7 @@ class BOB:
                 self.data = self.current_quadrupole_data
                 self.Ap = self.current_quadrupole_data.abs_max()
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
-        elif(val=="mass_quadrupole_with_news" or val=="mass_wave_with_news" or val=="current_quadrupole_with_news" or val=="current_wave_with_news"):
+        elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
             NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("news")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -90,7 +90,7 @@ class BOB:
                 self.data = self.current_quadrupole_data
                 self.Ap = self.current_quadrupole_data.abs_max()
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
-        elif(val=="mass_quadrupole_with_psi4" or val=="mass_wave_with_psi4" or val=="current_quadrupole_with_psi4" or val=="current_wave_with_psi4"):
+        elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
             NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("psi4")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
