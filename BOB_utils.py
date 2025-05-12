@@ -398,15 +398,13 @@ class BOB:
     def find_best_t0_via_mismatch(self):
         if(self.minf_t0):
             raise ValueError("Cannot find best t0 via mismatch if t0 = -inf")
-        
-        freq_data = gen_utils.get_frequency(self.data)
-        t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
-        t_isco_index = gen_utils.find_nearest_index(self.t,t_isco)
-        
+        freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
+        t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]       
         t0_range = np.arange(t_isco-10,self.tp-1e-10,1)
 
         best_mismatch = 1e10
         best_t0 = t_isco
+        best_phi0 = 0
         for t0 in t0_range:
             self.t0 = t0
             self.t0_tp_tau = (self.t0 - self.tp)/self.tau
@@ -433,7 +431,7 @@ class BOB:
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
         self.Phi_0 = best_phi0/np.abs(self.m)
     def get_t_isco(self):
-        freq_data = gen_utils.get_frequency(self.data)
+        freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
         t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
         return t_isco - self.tp
     def phase_alignment(self,phase):
@@ -1096,7 +1094,6 @@ class BOB:
             m = self.m
         temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m)
         return temp_ts.t,temp_ts.y
-
 
 def test_phase_freq_t0_inf():
 
