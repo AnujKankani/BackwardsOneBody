@@ -50,6 +50,8 @@ class BOB:
         self.full_strain_data = None
 
         self.auto_switch_to_numerical_integration = True
+
+        self.__optimize_t0_via_mismatch = False
     @property
     def what_should_BOB_create(self):
         return self.__what_to_create
@@ -161,6 +163,15 @@ class BOB:
         self.end_after_tpeak = value
         self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
         self.t_tp_tau = (self.t - self.tp)/self.tau
+    
+    @property
+    def optimize_t0_via_mismatch(self):
+        return self.__optimize_t0_via_mismatch
+    
+    @optimize_t0_via_mismatch.setter
+    def optimize_t0_via_mismatch(self,value):
+        self.minf_t0 = False
+        self.__optimize_t0_via_mismatch = value
     
     def hello_world(self):
         import ascii_funcs
@@ -384,11 +395,47 @@ class BOB:
         phi0,mismatch = gen_utils.phi_grid_mismatch(BOB_ts,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
         BOB_ts = kuibit_ts(temp_ts,amp.y*np.exp(-1j*self.m*(Phi.y+phi0/np.abs(self.m))))
         self.Phi_0 = phi0/np.abs(self.m)
-    def BOB_amplitude_given_A0(self,A0):
-        pass
-        #TODO
-        # Ap = A0*np.cosh(self.t0_tp_tau)
-        # return BOB_amplitude_given_Ap(Ap,self.t_tp_tau)
+    def find_best_t0_via_mismatch(self):
+        if(self.minf_t0):
+            raise ValueError("Cannot find best t0 via mismatch if t0 = -inf")
+        
+        freq_data = gen_utils.get_frequency(self.data)
+        t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
+        t_isco_index = gen_utils.find_nearest_index(self.t,t_isco)
+        
+        t0_range = np.arange(t_isco-10,self.tp-1e-10,1)
+
+        best_mismatch = 1e10
+        best_t0 = t_isco
+        for t0 in t0_range:
+            self.t0 = t0
+            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
+            try:
+                Phi,Omega = self.get_correct_Phi_and_Omega()
+                amp = self.BOB_amplitude_given_Ap(Omega)
+                phase = np.abs(self.m)*Phi
+                BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
+                if("using" in self.__what_to_create):
+                    if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
+                        data_ts = self.strain_data.resampled(self.t)
+                    elif(self.__what_to_create=="news_using_psi4"):
+                        data_ts = self.news_data.resampled(self.t)
+                else:
+                    data_ts = self.data.resampled(self.t)
+                phi0, mismatch = gen_utils.phi_grid_mismatch(BOB_ts,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
+            except:
+                continue
+            if(mismatch<best_mismatch):
+                best_mismatch = mismatch
+                best_t0 = t0
+                best_phi0 = phi0
+        self.t0 = best_t0
+        self.t0_tp_tau = (self.t0 - self.tp)/self.tau
+        self.Phi_0 = best_phi0/np.abs(self.m)
+    def get_t_isco(self):
+        freq_data = gen_utils.get_frequency(self.data)
+        t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
+        return t_isco - self.tp
     def phase_alignment(self,phase):
         
         #if we are creating strain by constructing BOB for news/psi4, we want to perform the phase alignment on the NR strain data since strain is the final output
@@ -451,7 +498,6 @@ class BOB:
         else:
             #all other cases should have the amplitude set to the peak NR value by construction
             pass
-
     def construction_parameter_checks(self):
         #Perform parameter sanity checks
         if("using" in self.__what_to_create):
@@ -478,6 +524,9 @@ class BOB:
         old_optimize_Phi0 = self.optimize_Phi0
         old_optimize_Phi0_via_mismatch = self.optimize_Phi0_via_mismatch
 
+        if(self.__optimize_t0_via_mismatch):
+            self.find_best_t0_via_mismatch()
+            self.perform_phase_alignment = False
         if(self.optimize_Phi0 is True):
             self.fit_Phi0()
             self.perform_phase_alignment = False

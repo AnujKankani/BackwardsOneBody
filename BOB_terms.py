@@ -38,7 +38,7 @@ def BOB_news_phase_finite_t0(BOB):
     F = (BOB.Omega_QNM**2 - BOB.Omega_0**2)/(1-np.tanh(BOB.t0_tp_tau))
     if(BOB.Omega_QNM**2>=2*F):
         if(BOB.auto_switch_to_numerical_integration):
-            print("Analytical News Phase Integration Failed, Switching To Numerical Integration")
+            #print("Analytical News Phase Integration Failed, Switching To Numerical Integration")
             return BOB_news_phase_finite_t0_numerically(BOB)
         else:
             raise ValueError("Analytical News Phase Integration Failed")
