@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.special import expi as Ei
+from scipy.integrate import cumulative_trapezoid
+import matplotlib.pyplot as plt
 #All BOB terms should reside in this file
 #None of these functions should edit BOB object variables, only access them 
 def BOB_strain_freq_finite_t0(BOB):
@@ -29,14 +31,17 @@ def BOB_news_freq_finite_t0(BOB):
     F = (BOB.Omega_QNM**2 - BOB.Omega_0**2)/(1-np.tanh(BOB.t0_tp_tau))
     Omega2 = BOB.Omega_QNM**2 + F*(np.tanh(BOB.t_tp_tau) - 1)
     if(np.min(Omega2)<0):
-        print("Imaginary Frequency Obtained Due To Bad Omega_0")
-        return np.full_like(F,-1)
+        raise ValueError("Imaginary Frequency Obtained Due To Bad Omega_0")
     return np.sqrt(Omega2)
 def BOB_news_phase_finite_t0(BOB):
     #assuumes Omega_q^2<2*F
     F = (BOB.Omega_QNM**2 - BOB.Omega_0**2)/(1-np.tanh(BOB.t0_tp_tau))
     if(BOB.Omega_QNM**2>=2*F):
-        raise ValueError("Bad Omega_0")
+        if(BOB.auto_switch_to_numerical_integration):
+            print("Analytical News Phase Integration Failed, Switching To Numerical Integration")
+            return BOB_news_phase_finite_t0_numerically(BOB)
+        else:
+            raise ValueError("Analytical News Phase Integration Failed")
     Omega = BOB_news_freq_finite_t0(BOB)
     Omega_minus_q = np.abs(Omega-BOB.Omega_QNM)
     Omega_plus_q = np.abs(Omega+BOB.Omega_QNM)
@@ -64,26 +69,35 @@ def BOB_psi4_freq_finite_t0(BOB):
     k = Omega4_minus/(1-np.tanh((BOB.t0_tp_tau)))
     X = BOB.Omega_0**4 + k*(np.tanh(BOB.t_tp_tau) - np.tanh(BOB.t0_tp_tau))
     if(np.min(X)<0):
-        print("Imaginary Frequency Obtained Due To Bad Omega_0")
-        return np.full_like(X,-1)
+        raise ValueError("BAD OMEGA_0 for psi4")
     Omega = (X)**0.25
     return Omega
 def BOB_psi4_phase_finite_t0(BOB):
     Omega = BOB_psi4_freq_finite_t0(BOB)
-    if(Omega[0]==-1):
-        raise ValueError("BAD OMEGA_0")
     # We use here the alternative definition of arctan
     # arctanh(x) = 0.5*ln( (1+x)/(1-x) )
-    Omega4_plus , Omega4_minus = (BOB.Omega_QNM**4 + BOB.Omega_0**4) , (BOB.Omega_QNM**4 - BOB.Omega_0**4)
-    k = Omega4_minus/(1-np.tanh((BOB.t0_tp_tau)))
-    KappaP = (BOB.Omega_0**4 + k*(1-np.tanh(BOB.t0_tp_tau)))**0.25
-    KappaM = (BOB.Omega_0**4 - k*(1+np.tanh(BOB.t0_tp_tau)))**0.25
-    arctanhP = KappaP*BOB.tau*(0.5*np.log(((1+(Omega/KappaP))*(1-(BOB.Omega_0/KappaP)))/(((1-(Omega/KappaP)))*(1+(BOB.Omega_0/KappaP)))))
-    arctanhM = KappaM*BOB.tau*(0.5*np.log(((1+(Omega/KappaM))*(1-(BOB.Omega_0/KappaM)))/(((1-(Omega/KappaM)))*(1+(BOB.Omega_0/KappaM)))))
-    arctanP  = KappaP*BOB.tau*(np.arctan(Omega/KappaP) - np.arctan(BOB.Omega_0/KappaP))
-    arctanM  = KappaM*BOB.tau*(np.arctan(Omega/KappaM) - np.arctan(BOB.Omega_0/KappaM))
-    Phi = arctanhP+arctanP-arctanhM-arctanM
+    #TODO: calculate the assumptions in this integral
+    try:
+        Omega4_plus , Omega4_minus = (BOB.Omega_QNM**4 + BOB.Omega_0**4) , (BOB.Omega_QNM**4 - BOB.Omega_0**4)
+        k = Omega4_minus/(1-np.tanh((BOB.t0_tp_tau)))
+        KappaP = (BOB.Omega_0**4 + k*(1-np.tanh(BOB.t0_tp_tau)))**0.25
+        KappaM = (BOB.Omega_0**4 - k*(1+np.tanh(BOB.t0_tp_tau)))**0.25
+        arctanhP = KappaP*BOB.tau*(0.5*np.log(((1+(Omega/KappaP))*(1-(BOB.Omega_0/KappaP)))/(((1-(Omega/KappaP)))*(1+(BOB.Omega_0/KappaP)))))
+        arctanhM = KappaM*BOB.tau*(0.5*np.log(((1+(Omega/KappaM))*(1-(BOB.Omega_0/KappaM)))/(((1-(Omega/KappaM)))*(1+(BOB.Omega_0/KappaM)))))
+        arctanP  = KappaP*BOB.tau*(np.arctan(Omega/KappaP) - np.arctan(BOB.Omega_0/KappaP))
+        arctanM  = KappaM*BOB.tau*(np.arctan(Omega/KappaM) - np.arctan(BOB.Omega_0/KappaM))
+        Phi = arctanhP+arctanP-arctanhM-arctanM
+    except:
+        if(BOB.auto_switch_to_numerical_integration):
+            return BOB_psi4_phase_finite_t0_numerically(BOB)
+        else:
+            raise ValueError("Analytical Psi4 Integration Failed")
+    
     return Phi + BOB.Phi_0, Omega
+def BOB_psi4_phase_finite_t0_numerically(BOB):
+    Omega = BOB_psi4_freq_finite_t0(BOB)
+    Phase = cumulative_trapezoid(Omega,BOB.t,initial=0)
+    return Phase + BOB.Phi_0,Omega
 def BOB_strain_freq(BOB):
     Omega_ratio = BOB.Omega_0/BOB.Omega_QNM
     tanh_t_tp_tau_m1 = np.tanh(BOB.t_tp_tau)-1
@@ -145,6 +159,3 @@ def BOB_psi4_phase(BOB):
 
     Phi = result + BOB.Phi_0
     return Phi,Omega
-def BOB_amplitude_given_Ap(BOB):
-    amp = BOB.Ap/np.cosh(BOB.t_tp_tau)
-    return amp 

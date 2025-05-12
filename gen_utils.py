@@ -65,6 +65,7 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     #and phases are aligned (to the extent the user wants them to be)
     if (not(np.array_equal(BOB_data.t,NR_data.t))):
         if(resample_NR_to_BOB):
+            print("resampling to equal times")
             NR_data = NR_data.resampled(BOB_data.t)
         else:
             raise ValueError("Time arrays must be identical or set resample_NR_to_BOB to True")
@@ -83,7 +84,8 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     mismatch = (numerator/np.sqrt(denominator1*denominator2))
 
     return 1.-mismatch   
-def grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
+def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
+    #We don't make this function BOB specific, since we'll use it to compare other waveform models as well
     #minimum mismatch searched over a grid of phase values
     #it is assumed that the waveforms are aligned at the peak amplitude time
     if (not(np.array_equal(model.t,NR_data.t))):
@@ -91,25 +93,12 @@ def grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
             NR_data = NR_data.resampled(model.t)
         else:
             raise ValueError("Time arrays must be identical or set resample_NR_to_model to True")
-    t_model_peak = model.time_at_maximum()
-    t_NR_peak = NR_data.time_at_maximum()
-    print(t_model_peak)
-    print(t_NR_peak)
-    if(np.abs(t_model_peak-t_NR_peak)>1e-10):
-        raise ValueError("Peak times must be identical")
-    else:
-        t_peak = t_model_peak
     
     phase_model = get_phase(model)
     phase_NR = get_phase(NR_data)
 
     phi0_range = np.arange(0,2*np.pi,0.01)
-    #for simplicity we set the phase of both waveforms at the peak amplitude = 0
-    phase_model_at_peak = phase_model.y[find_nearest_index(phase_model.t,t_peak)]
-    phase_NR_at_peak = phase_NR.y[find_nearest_index(phase_NR.t,t_peak)]
-    phase_model.y -= phase_model_at_peak
-    phase_NR.y -= phase_NR_at_peak
-    
+
     #now we change the model phase and find the phi0 that minimizes the mismatch
     min_mismatch = 1e10
     best_phi0 = 0
@@ -123,8 +112,6 @@ def grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
             min_mismatch = mismatch_val
             best_phi0 = phi0
     return best_phi0,min_mismatch
-    
-        
 def estimate_parameters(BOB,t0=0,tf=100,print_verbose=False):
     #we use a grid search across mass and spins
     #in theory scipy optimize should be more efficient, but in testing it has mixed results
