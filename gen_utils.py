@@ -3,6 +3,9 @@ from kuibit.timeseries import TimeSeries as kuibit_ts
 import qnm
 from quaternion.calculus import spline_definite_integral as sdi
 import matplotlib.pyplot as plt
+import scri
+import spherical_functions as sf
+
 
 #some useful functions
 def find_nearest_index(array, value):
@@ -180,4 +183,126 @@ def estimate_parameters(BOB,t0=0,tf=100,print_verbose=False):
         print("very fine search min spin = ",min_spin,"\n")
     
     return min_mass,min_spin,min_mismatch
+def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
+    import qnmfits
+    #we use qnmfits for their qnm fitting procedure
+    #TODO: use varpro instead
+    #TODO: beyond (2,2) mode
+
+    #mov_time is the time for the moving mismatch
+    #tf is the time the mismatch is calculated until
+
+    #NR_data must be a scri waveform mode.
+    #I'm not dealing with the headache of converting t,y arrays to waveform modes
+
+    #code based on https://github.com/sxs-collaboration/qnmfits/blob/main/examples/working_with_cce.ipynb
+
+    model = kuibit_ts(t,y)
+    t_peak = model.time_at_maximum()
+    mov_time = mov_time + t_peak
+    tf = tf + t_peak
+    
+    qnm_list = [[(2,2,n,1) for n in range(N)] for N in range(1,n_qnms+2)]
+    spherical_modes = [(2,2)]
+
+    A220_dict = {}
+    master_mismatch_arr = []
+    for N,qnms in enumerate(qnm_list):
+        A220_dict[N] = []
+        mm_list = []
+        for start_time in mov_time:
+            best_fit = qnmfits.fit(
+                data=NR_data,
+                chif=chif,
+                Mf=mf,
+                qnms=qnms,
+                spherical_modes=spherical_modes,
+                t0=start_time,
+                T = tf-start_time #T is the duration of the mismatch calculation. We want to always end the mismatch calculation at tf
+            )
+            mm_list.append(best_fit['mismatch'])
+            A220_dict[N].append(abs(best_fit['amplitudes'][2,2,0,1]))
+        master_mismatch_arr.append(mm_list)
+
+    return master_mismatch_arr,A220_dict
+def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
+    #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
+    #but modified for our purposes here
+
+    #for now we only include the (2,2) mode
+    data = {(2,2):y_22_data}
+    if ell_max is None:
+        ell_max = max([ell for ell, _ in data.keys()])
+
+    # The spherical-harmonic mode (ell, m) indices for the requested ell_min
+    # and ell_max
+    ell_m_list = sf.LM_range(ell_min, ell_max)
+
+    # Initialize the WaveformModes data array
+    wm_data = np.zeros((len(times), len(ell_m_list)), dtype=complex)
+
+    # Fill the WaveformModes data array
+    for i, (ell, m) in enumerate(ell_m_list):
+        if (ell, m) in data.keys():
+            wm_data[:, i] = data[(ell, m)]
+
+    # Construct the WaveformModes object
+    wm = scri.WaveformModes(
+        dataType=scri.news,
+        t=times,
+        data=wm_data,
+        ell_min=ell_min,
+        ell_max=ell_max,
+        frameType=scri.Inertial,
+        r_is_scaled_out=True,
+        m_is_scaled_out=True
+    )
+
+    return wm
+
+def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
+    #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
+    #but modified for our purposes here
+
+    data = {(2,2):y_22_data}
+
+    if ell_max is None:
+        ell_max = max([ell for ell, _ in data.keys()])
+
+    # The spherical-harmonic mode (ell, m) indices for the requested ell_min
+    # and ell_max
+    ell_m_list = sf.LM_range(ell_min, ell_max)
+
+    # Initialize the WaveformModes data array
+    wm_data = np.zeros((len(times), len(ell_m_list)), dtype=complex)
+
+    # Fill the WaveformModes data array
+    for i, (ell, m) in enumerate(ell_m_list):
+        if (ell, m) in data.keys():
+            wm_data[:, i] = data[(ell, m)]
+
+    # Construct the WaveformModes object
+    wm = scri.WaveformModes(
+        dataType=scri.psi4,
+        t=times,
+        data=wm_data,
+        ell_min=ell_min,
+        ell_max=ell_max,
+        frameType=scri.Inertial,
+        r_is_scaled_out=True,
+        m_is_scaled_out=True
+    )
+
+    return wm
+
+
+
+
+        
+
+
+    
+
+
+
 

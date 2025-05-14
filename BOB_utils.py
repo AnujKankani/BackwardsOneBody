@@ -230,10 +230,11 @@ class BOB:
             Omega = BOB_terms.BOB_news_freq(self)
         if('strain' in self.__what_to_create):
             Omega = BOB_terms.BOB_strain_freq(self)
-    
+        start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
+        end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
+        Omega = Omega[start_index:end_index]
         return Omega
     def fit_t0_and_omega(self,x,t0,Omega_0):
-        print("fitting t0 = ",t0,"Omega_0 = ",Omega_0)
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         self.t0 = t0
@@ -245,6 +246,9 @@ class BOB:
                 Omega = BOB_terms.BOB_news_freq(self)
             if('strain' in self.__what_to_create):
                 Omega = BOB_terms.BOB_strain_freq(self)
+            start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
+            end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
+            Omega = Omega[start_index:end_index]
         except:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             Omega = np.zeros_like(self.t)
@@ -268,54 +272,48 @@ class BOB:
             print("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
             self.end_fit_after_tpeak = self.end_after_tpeak
 
-        #Since we may only want to fit ove a limited sample, we create a temporary time array
-        temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
-        #For simplicity we will temporary set the BOB time array to this temporary time array. This will be reverted at the end of the function
-        old_ts = self.t
-        self.t = temp_ts
-        self.t_tp_tau = (self.t - self.tp)/self.tau
-
         freq_ts = gen_utils.get_frequency(self.data)
-        freq_ts = freq_ts.resampled(temp_ts)
+        freq_ts = freq_ts.resampled(self.t)
         freq_ts.y = freq_ts.y/np.abs(self.m)
         
         try:
-            popt,pcov = curve_fit(self.fit_omega,temp_ts,freq_ts.y,p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM])
+            start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
+            end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
+            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM])
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO")
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
-        self.t = old_ts
-        self.t_tp_tau = (self.t - self.tp)/self.tau
     def fit_Phi0(self):
+        #whenever we fit Phi0 it is important that everything is sampled on the same self.t timeseries, since that is what will be used to construct BOB
+
         #This function can be called if using X_using_Y. But phi0 should be fit to X not Y since that is the end quantity we wnat
-        if(self.minf_t0 is False):
-            raise ValueError("You are setup for a finite t0 right now. Phi0 fitting is only defined for t0 = infinity.")
         if(self.end_after_tpeak<self.end_fit_after_tpeak):
             self.end_fit_after_tpeak = self.end_after_tpeak
         
         #Since we may only want to fit ove a limited sample, we create a temporary time array
-        temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
-
         #if we are using X_using_Y, we need to use the phase of X not Y for the ***NR*** data
         if("using" in self.__what_to_create):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
-                phase_ts = gen_utils.get_phase(self.strain_data)
+                phase_ts = gen_utils.get_phase(self.strain_data.resampled(self.t))
             if(self.__what_to_create=="news_using_psi4"):
-                phase_ts = gen_utils.get_phase(self.news_data)
+                phase_ts = gen_utils.get_phase(self.news_data.resampled(self.t))
         else:
-            phase_ts = gen_utils.get_phase(self.data)
+            phase_ts = gen_utils.get_phase(self.data.resampled(self.t))
         
-        phase_ts = phase_ts.resampled(temp_ts)
         phase_ts.y = phase_ts.y/np.abs(self.m)
 
         Phi,Omega = self.get_correct_Phi_and_Omega()
 
-        Phi = kuibit_ts(self.t,Phi).resampled(temp_ts)
+        Phi = kuibit_ts(self.t,Phi)
         
         #since Phi_0 is just a constant, the lsq optimized value is just mean(NR_phase - BOB_phase)
-        
-        self.Phi_0 = np.mean(phase_ts.y - Phi.y)
+        #we only want to lsq fit over the fit times determined by the user
+        #but we want to keep the phase calculated over self.t, since that is what will be used to construct BOB
+
+        start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
+        end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
+        self.Phi_0 = np.mean(phase_ts.y[start_index:end_index] - Phi.y[start_index:end_index])
     def fit_Omega0_and_Phi0(self):
         if(self.perform_phase_alignment is False):
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_Phi0")
@@ -324,25 +322,20 @@ class BOB:
         if(self.tp+self.end_after_tpeak<self.tp+self.end_fit_after_tpeak):
             self.end_fit_after_tpeak = self.end_after_tpeak
         
-        #Since we may only want to fit ove a limited sample, we create a temporary time array
-        temp_ts = np.linspace(self.tp+self.start_fit_before_tpeak,self.tp+self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
-        #For simplicity we will temporary set the BOB time array to this temporary time array. This will be reverted at the end of the function
-        old_ts = self.t
-        self.t = temp_ts
-        self.t_tp_tau = (self.t - self.tp)/self.tau
+
         phase_ts = gen_utils.get_phase(self.data)
-        phase_ts = phase_ts.resampled(temp_ts)
+        phase_ts = phase_ts.resampled(self.t)
         phase_ts.y = phase_ts.y/np.abs(self.m)
         try:
-            popt,pcov = curve_fit(self.fit_omega_and_phase,temp_ts,phase_ts.y,bounds=([0,-5000],[self.Omega_QNM-1e-5,5000]))
+            start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
+            end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
+            popt,pcov = curve_fit(self.fit_omega_and_phase,self.t[start_index:end_index],phase_ts.y[start_index:end_index],bounds=([0,-5000],[self.Omega_QNM-1e-5,5000]))
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO and Phi_0 = 0. Setting perform_phase_alignment=True")
             self.perform_phase_alignment = True
             popt = [self.Omega_ISCO,0]
         self.Omega_0 = popt[0]
         self.Phi_0 = popt[1]
-        self.t = old_ts
-        self.t_tp_tau = (self.t - self.tp)/self.tau   
     def fit_Omega0_and_then_Phi0(self):
         #This will first fit for Omega_0 and then fit for Phi_0
         if(self.perform_phase_alignment is False):
@@ -356,10 +349,7 @@ class BOB:
         #it would be nice to make this numba optimized at some point
 
         #to make things faster, we will start with a coarse search and then refine further
-        
-        mismatch_ts = np.linspace(self.tp + self.start_fit_before_tpeak,self.tp + self.end_fit_after_tpeak,int((self.end_fit_after_tpeak-self.start_fit_before_tpeak))*10+1)
-        data_ts = self.data.resampled(mismatch_ts)
-        
+                
         def find_best_Omega0_and_Phi0(Omega0_range,Phi0_range):
             best_mismatch = 1e10
             best_Omega0 = self.Omega_ISCO
@@ -372,8 +362,9 @@ class BOB:
                     Phi, Omega = self.get_correct_Phi_and_Omega()
                     amp = self.BOB_amplitude_given_Ap(Omega)
                     phase = np.abs(self.m)*Phi
-                    temp_BOB = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase)).resampled(mismatch_ts)
-                    mismatch = gen_utils.mismatch(temp_BOB,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
+                    temp_BOB = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
+                    
+                    mismatch = gen_utils.mismatch(temp_BOB,self.data,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
                     if(mismatch<best_mismatch):
                         best_mismatch = mismatch
                         best_Omega0 = Omega0
@@ -1042,7 +1033,13 @@ class BOB:
         else:
             BOB_ts = self.construct_BOB_finite_t0()
         
-        self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
+        if("using" in self.__what_to_create):
+            if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
+                self.NR_based_on_BOB_ts = self.strain_data.resampled(BOB_ts.t)
+            elif(self.__what_to_create=="news_using_psi4"):
+                self.NR_based_on_BOB_ts = self.news_data.resampled(BOB_ts.t)
+        else:
+            self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
 
         if(print_mismatch):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
