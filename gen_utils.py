@@ -95,7 +95,6 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
             raise ValueError("Time arrays must be identical or set resample_NR_to_model to True")
     
     phase_model = get_phase(model)
-    phase_NR = get_phase(NR_data)
 
     phi0_range = np.arange(0,2*np.pi,0.01)
 
