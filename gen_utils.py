@@ -259,7 +259,6 @@ def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     )
 
     return wm
-
 def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
     #but modified for our purposes here
@@ -295,6 +294,7 @@ def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
 
     return wm
 
+    
 
 
 
