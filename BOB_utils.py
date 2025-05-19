@@ -2,7 +2,7 @@
 #construct all BOB related quantities here
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import least_squares, curve_fit
+from scipy.optimize import least_squares, curve_fit, brute, fmin
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
 import gen_utils
@@ -14,8 +14,8 @@ class BOB:
         qnm.download_data()
         #some default values
         self.minf_t0 = True
-        self.start_before_tpeak = -50
-        self.end_after_tpeak = 150
+        self.__start_before_tpeak = -50
+        self.__end_after_tpeak = 150
         self.t0 = -10
         self.tp = 0
         
@@ -26,7 +26,7 @@ class BOB:
         self.Phi_0 = 0
         self.perform_phase_alignment = True
         self.resample_dt = 0.1
-        self.t = np.linspace(self.start_before_tpeak+self.tp,self.end_after_tpeak+self.tp,10*(int((self.end_after_tpeak-self.start_before_tpeak))+1))
+        self.t = np.linspace(self.__start_before_tpeak+self.tp,self.__end_after_tpeak+self.tp,10*(int((self.__end_after_tpeak-self.__start_before_tpeak))+1))
         self.strain_tp = None
         self.news_tp = None
         self.psi4_tp = None
@@ -120,7 +120,7 @@ class BOB:
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
         else:
             raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
-        self.t = np.linspace(self.start_before_tpeak+self.tp,self.end_after_tpeak+self.tp,10*(int((self.end_after_tpeak-self.start_before_tpeak))+1))
+        self.t = np.linspace(self.__start_before_tpeak+self.tp,self.__end_after_tpeak+self.tp,10*(int((self.__end_after_tpeak-self.__start_before_tpeak))+1))
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
     @property
@@ -130,8 +130,18 @@ class BOB:
     def set_initial_time(self,value):
         if(self.__what_to_create == "Nothing"):
             raise ValueError("Please specify BOB.what_should_BOB_create first.")
+        if(isinstance(value,tuple)):
+            print("Setting Omega_0 according to the strain data!")
+            set_freq_using_strain_data = value[1]
+            value = value[0]
+        else:
+            set_freq_using_strain_data = False
         self.minf_t0 = False
-        freq = gen_utils.get_frequency(self.data)
+        
+        if(set_freq_using_strain_data):
+            freq = gen_utils.get_frequency(self.strain_data)
+        else:
+            freq = gen_utils.get_frequency(self.data)
         closest_idx = gen_utils.find_nearest_index(freq.t,self.tp+value)
         w0 = freq.y[closest_idx]
         self.Omega_0 = w0/np.abs(self.m)
@@ -143,29 +153,34 @@ class BOB:
         return self.phase_alignment_time
     @set_phase_alignment_time.setter
     def set_phase_alignment_time(self,value):
-        if(value>self.end_after_tpeak):
+        if(value>self.__end_after_tpeak):
             print("chosen phase alignment time is later than end time. Aligning at last time step - 5.")
-            self.phase_alignment_time = self.end_after_tpeak - 5
+            self.phase_alignment_time = self.__end_after_tpeak - 5
 
     @property
     def set_start_before_tpeak(self):
-        return self.start_before_tpeak
+        return self.__start_before_tpeak
     
     @set_start_before_tpeak.setter
     def set_start_before_tpeak(self,value):
-        self.start_before_tpeak = value
-        self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
+        self.__start_before_tpeak = value
+        self.t = np.linspace(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,int((self.__end_after_tpeak-self.__start_before_tpeak))*10+1)
         self.t_tp_tau = (self.t - self.tp)/self.tau
     
     @property
     def set_end_after_tpeak(self):
-        return self.end_after_tpeak
+        return self.__end_after_tpeak
     
     @set_end_after_tpeak.setter
     def set_end_after_tpeak(self,value):
-        self.end_after_tpeak = value
-        self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
+        self.__end_after_tpeak = value
+        self.t = np.linspace(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,int((self.__end_after_tpeak-self.__start_before_tpeak))*10+1)
         self.t_tp_tau = (self.t - self.tp)/self.tau
+        if(value<self.end_fit_after_tpeak):
+            print("setting end_fit_after_tpeak to ",value)
+            self.end_fit_after_tpeak = value
+        if(value<self.start_fit_before_tpeak):
+            raise ValueError("You have a ridiculous end time. Choose something sensible")
     
     @property
     def optimize_t0_via_mismatch(self):
@@ -274,12 +289,15 @@ class BOB:
             Omega = np.full_like(self.t,1e10)
     
         return Omega[start_index:end_index]
-    def fit_t0_only(self,freq_data,t0):
-        self.t0 = t0
+    def fit_t0_only(self,t00,freq_data):
+        #freq data passed in is big Omega, where w = m*Omega
+        self.t0 = t00[0] 
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-        self.Omega_0 = freq_data[gen_utils.find_nearest_index(self.t,self.t0)]/np.abs(self.m)
+        self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)]
         start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
         end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
+        start_data_index = gen_utils.find_nearest_index(freq_data.t,self.tp+self.start_fit_before_tpeak)
+        end_data_index = gen_utils.find_nearest_index(freq_data.t,self.tp+self.end_fit_after_tpeak)
         try:
             if('psi4' in self.__what_to_create):
                 Omega = BOB_terms.BOB_psi4_freq_finite_t0(self)
@@ -290,8 +308,15 @@ class BOB:
         except:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             Omega = np.full_like(self.t,1e10)
-    
-        return Omega[start_index:end_index]
+        if(np.abs((self.t0-self.tp)+1)<1e-5 or np.abs((self.t0-self.tp)+10)<1e-5):
+            plt.plot(self.t,Omega)
+            plt.plot(freq_data.t,freq_data.y,color='black')
+            #plt.plot(self.t[start_index:end_index],Omega[start_index:end_index])
+            #plt.plot(freq_data.t[start_data_index:end_data_index],freq_data.y[start_data_index:end_data_index],color='black')
+            plt.show()
+        res = np.sum((Omega[start_index:end_index]-freq_data.y[start_data_index:end_data_index])**2)
+        print("res = ",res)
+        return res
     def fit_omega_and_phase(self,x,Omega_0,Phi_0):
         #this should never be called if X_using_Y
         #paramter checks are done in construction functions
@@ -309,9 +334,9 @@ class BOB:
         """
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
-        if(self.end_after_tpeak<self.end_fit_after_tpeak):
+        if(self.__end_after_tpeak<self.end_fit_after_tpeak):
             print("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
-            self.end_fit_after_tpeak = self.end_after_tpeak
+            self.end_fit_after_tpeak = self.__end_after_tpeak
 
         freq_ts = gen_utils.get_frequency(self.data)
         freq_ts = freq_ts.resampled(self.t)
@@ -329,8 +354,8 @@ class BOB:
         #whenever we fit Phi0 it is important that everything is sampled on the same self.t timeseries, since that is what will be used to construct BOB
 
         #This function can be called if using X_using_Y. But phi0 should be fit to X not Y since that is the end quantity we wnat
-        if(self.end_after_tpeak<self.end_fit_after_tpeak):
-            self.end_fit_after_tpeak = self.end_after_tpeak
+        if(self.__end_after_tpeak<self.end_fit_after_tpeak):
+            self.end_fit_after_tpeak = self.__end_after_tpeak
         
         #Since we may only want to fit ove a limited sample, we create a temporary time array
         #if we are using X_using_Y, we need to use the phase of X not Y for the ***NR*** data
@@ -360,8 +385,8 @@ class BOB:
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_Phi0")
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega0 and Phi0 fitting is only defined for t0 = infinity.")
-        if(self.tp+self.end_after_tpeak<self.tp+self.end_fit_after_tpeak):
-            self.end_fit_after_tpeak = self.end_after_tpeak
+        if(self.tp+self.__end_after_tpeak<self.tp+self.end_fit_after_tpeak):
+            self.end_fit_after_tpeak = self.__end_after_tpeak
         
 
         phase_ts = gen_utils.get_phase(self.data)
@@ -434,8 +459,8 @@ class BOB:
     def fit_Phi0_via_mismatch(self):
         if(self.perform_phase_alignment is False):
             raise ValueError("perform_phase_alignment must be True for fit_Phi0_via_mismatch")
-        if(self.tp+self.end_after_tpeak<self.tp+self.end_fit_after_tpeak):
-            self.end_fit_after_tpeak = self.end_after_tpeak
+        if(self.tp+self.__end_after_tpeak<self.tp+self.end_fit_after_tpeak):
+            self.end_fit_after_tpeak = self.__end_after_tpeak
         #Since we may only want to fit ove a limited sample, we create a temporary time array
         
         #if we are using X_using_Y, we need to use X not Y for the ***NR*** data
@@ -456,42 +481,44 @@ class BOB:
         phi0,mismatch = gen_utils.phi_grid_mismatch(BOB_ts,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
         self.Phi_0 = phi0/np.abs(self.m)
     def fit_t0_and_Omega0(self):
+        if('psi4' in self.__what_to_create):
+            print("fitting t0 and Omega0 for psi4 frequencies usually does not work... the waveform may be bad")
         freq_data = gen_utils.get_frequency(self.data)
         try:
-            start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
-            end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-            popt,pcov = curve_fit(self.fit_t0_and_omega,self.t[start_index:end_index],freq_data.y[start_index:end_index],p0=[self.tp-10,self.Omega_ISCO],bounds=([self.tp-200,1e-10],[self.tp,self.Omega_QNM]))
+            start_index = gen_utils.find_nearest_index(self.data.t,self.tp+self.start_fit_before_tpeak)
+            end_index = gen_utils.find_nearest_index(self.data.t,self.tp+self.end_fit_after_tpeak)
+            popt,pcov = curve_fit(self.fit_t0_and_omega,self.data.t[start_index:end_index],freq_data.y[start_index:end_index],p0=[self.tp-10,self.Omega_ISCO],bounds=([self.tp-200,1e-10],[self.tp,self.Omega_QNM]))
             self.t0 = popt[0]
             self.t0_tp_tau = (self.t0 - self.tp)/self.tau
             self.Omega_0 = popt[1]
             #check that the final value is usable
             Phi, Omega = self.get_correct_Phi_and_Omega()
+            self.fitted_t0 = popt[0]
         except:
             print("fit failed, setting t0 = -np.inf and Omega_0 = Omega_ISCO")
             self.t0 = -np.inf
             self.t0_tp_tau = (self.t0 - self.tp)/self.tau
             self.Omega_0 = self.Omega_ISCO
     def fit_t0(self):
-        freq_data = gen_utils.get_frequency(self.data)
-        try:
-            start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
-            end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-            popt,pcov = curve_fit(self.fit_t0_only,freq_data.y,freq_data.y[start_index:end_index],p0=[self.tp-10],bounds=([self.tp-200],[self.tp]))
-            self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(self.data.t,popt[0])]/np.abs(self.m)
-            self.t0 = popt[0]
-            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-        except:
-            print("fit failed, setting t0 = -np.inf, Omega0 = Omega_ISCO")
-            self.t0 = -np.inf
-            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-            self.Omega_0 = self.Omega_ISCO
+        #We do a grid based search instead of a lsq search for several reasons including
+        #1. Each t_0 is linked to a omega_0, and we have some finite timestep
+        #2. The lsq fit can get trapped in local minimums, especially if we provide a good initial guess
+        #3. Since we only have a 1D fit, the grid based search doesn't take to long
+        freq_data = gen_utils.get_frequency(self.data.resampled(self.t)) #self.tp is NR tp 
+        freq_data.y = freq_data.y/np.abs(self.m)
+        #We don't want to finish with another optimizer since that can cause us to go outside our bounds, and our grid based search delta is our timestep
+        resbrute = brute(lambda t0_array: self.fit_t0_only(t0_array, freq_data),(slice( self.tp-100, self.tp, 0.1),),finish=None)
+        self.t0 = resbrute
+        self.t0_tp_tau = (self.t0 - self.tp)/self.tau
+        self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(self.data.t,self.t0)]
+        self.fitted_t0 = self.t0
     def find_best_t0_via_mismatch(self):
         if(self.minf_t0):
             raise ValueError("Cannot find best t0 via mismatch if t0 = -inf")
         #in principal any waveform can be use to determine Omega_0, and testing shows it can have a very big impact
         freq_to_find_Omega_0 = gen_utils.get_frequency(self.data).cropped(init=self.tp-200,end=self.tp+50)
         t_isco = self.data.t[gen_utils.find_nearest_index(freq_to_find_Omega_0.y,self.Omega_ISCO*np.abs(self.m))]       
-        t0_range = np.arange(t_isco-10,self.tp-1e-10,1)
+        t0_range = np.arange(self.tp-50,self.tp-1e-10,1)
 
         best_mismatch = 1e10
         best_t0 = t_isco
@@ -524,6 +551,7 @@ class BOB:
                 best_t0 = t0
                 best_phi0 = phi0
         self.t0 = best_t0
+        self.fitted_t0 = best_t0
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
         self.Omega_0 = freq_to_find_Omega_0.y[gen_utils.find_nearest_index(freq_to_find_Omega_0.t,best_t0)]/np.abs(self.m)
         self.Phi_0 = best_phi0/np.abs(self.m)
@@ -869,7 +897,7 @@ class BOB:
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
+        self.t = np.linspace(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,int((self.__end_after_tpeak-self.__start_before_tpeak))*10+1)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
         t_lmm,y_lmm = self.construct_BOB()
@@ -1011,7 +1039,7 @@ class BOB:
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        self.t = np.linspace(self.tp + self.start_before_tpeak,self.tp + self.end_after_tpeak,int((self.end_after_tpeak-self.start_before_tpeak))*10+1)
+        self.t = np.linspace(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,int((self.__end_after_tpeak-self.__start_before_tpeak))*10+1)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
         t_lmm,y_lmm = self.construct_BOB()
@@ -1153,8 +1181,8 @@ class BOB:
         psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)
         self.psi4_tp = psi4m.time_at_maximum()
 
-        newsm = hm.differentiated(1)
-        newsmm = hmm.differentiated(1)
+        newsm = hm.spline_differentiated(1)
+        newsmm = hmm.spline_differentiated(1)
         self.news_tp = newsm.time_at_maximum()
 
         self.strain_data = hm
@@ -1198,8 +1226,8 @@ class BOB:
         psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
         psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)
 
-        newsm = hm.differentiated(1)
-        newsmm = hmm.differentiated(1)
+        newsm = hm.spline_differentiated(1)
+        newsmm = hmm.spline_differentiated(1)
 
         self.strain_tp = hm.time_at_maximum()
         self.news_tp = newsm.time_at_maximum()
@@ -1257,7 +1285,7 @@ class BOB:
             m = kwargs['m']
         else:
             m = self.m
-        temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m).differentiated(1)
+        temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m).spline_differentiated(1)
         return temp_ts.t,temp_ts.y
     def get_strain_data(self,**kwargs):
         if('l' in kwargs):
@@ -1298,9 +1326,9 @@ def test_phase_freq_t0_inf():
     Strain_Omega = kuibit_ts(t,BOB_obj.BOB_strain_freq())
     Strain_Phi   = kuibit_ts(t,BOB_obj.BOB_strain_phase())
 
-    dPsi4_Phi_dt   = Psi4_Phi.differentiated(1)
-    dNews_Phi_dt   = News_Phi.differentiated(1)
-    dStrain_Phi_dt = Strain_Phi.differentiated(1)
+    dPsi4_Phi_dt   = Psi4_Phi.spline_differentiated(1)
+    dNews_Phi_dt   = News_Phi.spline_differentiated(1)
+    dStrain_Phi_dt = Strain_Phi.spline_differentiated(1)
 
     plt.plot(Strain_Omega.t,Strain_Omega.y,color='black',label='Analytic')
     plt.plot(dStrain_Phi_dt.t,dStrain_Phi_dt.y,color='green',label='Numerical')
@@ -1370,9 +1398,9 @@ def test_phase_freq_finite_t0():
     Strain_Omega = kuibit_ts(t,BOB_obj.BOB_strain_freq_finite_t0())
     Strain_Phi   = kuibit_ts(t,BOB_obj.BOB_strain_phase_finite_t0()[0])
 
-    dPsi4_Phi_dt   = Psi4_Phi.differentiated(1)
-    dNews_Phi_dt   = News_Phi.differentiated(1)
-    dStrain_Phi_dt = Strain_Phi.differentiated(1)
+    dPsi4_Phi_dt   = Psi4_Phi.spline_differentiated(1)
+    dNews_Phi_dt   = News_Phi.spline_differentiated(1)
+    dStrain_Phi_dt = Strain_Phi.spline_differentiated(1)
 
     
     plt.plot(Strain_Omega.t,Strain_Omega.y,color='black',label='Analytic')

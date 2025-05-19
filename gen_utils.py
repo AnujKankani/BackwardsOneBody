@@ -93,6 +93,7 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
     #it is assumed that the waveforms are aligned at the peak amplitude time
     if (not(np.array_equal(model.t,NR_data.t))):
         if(resample_NR_to_model):
+            print("resampling to equal times")
             NR_data = NR_data.resampled(model.t)
         else:
             raise ValueError("Time arrays must be identical or set resample_NR_to_model to True")
@@ -206,10 +207,16 @@ def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     spherical_modes = [(2,2)]
 
     A220_dict = {}
+    A221_dict = {}
+    A222_dict = {}
     master_mismatch_arr = []
+    qnm_wm_master_arr = []
     for N,qnms in enumerate(qnm_list):
         A220_dict[N] = []
+        A221_dict[N] = []
+        A222_dict[N] = []
         mm_list = []
+        qnm_wm_arr = []
         for start_time in mov_time:
             best_fit = qnmfits.fit(
                 data=NR_data,
@@ -222,9 +229,18 @@ def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
             )
             mm_list.append(best_fit['mismatch'])
             A220_dict[N].append(abs(best_fit['amplitudes'][2,2,0,1]))
+            if(N>0):
+                A221_dict[N].append(abs(best_fit['amplitudes'][2,2,1,1]))
+            else:
+                A221_dict[N].append(0)
+            if(N>1):
+                A222_dict[N].append(abs(best_fit['amplitudes'][2,2,2,1]))
+            else:
+                A222_dict[N].append(0)
+            qnm_wm_arr.append(best_fit['model'])
         master_mismatch_arr.append(mm_list)
-
-    return master_mismatch_arr,A220_dict
+        qnm_wm_master_arr.append(qnm_wm_arr)
+    return master_mismatch_arr,A220_dict,A221_dict,A222_dict,qnm_wm_master_arr
 def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
     #but modified for our purposes here
