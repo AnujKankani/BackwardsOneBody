@@ -5,7 +5,7 @@ from quaternion.calculus import spline_definite_integral as sdi
 import matplotlib.pyplot as plt
 import scri
 import spherical_functions as sf
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt, detrend
 
 
 #some useful functions
@@ -310,8 +310,9 @@ def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     )
 
     return wm
-def time_integral(ts,order=2,f=0.1,dt=0.1):
+def time_integral(ts,order=2,f=0.1,dt=0.1,remove_drift = False):
     #time integral with a butterworth highpass filter and a digital filter to ensure the phase doesn't change
+    #optional linear drift removal at end, with the highpass filter, it doesn't make much of a difference
     #Note: The phase after integration may not be the mismatch minimized phase for the new waveform, but should be pretty good
     if(np.abs((ts.t[-1]-ts.t[0])-dt)>1e-10):
         ts = ts.fixed_timestep_resampled(dt)
@@ -322,8 +323,12 @@ def time_integral(ts,order=2,f=0.1,dt=0.1):
     b,a = butter(order,freq_at_peak*f/(.5*fs),btype='highpass',analog=False)
     filtered_signal_real = filtfilt(b, a, ts.y.real)
     filtered_signal_imag = filtfilt(b, a, ts.y.imag)
-    real_int = np.cumsum(filtered_signal_real)/fs
-    imag_int = np.cumsum(filtered_signal_imag)/fs
+    if(remove_drift):
+        real_int = detrend(np.cumsum(filtered_signal_real)/fs)
+        imag_int = detrend(np.cumsum(filtered_signal_imag)/fs)
+    else:
+        real_int = np.cumsum(filtered_signal_real)/fs
+        imag_int = np.cumsum(filtered_signal_imag)/fs
     return kuibit_ts(ts.t,real_int + 1j*imag_int)
 
     
