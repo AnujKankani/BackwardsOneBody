@@ -269,10 +269,13 @@ class BOB:
         self.Omega_0 = Omega_0
         if('psi4' in self.__what_to_create):
             Omega = BOB_terms.BOB_psi4_freq(self)
-        if('news' in self.__what_to_create):
+        elif('news' in self.__what_to_create):
             Omega = BOB_terms.BOB_news_freq(self)
-        if('strain' in self.__what_to_create):
+        elif('strain' in self.__what_to_create):
+            print('why am i being called')
             Omega = BOB_terms.BOB_strain_freq(self)
+        else:
+            raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
         start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
         end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
         Omega = Omega[start_index:end_index]
@@ -287,10 +290,12 @@ class BOB:
         try:
             if('psi4' in self.__what_to_create):
                 Omega = BOB_terms.BOB_psi4_freq_finite_t0(self)
-            if('news' in self.__what_to_create):
+            elif('news' in self.__what_to_create):
                 Omega = BOB_terms.BOB_news_freq_finite_t0(self)
-            if('strain' in self.__what_to_create):
+            elif('strain' in self.__what_to_create):
                 Omega = BOB_terms.BOB_strain_freq_finite_t0(self)
+            else:
+                raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
         except:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             Omega = np.full_like(self.t,1e10)
@@ -308,10 +313,12 @@ class BOB:
         try:
             if('psi4' in self.__what_to_create):
                 Omega = BOB_terms.BOB_psi4_freq_finite_t0(self)
-            if('news' in self.__what_to_create):
+            elif('news' in self.__what_to_create):
                 Omega = BOB_terms.BOB_news_freq_finite_t0(self)
-            if('strain' in self.__what_to_create):
+            elif('strain' in self.__what_to_create):
                 Omega = BOB_terms.BOB_strain_freq_finite_t0(self)
+            else:
+                raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
         except:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             Omega = np.full_like(self.t,1e10)
@@ -350,6 +357,8 @@ class BOB:
             print("fit failed, setting Omega_0 = Omega_ISCO")
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
+        print(popt[0],pcov)
+        print(self.tp,self.t[start_index],self.t[end_index])
     def fit_Phi0(self):
         #whenever we fit Phi0 it is important that everything is sampled on the same self.t timeseries, since that is what will be used to construct BOB
 
