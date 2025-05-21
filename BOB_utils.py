@@ -14,7 +14,7 @@ class BOB:
         qnm.download_data()
         #some default values
         self.minf_t0 = True
-        self.__start_before_tpeak = -50
+        self.__start_before_tpeak = -100
         self.__end_after_tpeak = 150
         self.t0 = -10
         self.tp = 0
@@ -55,6 +55,13 @@ class BOB:
         self.__optimize_t0_and_Omega0_via_mismatch = False
         self.__optimize_t0_and_Omega0 = False
         self.__optimize_t0 = False
+
+        self.fitted_t0 = -np.inf
+        self.fitted_Omega0 = -np.inf
+
+        self.use_strain_for_t0_optimization = False
+
+
     @property
     def what_should_BOB_create(self):
         return self.__what_to_create
@@ -293,7 +300,7 @@ class BOB:
         #freq data passed in is big Omega, where w = m*Omega
         self.t0 = t00[0] 
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-        self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)]
+        self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)] #freq data is already big Omega
         start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
         end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
         start_data_index = gen_utils.find_nearest_index(freq_data.t,self.tp+self.start_fit_before_tpeak)
@@ -308,14 +315,7 @@ class BOB:
         except:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             Omega = np.full_like(self.t,1e10)
-        if(np.abs((self.t0-self.tp)+1)<1e-5 or np.abs((self.t0-self.tp)+10)<1e-5):
-            plt.plot(self.t,Omega)
-            plt.plot(freq_data.t,freq_data.y,color='black')
-            #plt.plot(self.t[start_index:end_index],Omega[start_index:end_index])
-            #plt.plot(freq_data.t[start_data_index:end_data_index],freq_data.y[start_data_index:end_data_index],color='black')
-            plt.show()
         res = np.sum((Omega[start_index:end_index]-freq_data.y[start_data_index:end_data_index])**2)
-        print("res = ",res)
         return res
     def fit_omega_and_phase(self,x,Omega_0,Phi_0):
         #this should never be called if X_using_Y
@@ -504,13 +504,17 @@ class BOB:
         #1. Each t_0 is linked to a omega_0, and we have some finite timestep
         #2. The lsq fit can get trapped in local minimums, especially if we provide a good initial guess
         #3. Since we only have a 1D fit, the grid based search doesn't take to long
-        freq_data = gen_utils.get_frequency(self.data.resampled(self.t)) #self.tp is NR tp 
+
+        if(self.use_strain_for_t0_optimization):
+            freq_data = gen_utils.get_frequency(self.strain_data.resampled(self.t))
+        else:
+            freq_data = gen_utils.get_frequency(self.data.resampled(self.t)) #self.tp is NR tp 
         freq_data.y = freq_data.y/np.abs(self.m)
         #We don't want to finish with another optimizer since that can cause us to go outside our bounds, and our grid based search delta is our timestep
         resbrute = brute(lambda t0_array: self.fit_t0_only(t0_array, freq_data),(slice( self.tp-100, self.tp, 0.1),),finish=None)
         self.t0 = resbrute
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-        self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(self.data.t,self.t0)]
+        self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)]
         self.fitted_t0 = self.t0
     def find_best_t0_via_mismatch(self):
         if(self.minf_t0):
@@ -728,6 +732,8 @@ class BOB:
             self.perform_phase_alignment = False
         
         phase = None
+        self.fitted_t0 = self.t0
+        self.fitted_Omega0 = self.Omega_0
         Phi,Omega = self.get_correct_Phi_and_Omega()
         phase = np.abs(self.m)*Phi
 
@@ -802,6 +808,7 @@ class BOB:
                 pass
 
         #now that the correct Omega0 and Phi0 have been set based on the optimization choices, we can calculate the amplitude and phase
+        self.fitted_Omega0 = self.Omega_0 #if no omega0 optimization takes place, then this should just return omega_isco
         Phi,Omega = self.get_correct_Phi_and_Omega()
         phase = np.abs(self.m)*Phi
         amp = self.BOB_amplitude_given_Ap(Omega)
@@ -1142,6 +1149,10 @@ class BOB:
             elif(self.__what_to_create=="news_using_psi4"):
                 self.NR_based_on_BOB_ts = self.news_data.resampled(BOB_ts.t)
         else:
+            if(BOB_ts.t[-1]>self.data.t[-1]):
+                raise ValueError("BOB.ts.t[-1]"+str(BOB_ts.t[-1])+" is greater than self.data.t[-1]"+str(self.data.t[-1])+" for "+self.sxs_id)
+            if(BOB_ts.t[0]<self.data.t[0]):
+                raise ValueError("BOB.ts.t[0]"+str(BOB_ts.t[0])+" is less than self.data.t[0]"+str(self.data.t[0])+" for "+self.sxs_id)
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
 
         if(print_mismatch):
@@ -1153,9 +1164,9 @@ class BOB:
                 mismatch = gen_utils.mismatch(BOB_ts,self.NR_based_on_BOB_ts,mismatch_time[0],mismatch_time[-1])
             print("Mismatch = ",mismatch)
         return BOB_ts.t,BOB_ts.y
-    def initialize_with_sxs_data(self,sxs_id,l=2,m=2): 
+    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True): 
         print("loading SXS data: ",sxs_id)
-        sim = sxs.load(sxs_id)
+        sim = sxs.load(sxs_id,download=download)
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
         self.chif = sim.metadata.remnant_dimensionless_spin
