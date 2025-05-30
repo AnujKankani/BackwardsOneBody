@@ -272,7 +272,6 @@ class BOB:
         elif('news' in self.__what_to_create):
             Omega = BOB_terms.BOB_news_freq(self)
         elif('strain' in self.__what_to_create):
-            print('why am i being called')
             Omega = BOB_terms.BOB_strain_freq(self)
         else:
             raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
@@ -357,8 +356,6 @@ class BOB:
             print("fit failed, setting Omega_0 = Omega_ISCO")
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
-        print(popt[0],pcov)
-        print(self.tp,self.t[start_index],self.t[end_index])
     def fit_Phi0(self):
         #whenever we fit Phi0 it is important that everything is sampled on the same self.t timeseries, since that is what will be used to construct BOB
 
@@ -525,6 +522,7 @@ class BOB:
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
         self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)]
         self.fitted_t0 = self.t0
+        self.fitted_Omega0 = self.Omega_0
     def find_best_t0_via_mismatch(self):
         if(self.minf_t0):
             raise ValueError("Cannot find best t0 via mismatch if t0 = -inf")
@@ -1179,12 +1177,17 @@ class BOB:
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
         self.chif = sim.metadata.remnant_dimensionless_spin
+        sign = np.sign(self.chif[2])
+        if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
+            raise ValueError("Final spin has non-zero x or y component for "+sxs_id+" This is not supported currently")
         self.chif = np.linalg.norm(self.chif)
         self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
-        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),0)
+        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+        self.w_r = np.abs(w_r)
+        self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
 
         h = sim.h
@@ -1229,12 +1232,18 @@ class BOB:
             abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
 
         self.mf = abd.bondi_rest_mass()[-1]
-        self.chif = np.linalg.norm(abd.bondi_dimensionless_spin()[-1])
+        self.chif = abd.bondi_dimensionless_spin()[-1]
+        if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
+            raise ValueError("Final spin has non-zero x or y component for "+cce_id+" This is not supported currently")
+        sign = np.sign(self.chif[2])
+        self.chif = np.linalg.norm(self.chif)
         self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
-        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),0)
+        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+        self.w_r = np.abs(w_r)
+        self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
 
 
@@ -1265,11 +1274,17 @@ class BOB:
         ts = kuibit_ts(t,y)
         self.mf = mf
         self.chif = chif
+        if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
+            raise ValueError("Final spin has non-zero x or y component for this data. This is not supported currently")
+        sign = np.sign(self.chif[2])
+        self.chif = np.linalg.norm(self.chif)
         self.l = l
         self.m = m
         self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.Omega_0 = self.Omega_ISCO
-        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,self.m,0)
+        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+        self.w_r = np.abs(w_r)
+        self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
         self.psi4_data = ts
         #self.data = self.psi4_data
@@ -1279,10 +1294,17 @@ class BOB:
     def initialize_manually(self,mf,chif,l,m,**kwargs):
         self.mf = mf
         self.chif = chif
+        if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
+            raise ValueError("Final spin has non-zero x or y component for this data. This is not supported currently")
+        sign = np.sign(self.chif[2])
+        self.chif = np.linalg.norm(self.chif)
         self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
         self.l = l
         self.m = m
-        self.w_r,self.tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),0)
+        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+        self.w_r = np.abs(w_r)
+        self.tau = np.abs(tau)
+        self.Omega_QNM = self.w_r/np.abs(self.m)
         for key, value in kwargs.items():
             setattr(self, key, value)
     def get_psi4_data(self,**kwargs):

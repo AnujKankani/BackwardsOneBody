@@ -5,7 +5,7 @@ from quaternion.calculus import spline_definite_integral as sdi
 import matplotlib.pyplot as plt
 import scri
 import spherical_functions as sf
-from scipy.signal import butter, filtfilt, detrend
+from scipy.signal import butter, filtfilt, detrend, lfilter
 
 
 #some useful functions
@@ -55,10 +55,15 @@ def get_Omega_isco(chi,M):
     a = chi*M
     Omega = np.sqrt(M)/(r_isco**1.5 + a*np.sqrt(M)) # = dphi/dt
     return Omega
-def get_qnm(chif,Mf,l,m,n=0):
+def get_qnm(chif,Mf,l,m,n=0,sign=1):
     #omega_qnm, all_C, ells = qnmfits.read_qnms.qnm_from_tuple((l,m,n,1),chif,M=M)
-    grav_lmn = qnm.modes_cache(s=-2,l=l,m=m,n=n)
-    omega_qnm, A, C = grav_lmn(a=chif) #qnm package uses M = 1 so a = chi here
+    if(sign==-1):
+        grav_lmn = qnm.modes_cache(s=-2,l=l,m=-m,n=n)
+        omega_qnm, A, C = grav_lmn(a=chif)#qnm package uses M = 1 so a = chi here
+        omega_qnm = -np.conj(omega_qnm)
+    else:
+        grav_lmn = qnm.modes_cache(s=-2,l=l,m=m,n=n)
+        omega_qnm, A, C = grav_lmn(a=chif)#qnm package uses M = 1 so a = chi here
     omega_qnm /= Mf #rescale to remnant black hole mass
     w_r = omega_qnm.real 
     imag_qnm = np.abs(omega_qnm.imag)
@@ -310,7 +315,21 @@ def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     )
 
     return wm
-def time_integral(ts,order=2,f=0.1,dt=0.1,remove_drift = False):
+def weighted_detrend(signal, weight_power=2):
+    n = len(signal)
+    x = np.arange(n)
+
+    # Emphasize later times more
+    weights = (x / n) ** weight_power  # adjust power to control how sharp the weighting is
+
+    # Fit weighted linear trend
+    A = np.vstack([x, np.ones(n)]).T
+    W = np.diag(weights)
+    coeffs = np.linalg.lstsq(W @ A, W @ signal, rcond=None)[0]
+
+    trend = A @ coeffs
+    return signal - trend
+def time_integral(ts,w_qnm=-1,order=2,f=0.1,dt=0.1,remove_drift = False):
     #time integral with a butterworth highpass filter and a digital filter to ensure the phase doesn't change
     #optional linear drift removal at end, with the highpass filter, it doesn't make much of a difference
     #Note: The phase after integration may not be the mismatch minimized phase for the new waveform, but should be pretty good
@@ -319,8 +338,10 @@ def time_integral(ts,order=2,f=0.1,dt=0.1,remove_drift = False):
     freq = get_frequency(ts)
     peak_time = ts.time_at_maximum()
     freq_at_peak = freq.y[find_nearest_index(freq.t,peak_time)]/(2*np.pi)
+    #assert(w_qnm/(2*np.pi)>freq_at_peak)
     fs = 1/dt
     b,a = butter(order,freq_at_peak*f/(.5*fs),btype='highpass',analog=False)
+    #b,a = butter(order,[freq_at_peak*f/(.5*fs),(w_qnm*2.5/(2*np.pi))/(.5*fs)],btype='band',analog=False)
     filtered_signal_real = filtfilt(b, a, ts.y.real)
     filtered_signal_imag = filtfilt(b, a, ts.y.imag)
     if(remove_drift):
