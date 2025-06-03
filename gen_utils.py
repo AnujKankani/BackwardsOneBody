@@ -345,8 +345,8 @@ def time_integral(ts,w_qnm=-1,order=2,f=0.1,dt=0.1,remove_drift = False):
     filtered_signal_real = filtfilt(b, a, ts.y.real)
     filtered_signal_imag = filtfilt(b, a, ts.y.imag)
     if(remove_drift):
-        real_int = detrend(np.cumsum(filtered_signal_real)/fs)
-        imag_int = detrend(np.cumsum(filtered_signal_imag)/fs)
+        real_int = weighted_detrend(np.cumsum(filtered_signal_real)/fs)
+        imag_int = weighted_detrend(np.cumsum(filtered_signal_imag)/fs)
     else:
         real_int = np.cumsum(filtered_signal_real)/fs
         imag_int = np.cumsum(filtered_signal_imag)/fs
