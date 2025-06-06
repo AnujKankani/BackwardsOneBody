@@ -60,6 +60,7 @@ class BOB:
         self.fitted_Omega0 = -np.inf
 
         self.use_strain_for_t0_optimization = False
+        self.use_strain_for_Omega0_optimization = False
 
 
     @property
@@ -343,8 +344,10 @@ class BOB:
         if(self.__end_after_tpeak<self.end_fit_after_tpeak):
             print("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
             self.end_fit_after_tpeak = self.__end_after_tpeak
-
-        freq_ts = gen_utils.get_frequency(self.data)
+        if(self.use_strain_for_Omega0_optimization):
+            freq_ts = gen_utils.get_frequency(self.strain_data)
+        else:
+            freq_ts = gen_utils.get_frequency(self.data)
         freq_ts = freq_ts.resampled(self.t)
         freq_ts.y = freq_ts.y/np.abs(self.m)
         
