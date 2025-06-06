@@ -6,27 +6,7 @@ import time
 # =========================================================================
 # HELPER FUNCTIONS (Imported or Defined Here)
 # =========================================================================
-
-def build_asymptotic_expansion_sym(n_max, t, A_expr, omega_expr, phi_expr):
-    """
-    Constructs a dictionary of symbolic expressions for the asymptotic expansion formula,
-    with each entry corresponding to a different maximum order 'n'.
-    Uses an EFFICIENT sequential differentiation method.
-    """
-    I = sp.I
-    term1 = -1 / (I * omega_expr)
-    term2 = A_expr / (I * omega_expr)
-    total_sum = sp.Integer(0)
-    expressions_by_n = {}
-    derivative_term = term2
-    for n in range(n_max + 1):
-        print(f"    Processing symbolic term n={n}...")
-        total_sum += (term1**n) * derivative_term
-        expressions_by_n[n] = sp.exp(I * phi_expr) * total_sum
-        if n < n_max:
-            print(f"      Calculating derivative for n={n+1}...")
-            derivative_term = sp.diff(derivative_term, t, 1)
-    return expressions_by_n
+from BOB_terms import(build_asymptotic_expansion_sym, build_double_integral_series_sym)
 
 # Import ALL possible functions from your model file.
 # We use 'as' to give the asymptotic functions unique, clear names.
@@ -53,10 +33,12 @@ if __name__ == "__main__":
 
     # --- List of all models to be generated ---
     MODEL_CHOICES = [
-        'strain_finite_t0', 'news_finite_t0', 'psi4_finite_t0',
-        'strain_asymptotic', 'news_asymptotic', 'psi4_asymptotic'
+        'psi4_finite_t0', 
+        'psi4_asymptotic', 
     ]
-    NMAX = 10  # The absolute maximum order to generate for each model
+    NMAX = 5  # The absolute maximum order to generate for each model
+
+    PERFORM_DOUBLE_INTEGRATION = True
 
     # --- Loop over every model choice ---
     for model_choice in MODEL_CHOICES:
@@ -97,9 +79,14 @@ if __name__ == "__main__":
         # STEP 2: BUILD ALL SYMBOLIC EXPRESSIONS (n=0 to NMAX)
         # -------------------------------------------------------------
         print("\nStep 2: Building all symbolic expressions (this may be slow)...")
-        all_expressions = build_asymptotic_expansion_sym(
-            n_max=NMAX, t=t, A_expr=A_expr, omega_expr=omega_expr, phi_expr=phi_expr
-        )
+        if PERFORM_DOUBLE_INTEGRATION:
+            all_expressions = build_double_integral_series_sym(
+                n_max=NMAX, m_max=NMAX, t=t, A_expr=A_expr, omega_expr=omega_expr, phi_expr=phi_expr
+            )
+        else:
+            all_expressions = build_asymptotic_expansion_sym(
+                n_max=NMAX, t=t, A_expr=A_expr, omega_expr=omega_expr, phi_expr=phi_expr
+            )
         print("... All symbolic calculations complete.")
 
         # -------------------------------------------------------------
@@ -187,7 +174,7 @@ def get_precomputed_waveform(n_max, t, t0, tp, tau, Ap, Omega0, Omega_QNM, Phi_0
     return selected_func(t, t0, tp, tau, Ap, Omega0, Omega_QNM, Phi_0)
 """
 
-        output_filename = f"precomputed_terms/precomputed_waveform_{model_choice}.py"
+        output_filename = f"precomputed_terms/precomputed_waveform_strain_using_{model_choice}.py"
         with open(output_filename, "w") as f:
             f.write(file_content)
 

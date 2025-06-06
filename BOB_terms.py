@@ -303,3 +303,35 @@ def build_asymptotic_expansion_sym(n_max, t, A_expr, omega_expr, phi_expr):
             derivative_term = sp.diff(derivative_term, t, 1)
 
     return expressions_by_n
+    
+def build_double_integral_series_sym(n_max, m_max, t, A_expr, omega_expr, phi_expr):
+    I = sp.I
+    print(f"--- Building Double Integral Series (up to n_max={n_max}, m_max={m_max}) ---")
+
+    # Step 1: Build the full inner series for the News amplitude (up to m_max)
+    print("\n  Building inner series (m) for the News function...")
+    inner_series_sum = sp.Integer(0)
+    term_to_differentiate_m = A_expr / (I * omega_expr)
+    derivative_term_m = term_to_differentiate_m
+    term1_m = -1 / (I * omega_expr)
+    for m in range(m_max + 1):
+        inner_series_sum += (term1_m**m) * derivative_term_m
+        if m < m_max: derivative_term_m = sp.diff(derivative_term_m, t, 1)
+    A_N_expr = inner_series_sum
+    print("  ... Inner series for News amplitude is complete.")
+
+    # Step 2: Build the outer series, storing the result for each 'n'
+    print("\n  Building outer series (n) for the Strain...")
+    expressions_by_n = {}
+    outer_series_sum = sp.Integer(0)
+    term_to_differentiate_n = A_N_expr / (I * omega_expr)
+    derivative_term_n = term_to_differentiate_n
+    term1_n = -1 / (I * omega_expr)
+    for n in range(n_max + 1):
+        print(f"    Calculating and storing expression for n={n}...")
+        outer_series_sum += (term1_n**n) * derivative_term_n
+        expressions_by_n[n] = sp.exp(I * phi_expr) * outer_series_sum
+        if n < n_max: derivative_term_n = sp.diff(derivative_term_n, t, 1)
+        
+    print("--- Double Integral Series construction finished. ---")
+    return expressions_by_n
