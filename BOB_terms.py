@@ -4,7 +4,6 @@ from scipy.integrate import cumulative_trapezoid
 import sympy as sp
 from sympy import Ei as Ei_sp
 
-
 def define_BOB_symbols():
     t, t0, tp, tau = sp.symbols('t t0 tp tau', real=True)
     Omega0, Omega_QNM, Ap, Phi_0 = sp.symbols('Omega0 Omega_QNM Ap Phi_0', positive=True)
@@ -272,6 +271,28 @@ def BOB_psi4_phase(BOB):
     return outer*(inner1+inner2+inner3+inner4) + BOB.Phi_0, Omega
 
 
+
+
+'''
+Symbolic expansion isn't working great
+def regularize_denominators(expr, epsilon):
+    # For example, replace any 1/(x) with 1/sqrt(x**2 + epsilon**2)
+    # Or more specifically for your problem, replace terms like 1/omega_expr with 1/sqrt(omega_expr**2 + epsilon**2)
+    
+    # This depends on your expression structure; you can do a targeted replacement:
+    # Find denominators and add epsilon in a controlled way
+    # For simplicity, try this generic replacement:
+    
+    def safe_division(e):
+        # Base case: if e is a division, replace denominator
+        if e.is_Pow and e.exp == -1:
+            base = e.base
+            # replace base by sqrt(base**2 + epsilon**2)
+            return 1 / sp.sqrt(base**2 + epsilon**2)
+        return e
+
+    return expr.replace(lambda e: e.is_Pow and e.exp == -1, safe_division)
+
 def build_asymptotic_expansion_sym(n_max, t, A_expr, omega_expr, phi_expr):
     """
     Constructs a dictionary of symbolic expressions for the asymptotic expansion formula,
@@ -283,8 +304,14 @@ def build_asymptotic_expansion_sym(n_max, t, A_expr, omega_expr, phi_expr):
               complete symbolic expression up to that order.
     """
     I = sp.I
+
+    epsilon = sp.Symbol('epsilon', positive=True, real=True)
+
     term1 = -1 / (I * omega_expr)
     term2 = A_expr / (I * omega_expr)
+
+    term1 = regularize_denominators(term1, epsilon)
+    term2 = regularize_denominators(term2, epsilon)
 
     total_sum = sp.Integer(0)
     expressions_by_n = {}
@@ -301,6 +328,8 @@ def build_asymptotic_expansion_sym(n_max, t, A_expr, omega_expr, phi_expr):
         if n < n_max:
             print(f"      Calculating derivative for n={n+1}...")
             derivative_term = sp.diff(derivative_term, t, 1)
+            derivative_term = regularize_denominators(derivative_term, epsilon)
+            derivative_term = sp.simplify(sp.cancel(derivative_term))
 
     return expressions_by_n
     
@@ -335,3 +364,4 @@ def build_double_integral_series_sym(n_max, m_max, t, A_expr, omega_expr, phi_ex
         
     print("--- Double Integral Series construction finished. ---")
     return expressions_by_n
+'''
