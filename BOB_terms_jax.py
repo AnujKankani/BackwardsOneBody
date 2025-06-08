@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from functools import partial
 import matplotlib.pyplot as plt
 from scipy.special import comb
+from jax import checkpoint
 
 from jax import config
 config.update("jax_enable_x64", True)
@@ -127,69 +128,124 @@ def nth_derivative_all_FAST(f, outer_g_func, n: int):
         derivatives.append(next_deriv_func)
 
     return derivatives
+# We still need the robust derivative helper from before
+def complex_scalar_derivative(g):
+    g_real = lambda t: jnp.real(g(t))
+    g_imag = lambda t: jnp.imag(g(t))
+    def deriv_g(t):
+        t_vec = jnp.reshape(t, -1)
+        d_real_matrix = jacfwd(g_real)(t_vec)
+        d_imag_matrix = jacfwd(g_imag)(t_vec)
+        return d_real_matrix[0, 0] + 1j * d_imag_matrix[0, 0]
+    return deriv_g
 
+# --- The NEW MASTER FUNCTION to be V-Mapped ---
+# This computes the entire series sum for a SINGLE time t.
+@partial(jit, static_argnames=('N',))
+def compute_series_for_single_t(t, f0_func, g_func, N):
+    """
+    Computes the full strain expansion sum for a single time t,
+    using fori_loop to avoid JIT unrolling.
+    """
+    
+    # 1. Define the body of the loop.
+    #    It must take (loop_index, carry_value) and return new_carry_value.
+    def loop_body(i, carry):
+        # Unpack the values from the previous iteration
+        # prev_D_func is the FUNCTION that computes D^(i-1)
+        # current_sum is the running sum of terms
+        prev_D_func, current_sum = carry
+        
+        # a. Compute the derivative of the previous function
+        deriv_of_prev_D_func = complex_scalar_derivative(prev_D_func)
+        
+        # b. Create the new function for D^i = g * (D^(i-1))'
+        #    Must use a factory to capture the functions correctly
+        def create_next_D_func(g, deriv_prev):
+            return lambda time: g(time) * deriv_prev(time)
+        
+        current_D_func = create_next_D_func(g_func, deriv_of_prev_D_func)
+        
+        # c. Evaluate the new term D^i(t)
+        current_D_val = current_D_func(t)
+        
+        # d. Add it to the running sum with the correct sign (-1)^i
+        new_sum = current_sum + ((-1)**i) * current_D_val
+        
+        # e. Return the new state for the next iteration
+        return (current_D_func, new_sum)
+
+    # 2. Define the initial state (the "carry") for the loop at i=0.
+    #    The loop will start at i=1.
+    D0_func = f0_func
+    D0_val = D0_func(t) # The 0-th term
+    initial_carry = (D0_func, D0_val)
+    
+    # 3. Run the jax.lax.fori_loop from i=1 up to N.
+    #    The loop computes terms 1, 2, ..., N.
+    final_carry = fori_loop(1, N + 1, loop_body, initial_carry)
+    
+    # 4. The final sum is the second element of the final carry tuple.
+    final_sum = final_carry[1]
+    
+    return final_sum
 # --- Revised Strain Expansion Function ---
 @partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
 def strain_expansion_amp(t, Omega_0, Omega_QNM, tau, Ap, t_p,
-                     omega_func, A_func,m,N=3):
-    """
-    Compute the strain expansion sum using a JAX-idiomatic approach.
-
-    Parameters
-    ----------
-    t : array_like
-        Time array (1D).
-    ... : floats
-        Model parameters.
-    omega_func, A_func : callable
-        Scalar functions for frequency and amplitude.
-    N : int, static
-        Number of terms in the series expansion. Must be a compile-time constant.
+                               omega_func, A_func, m, N=3):
     
-    Returns
-    -------
-    strain : complex array
-        The strain expansion evaluated at times t.
-    """
-    # 1. Define the base function to be differentiated, f(t) = A(t) / (i * omega(t)).
-    #    It must take a single scalar argument for the derivative helper to work.
-    def base_func(t_):
-        # We pass other parameters via closure.
+    # 1. Define base scalar functions (this is correct)
+    def f0_func(t_):
         A = A_func(t_, tau, Ap, t_p)
-        omega = omega_func(t_, Omega_0, Omega_QNM, tau, t_p,m)
-        return A / (I * omega)
-    
-    def outer_func(t_):
-        return 1/(I*omega_func(t_, Omega_0, Omega_QNM, tau, t_p,m))
+        omega = omega_func(t_, Omega_0, Omega_QNM, tau, t_p, m)
+        return A / (1j * omega)
 
-    # 2. Vectorize and compute omega(t) and the phase phi(t)
-    omega_vec = vmap(lambda tt: omega_func(tt, Omega_0, Omega_QNM, tau, t_p,m))(t)
+    def g_func(t_):
+        omega = omega_func(t_, Omega_0, Omega_QNM, tau, t_p, m)
+        return 1.0 / (1j * omega)
 
-    # 3. Compute the derivatives.
-    # Compute all derivatives once
-    #deriv_funcs = nth_derivative_all(base_func, outer_func, N)
-    deriv_funcs = nth_derivative_all_FAST(base_func, outer_func, N)
-    
-    
-    
-    
-    
-    # Stack into a single JAX array: shape (N+1, len(t))
-    derivs_values = jnp.stack([vmap(df)(t) for df in deriv_funcs])  # shape (N+1, len(t))
-    
+    # This list will hold the Python functions that compute each term D^i(t)
+    term_funcs = []
 
-    signs = jnp.power(-1.0, jnp.arange(N + 1)).reshape(-1, 1) # Shape (N+1, 1)
-    derivs_values_signed = derivs_values * signs
-    series_sum = jnp.sum(derivs_values_signed, axis=0)
+    # The 0-th term is just the base function
+    term_funcs.append(f0_func)
+    
+    # --- The Corrected Loop ---
+    for i in range(1, N + 1):
+        # Get the function that computes the previous term, D^(i-1)
+        prev_term_func = term_funcs[-1]
+        
+        # --- THE CRITICAL FIX IS HERE ---
+        # Before we take the derivative of the previous term's function,
+        # we wrap it in `checkpoint`. This tells JAX: "Don't trace into
+        # prev_term_func during compilation. Just treat it as a black box
+        # that will be recomputed as needed."
+        # This breaks the enormous dependency chain.
+        prev_term_func_checkpointed = checkpoint(prev_term_func)
+        
+        # Now, compute the derivative of the *checkpointed* function.
+        # The compilation graph for this step is now small, because JAX
+        # does not trace into the full history of the function.
+        deriv_of_prev = complex_scalar_derivative(prev_term_func_checkpointed)
+        
+        # Define the function for the new term: D^i = g * (D^(i-1))'
+        # We use a factory function to correctly capture the functions from the loop
+        def create_next_term_func(g, deriv_func):
+            return lambda time: g(time) * deriv_func(time)
+            
+        next_term_func = create_next_term_func(g_func, deriv_of_prev)
+        
+        # Append the new function to our list
+        term_funcs.append(next_term_func)
 
-    # 5. Contract the terms to get the series sum
-    # Element-wise product then sum over the 'n' axis (axis=0)
-    #series_sum = jnp.sum(derivs_values, axis=0)
+    # Now evaluate all terms. This part is the same and is correct.
+    all_terms = jnp.stack([vmap(f)(t) for f in term_funcs])
+    
+    # Apply signs and sum
+    signs = jnp.power(-1.0, jnp.arange(N + 1)).reshape(-1, 1)
+    series_sum = jnp.sum(all_terms * signs, axis=0)
 
-    # 6. Final assembly
-    strain_amp = series_sum
-    return strain_amp
-
+    return series_sum
 # Main expansion function
 @partial(jit, static_argnames=('A_func', 'omega_func', 'N'))
 def strain_from_psi4_series(t, Omega_0, Omega_QNM, tau, Ap, t_p,
