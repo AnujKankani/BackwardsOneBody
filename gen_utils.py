@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import scri
 import spherical_functions as sf
 from scipy.signal import butter, filtfilt, detrend, lfilter
-
+from scipy.optimize import brute
 
 #some useful functions
 def find_nearest_index(array, value):
@@ -74,7 +74,7 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     #and phases are aligned (to the extent the user wants them to be)
     if (not(np.array_equal(BOB_data.t,NR_data.t))):
         if(resample_NR_to_BOB):
-            print("resampling to equal times")
+            #print("resampling to equal times")
             NR_data = NR_data.resampled(BOB_data.t)
         else:
             raise ValueError("Time arrays must be identical or set resample_NR_to_BOB to True")
@@ -94,9 +94,6 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
 
     return 1.-mismatch   
 def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
-    #We don't make this function BOB specific, since we'll use it to compare other waveform models as well
-    #minimum mismatch searched over a grid of phase values
-    #it is assumed that the waveforms are aligned at the peak amplitude time
     if (not(np.array_equal(model.t,NR_data.t))):
         if(resample_NR_to_model):
             print("resampling to equal times")
@@ -121,6 +118,37 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
             min_mismatch = mismatch_val
             best_phi0 = phi0
     return best_phi0,min_mismatch
+
+def phi_time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=True,
+                           phi0_step=0.01, t_shift_range=np.linspace(-5,5,101)):
+
+    # Set up phase grid
+    phi0_range = np.arange(0, 2*np.pi, phi0_step)
+
+
+    # Search over time and phase offsets
+    min_mismatch = 1e10
+    best_phi0 = 0.0
+    best_t_shift = 0.0
+    orig_model = model.copy()
+
+    for t_shift in t_shift_range:
+        print("t_shift = ",t_shift)
+        print("best mismatch so far = ",min_mismatch)
+        orig_model = model.copy()
+        for phi0 in phi0_range:
+            model_ = orig_model.time_shifted(t_shift)
+            model_ = model_.phase_shifted(phi0)
+            mismatch_val = mismatch(model_,NR_data,t0,tf)
+            if mismatch_val < min_mismatch:
+                min_mismatch = mismatch_val
+                best_phi0 = phi0
+                best_t_shift = t_shift
+
+    return best_t_shift, best_phi0, min_mismatch
+
+
+
 def estimate_parameters(BOB,t0=0,tf=100,print_verbose=False):
     #we use a grid search across mass and spins
     #in theory scipy optimize should be more efficient, but in testing it has mixed results
@@ -329,7 +357,7 @@ def weighted_detrend(signal, weight_power=2):
 
     trend = A @ coeffs
     return signal - trend
-def time_integral(ts,w_qnm=-1,order=2,f=0.1,dt=0.1,remove_drift = False):
+def time_integral(ts,order=2,f=0.1,dt=0.1,remove_drift = False):
     #time integral with a butterworth highpass filter and a digital filter to ensure the phase doesn't change
     #optional linear drift removal at end, with the highpass filter, it doesn't make much of a difference
     #Note: The phase after integration may not be the mismatch minimized phase for the new waveform, but should be pretty good
@@ -351,12 +379,15 @@ def time_integral(ts,w_qnm=-1,order=2,f=0.1,dt=0.1,remove_drift = False):
         real_int = np.cumsum(filtered_signal_real)/fs
         imag_int = np.cumsum(filtered_signal_imag)/fs
     return kuibit_ts(ts.t,real_int + 1j*imag_int)
+def compute_one_more_term(nth_derivative,t,freq):
+    #we want to compute one final term on top of the autodifferentiated result
+    one_over_iomega = 1/(-1j*freq)
+    deriv_val = kuibit_ts(t,nth_derivative).spline_differentiated(1).y*one_over_iomega
+    return deriv_val
 
     
 
 
-
-        
 
 
     
