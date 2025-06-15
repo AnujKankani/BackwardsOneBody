@@ -1,12 +1,7 @@
-from jax import grad, jacfwd, vmap, jit
+from jax import vmap, jit, checkpoint,jvp, config
 import jax.numpy as jnp
 from functools import partial
-import matplotlib.pyplot as plt
-from scipy.special import comb
-from jax import checkpoint
-from jax import jvp
 
-from jax import config
 config.update("jax_enable_x64", True)
 
 

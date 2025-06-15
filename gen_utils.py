@@ -90,7 +90,7 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     denominator2_integrand = np.conj(NR_data.y)*NR_data.y
     denominator2 = np.real(sdi(denominator2_integrand,NR_data.t,peak_time+t0,peak_time+tf))
     
-    mismatch = (numerator/np.sqrt(denominator1*denominator2))
+    mismatch = ((numerator)/np.sqrt(denominator1*denominator2))
 
     return 1.-mismatch   
 def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
@@ -133,8 +133,6 @@ def phi_time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=Tru
     orig_model = model.copy()
 
     for t_shift in t_shift_range:
-        print("t_shift = ",t_shift)
-        print("best mismatch so far = ",min_mismatch)
         orig_model = model.copy()
         for phi0 in phi0_range:
             model_ = orig_model.time_shifted(t_shift)
