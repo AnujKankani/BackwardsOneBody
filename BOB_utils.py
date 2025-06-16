@@ -7,7 +7,10 @@ from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
 import gen_utils
 import qnm
-import BOB_terms
+try:
+    from BackwardsOneBody import BOB_terms
+except:
+    import BOB_terms
 
 class BOB:
     def __init__(self):
@@ -1234,6 +1237,7 @@ class BOB:
             h.t -= h.t[np.argmax(np.abs(h22))]
             abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
 
+
         self.mf = abd.bondi_rest_mass()[-1]
         self.chif = abd.bondi_dimensionless_spin()[-1]
         if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
@@ -1249,8 +1253,10 @@ class BOB:
         self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
 
-
         h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
+        sxs_h_waveform = h.copy().to_sxs #convert scri wavefrom mode to a sxs waveform mode
+        BOB.strain_wm = sxs_h_waveform
+
         hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
         hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
 
