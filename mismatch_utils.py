@@ -86,15 +86,18 @@ def search_grid_engine(t_shifts_batch, t_model, h_model, t_nr, h_nr, nr_peak_tim
     
     return all_mismatches, min_idx
 
-def find_best_mismatch(model_t_arr,model_y_arr, nr_t_arr, nr_y_arr, t_peak_nr_arr,t0, tf):
+#def find_best_mismatch(model_t_arr,model_y_arr, nr_t_arr, nr_y_arr, t_peak_nr_arr,t0, tf):
+def find_best_mismatch(model_data_for_mismatch, nr_data_for_mismatch, t0, tf):
     #This is a two step process
     #Since this is designed for merger-ringdown and we assume that the model data has either been peak aligned with NR already, or is built to be close to the NR peak, +/- 10M is a comfortable cushion
     #We start with a coarse search in [-10,10] with deltat = 0.1
     #We then do a refined search of [-1+optimal_t_shift,1+optimal_t_shift] with deltat = 0.01
     final_results = []
 
-    for i, (t_model, h_model, t_nr, h_nr, t_peak_nr) in enumerate(zip(model_t_arr, model_y_arr, nr_t_arr, nr_y_arr, t_peak_nr_arr)):
-        print(f"--- Processing Waveform {i+1}/{len(model_t_arr)} ---")
+    #for i, (t_model, h_model, t_nr, h_nr, t_peak_nr) in enumerate(zip(model_t_arr, model_y_arr, nr_t_arr, nr_y_arr, t_peak_nr_arr)):
+    for i, (t_model, h_model) in enumerate(model_data_for_mismatch):
+        t_nr, h_nr, t_peak_nr = nr_data_for_mismatch[i]
+        print(f"--- Processing Waveform {i+1}/{len(model_data_for_mismatch)} ---")
         t_range_1 = np.arange(-5.0, 5.01, 0.1)
         mismatch_all,min_idx = search_grid_engine(t_range_1, t_model, h_model, t_nr, h_nr, t_peak_nr, t0, tf)
         
@@ -117,10 +120,10 @@ def find_best_mismatch(model_t_arr,model_y_arr, nr_t_arr, nr_y_arr, t_peak_nr_ar
             min_t_shift = min_t_shift_2
 
         
-        final_results.append({
-            't_shift': min_t_shift,
-            'mismatch': float(min_mismatch)
-        })
+        # final_results.append({
+        #     't_shift': min_t_shift,
+        #     'mismatch': float(min_mismatch)
+        # })
         #final_results[-1]['mismatch'].block_until_ready()
-
+        final_results.append(float(min_mismatch))
     return final_results
