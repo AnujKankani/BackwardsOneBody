@@ -13,12 +13,20 @@ except:
 import pickle
 from multiprocessing import Pool
 from os import cpu_count
+import os
+import sxs
+#disable jax memory preallocation
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import numpy as np
 import time
 from functools import partial
 import jax.numpy as jnp
 from jax import jit, vmap, debug
+try:
+    from BackwardsOneBody import ext_utils
+except:
+    import ext_utils
 
 def check_jax_devices():
     import jax
@@ -43,7 +51,9 @@ def check_jax_devices():
     print("------------------------\n")
 def get_sims():
     #debugging
-    #return ["SXS:BBH:0160","SXS:BBH:0172","SXS:BBH:2325"]
+    #return ["SXS:BBH:2325"]
+    #return ["SXS:BBH:0160", "SXS:BBH:0172", "SXS:BBH:0176", "SXS:BBH:0178", "SXS:BBH:0185", "SXS:BBH:0186",
+    #"SXS:BBH:0188", "SXS:BBH:0189", "SXS:BBH:0192", "SXS:BBH:0195", "SXS:BBH:0198", "SXS:BBH:0199"]
     sim_array = [
     "SXS:BBH:0160", "SXS:BBH:0172", "SXS:BBH:0176", "SXS:BBH:0178", "SXS:BBH:0185", "SXS:BBH:0186",
     "SXS:BBH:0188", "SXS:BBH:0189", "SXS:BBH:0192", "SXS:BBH:0195", "SXS:BBH:0198", "SXS:BBH:0199",
@@ -143,12 +153,11 @@ def get_sims():
     "SXS:BBH:4029", "SXS:BBH:4066", "SXS:BBH:4072", "SXS:BBH:4073", "SXS:BBH:4078", "SXS:BBH:4115",
     "SXS:BBH:4120", "SXS:BBH:4121", "SXS:BBH:4123", "SXS:BBH:4161", "SXS:BBH:4166", "SXS:BBH:4189",
     "SXS:BBH:4213", "SXS:BBH:4235", "SXS:BBH:4236", "SXS:BBH:4260", "SXS:BBH:4261", "SXS:BBH:4284",
-    "SXS:BBH:4430", "SXS:BBH:4431", "SXS:BBH:4432", "SXS:BBH:4434"
-    ]
+    "SXS:BBH:4430", "SXS:BBH:4431", "SXS:BBH:4432", "SXS:BBH:4434"]
     return sim_array
 def process_once(sim,BOB):
     #Since we will need to call JAX functions to convert the psi4/news to strain, I need to compute all JAX functions at once
-    print("initialize with sxs data",sim)
+    print("initializing with sxs data",sim)
     BOB.initialize_with_sxs_data(sim,download=False)
     BOB.set_start_before_tpeak = -20
     if(BOB.strain_data.t[-1]-BOB.strain_data.time_at_maximum()<80):
@@ -167,6 +176,8 @@ def process_once(sim,BOB):
     BOB_news = kuibit_ts(t_BOB_news,y_BOB_news)
     NR_news = BOB.news_data
     NR_strain = BOB.strain_data
+    NR_strain_peak = NR_strain.time_at_maximum()
+    NR_strain = NR_strain.cropped(init=NR_strain_peak-200)
     BOB.Omega_0 = BOB.fitted_Omega0
     Phi,_ = BOB_terms.BOB_news_phase(BOB)
     return sim,NR_strain,Phi,t_BOB_news,BOB.fitted_Omega0,BOB.Omega_QNM,BOB.tau,BOB.Ap,BOB.tp
@@ -178,7 +189,39 @@ def safe_process_simulation(args):
     except Exception as e:
         print(f"Error processing simulation: {e}")
         return None
+def process_ext_waveform(sim,df,BOB):
+    BOB.initialize_with_sxs_data(sim)
+    row = df.loc[sim]
+    chi1 = row.reference_dimensionless_spin1
+    chi2 = row.reference_dimensionless_spin2
+    q = row.reference_mass_ratio
+    h_eob,h_nrsurr = ext_utils.get_other_waveforms_spin_aligned(q,chi1,chi2,2,2)
 
+    h_eob_peak = h_eob.time_at_maximum()
+
+    h_eob = h_eob.cropped(init=h_eob_peak-50,end=h_eob_peak+100)#.spline_differentiated(1).aligned_at_maximum()
+    h_eob = h_eob.aligned_at_maximum()
+    #delta_t = BOB.strain_tp - BOB.news_tp
+    strain = BOB.strain_data.aligned_at_maximum()
+    #news = BOB.news_data.aligned_at_maximum()
+    #psi4 = BOB.psi4_data.aligned_at_maximum()
+
+    strain_peak = strain.time_at_maximum()
+    NR_strain = strain.cropped(init=strain_peak-50,end=strain_peak+100)#.spline_differentiated(1).aligned_at_maximum()
+
+    if(h_nrsurr is not None):
+        h_nrsurr_peak = h_nrsurr.time_at_maximum()
+        h_nrsurr = h_nrsurr.cropped(init=h_nrsurr_peak-50,end=h_nrsurr_peak+100)#.spline_differentiated(1).aligned_at_maximum()
+        h_nrsurr = h_nrsurr.aligned_at_maximum()
+        return sim,NR_strain,h_eob,h_nrsurr
+    return sim,NR_strain,h_eob,None
+def safe_process_ext_waveform(args):
+    sim,df,BOB = args
+    try:
+        return process_ext_waveform(sim,df,BOB)
+    except Exception as e:
+        print(f"Error processing simulation: {e}")
+        return None
 def prepare_data():
     BOB = BOB_utils.BOB()
     sims = get_sims()
@@ -205,7 +248,29 @@ def prepare_data():
             "BOB_tp": BOB_tp_arr[i]
         })
     return all_data
-
+def prepare_ext_data():
+    BOB = BOB_utils.BOB()
+    sims = get_sims()
+    df = sxs.load("dataframe", tag="v3.0.0")
+    with Pool(processes=min(len(sims), cpu_count())) as pool:
+        # Process simulations in parallel
+        results = pool.map(safe_process_ext_waveform, [(sim,df,BOB) for sim in sims])
+    successful_results = [r for r in results if r is not None]
+    if not successful_results:
+        print("No successful simulations.")
+        return
+    
+    sim_arr,NR_strain_arr,h_eob_arr,h_nrsurr_arr = zip(*successful_results)
+    all_ext_data = []
+    for i in range(len(sim_arr)):
+        all_ext_data.append({
+            "sim": sim_arr[i],
+            "NR_strain": NR_strain_arr[i],
+            "h_eob": h_eob_arr[i],
+            "h_nrsurr": h_nrsurr_arr[i]
+        })
+    return all_ext_data
+    
 @partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
 def generate_single_waveform_sum(
     t, m, N, omega_func, A_func, # Static/Constant args
@@ -218,128 +283,6 @@ def generate_single_waveform_sum(
         t, Omega_0, Omega_QNM, tau, Ap, tp, omega_func, A_func, m, N
     )
     return BOB_terms_jax.fast_truncated_sum(all_raw_terms)
-
-def process_all_waveforms():
-    print("Preparing data using multiprocessing...")
-    all_data = prepare_data()
-    return process_jax(all_data)
-def process_jax(all_data):
-    sim_arr = []
-    # This should produce `all_data`, a list of dictionaries.
-
-    #We want to pad the arrays so JAX does not recompile the function
-    max_len_model = max(len(d['BOB_t']) for d in all_data)
-    max_len_nr = max(len(d['NR_strain'].t) for d in all_data)
-    num_waveforms = len(all_data)
-    # Create empty, padded NumPy arrays. This is faster to fill in a Python loop.
-    padded_t_model = np.zeros((num_waveforms, max_len_model), dtype=np.float64)
-    padded_phi_model = np.zeros_like(padded_t_model)
-    model_mask = np.zeros_like(padded_t_model, dtype=bool)
-
-    padded_t_nr = np.zeros((num_waveforms, max_len_nr), dtype=np.float64)
-    padded_h_nr = np.zeros_like(padded_t_nr, dtype=np.complex128)
-    nr_mask = np.zeros_like(padded_t_nr, dtype=bool)
-
-    # We also need to batch the scalar parameters
-    params_Omega_0 = np.zeros(num_waveforms)
-    params_Omega_QNM = np.zeros(num_waveforms)
-    params_tau = np.zeros(num_waveforms)
-    params_Ap = np.zeros(num_waveforms)
-    params_tp = np.zeros(num_waveforms)
-    params_nr_peak_time = np.zeros(num_waveforms)
-
-    # This single Python loop fills all the padded arrays
-    for i, data_point in enumerate(all_data):
-        sim_arr.append(data_point['sim'])
-        
-        # Pad model data
-        len_m = len(data_point['BOB_t'])
-        padded_t_model[i, :len_m] = data_point['BOB_t']
-        padded_phi_model[i, :len_m] = data_point['BOB_Phi']
-        model_mask[i, :len_m] = True
-        
-        # Pad NR data
-        len_n = len(data_point['NR_strain'].t)
-        padded_t_nr[i, :len_n] = data_point['NR_strain'].t
-        padded_h_nr[i, :len_n] = data_point['NR_strain'].y
-        nr_mask[i, :len_n] = True
-        
-        # Batch scalar parameters
-        params_Omega_0[i] = data_point['BOB_Omega_0']
-        params_Omega_QNM[i] = data_point['BOB_Omega_QNM']
-        params_tau[i] = data_point['BOB_tau']
-        params_Ap[i] = data_point['BOB_Ap']
-        params_tp[i] = data_point['BOB_tp']
-        params_nr_peak_time[i] = data_point['NR_strain'].time_at_maximum()
-
-
-    padded_t_model_jax = jnp.asarray(padded_t_model)
-    padded_phi_model_jax = jnp.asarray(padded_phi_model)
-    model_mask_jax = jnp.asarray(model_mask)
-    padded_t_nr_jax = jnp.asarray(padded_t_nr)
-    padded_h_nr_jax = jnp.asarray(padded_h_nr)
-    nr_mask_jax = jnp.asarray(nr_mask)
-    params_Omega_0_jax = jnp.asarray(params_Omega_0)
-    params_Omega_QNM_jax = jnp.asarray(params_Omega_QNM)
-    params_tau_jax = jnp.asarray(params_tau)
-    params_Ap_jax = jnp.asarray(params_Ap)
-    params_tp_jax = jnp.asarray(params_tp)
-    params_nr_peak_time_jax = jnp.asarray(params_nr_peak_time)
-
-    print("Padding complete")
-
-
-    # --- STAGE 2: WAVEFORM GENERATION & MISMATCH DATA PREP ---
-    print("Generating all model waveforms and preparing for mismatch...")
-    start_gen = time.time()
-    # Define constant JAX parameters
-    N_val = 6
-    omega_func = BOB_terms_jax.BOB_news_freq_jax
-    A_func = BOB_terms_jax.BOB_amplitude_jax
-    common_m = 2.0
-
-    vmapped_generator = vmap(
-        generate_single_waveform_sum,
-        in_axes=(0, None, None, None, None, 0, 0, 0, 0, 0)
-        # t, m, N, omega_f, A_f, Omega_0, QNM, tau, Ap, tp
-    )
-    fast_batch_generator = jit(vmapped_generator, static_argnames=('omega_func', 'A_func', 'N'))
-
-    # Execute waveform generation for the entire batch
-    all_model_sums = fast_batch_generator(
-        padded_t_model_jax, common_m, N_val, omega_func, A_func,
-        params_Omega_0_jax, params_Omega_QNM_jax, params_tau_jax, params_Ap_jax, params_tp_jax
-    )
-
-    # Calculate the final complex strain for the batch
-    phase_factors = jnp.exp(1j * common_m * padded_phi_model_jax)
-    # The mask ensures we don't apply the phase to padded zeros, which could create NaNs
-    padded_h_model = jnp.conj(all_model_sums * phase_factors) * model_mask 
-
-    padded_h_model.block_until_ready()
-    end_gen = time.time()
-    print(f"Waveform generation (JIT+Exec) took: {end_gen - start_gen:.4f} seconds")
-
-    print("...Waveform generation complete.")
-    start_mismatch = time.time()
-    #We want to pad the arrays so JAX does not recompile the function
-    final_mismatches = mismatch_utils.find_best_mismatch_padded(
-        padded_t_model_jax, padded_h_model, model_mask_jax, 
-        padded_t_nr_jax, padded_h_nr_jax, nr_mask_jax,
-        params_nr_peak_time_jax,
-        t0=0,
-        tf=75,
-        coarse_t_num = 101,
-        fine_t_num = 21
-    )
-    final_mismatches.block_until_ready()
-    end_mismatch = time.time()
-    print(f"Mismatch search (JIT+Exec) took: {end_mismatch - start_mismatch:.4f} seconds")
-
-
-    print("--- Analysis Complete ---")
-    
-    return final_mismatches,sim_arr
 
 def run_full_jax_pipeline(all_data):
     """
@@ -397,7 +340,7 @@ def run_full_jax_pipeline(all_data):
     start_gen = time.time()
     
     # Define constant JAX parameters
-    N_val = 6
+    N_val = 8
     common_m = 2.0
     
     # vmap the single generator over the batched axes
@@ -430,13 +373,13 @@ def run_full_jax_pipeline(all_data):
     start_mismatch = time.time()
     delta_t = 0.1
     tf = 75
-    t0 = 0
+    t0 = 10
     num_points_for_integration = int(round((tf - t0) / delta_t)) + 1
     final_mismatches= mismatch_utils.find_best_mismatch_padded(
         jnp.asarray(padded_t_model), padded_h_model,
         jnp.asarray(padded_t_nr), jnp.asarray(padded_h_nr),
         jnp.asarray(batched_params['nr_peak_time']),
-        t0=t0, tf=tf, coarse_t_num=101, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
+        t0=t0, tf=tf, coarse_window=5.0, coarse_t_num=101, fine_window=0.2, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
     )
     
     final_mismatches.block_until_ready()
@@ -456,15 +399,144 @@ def run_full_jax_pipeline(all_data):
         
     return final_results_list
 
+def run_full_jax_ext_pipeline(all_ext_data):
+    print("Padding and batching all data for JAX...")
+    num_waveforms = len(all_ext_data)
+    if num_waveforms == 0:
+        return [], []
+
+    # Find max lengths and create padded NumPy arrays
+    max_len_eob = max(len(d['h_eob'].t) for d in all_ext_data)
+    max_len_nr = max(len(d['NR_strain'].t) for d in all_ext_data)
+    max_len_nrsurr = 0
+    num_nr_surr = 0
+    for d in all_ext_data:
+        if(d['h_nrsurr'] is not None):
+            max_len_nrsurr = max(max_len_nrsurr,len(d['h_nrsurr'].t))
+            num_nr_surr += 1
+    
+    padded_t_eob = np.zeros((num_waveforms, max_len_eob), dtype=np.float64)
+    padded_h_eob = np.zeros_like(padded_t_eob, dtype=np.complex128)
+    padded_t_nr = np.zeros((num_waveforms, max_len_nr), dtype=np.float64)
+    padded_h_nr = np.zeros_like(padded_t_nr, dtype=np.complex128)
+
+    batched_params = {
+        'nr_peak_time': np.zeros(num_waveforms),
+    }
+
+    for i, data_point in enumerate(all_ext_data):
+        len_m = len(data_point['h_eob'].t)
+        padded_t_eob[i, -len_m:] = data_point['h_eob'].t
+        padded_h_eob[i, -len_m:] = data_point['h_eob'].y
+        
+        len_n = len(data_point['NR_strain'].t)
+        padded_t_nr[i, -len_n:] = data_point['NR_strain'].t
+        padded_h_nr[i, -len_n:] = data_point['NR_strain'].y
+        batched_params['nr_peak_time'][i] = data_point['NR_strain'].time_at_maximum()
+    
+    print("Calculating all mismatches...")
+    start_mismatch = time.time()
+    delta_t = 0.1
+    tf = 75
+    t0 = 10
+    num_points_for_integration = int(round((tf - t0) / delta_t)) + 1
+
+
+    final_eob_mismatches= mismatch_utils.find_best_mismatch_padded(
+        jnp.asarray(padded_t_eob), padded_h_eob,
+        jnp.asarray(padded_t_nr), jnp.asarray(padded_h_nr),
+        jnp.asarray(batched_params['nr_peak_time']),
+        t0=t0, tf=tf, coarse_window=5.0, coarse_t_num=101, fine_window=0.2, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
+    )
+    
+    final_eob_mismatches.block_until_ready()
+    end_mismatch = time.time()
+    print(f"EOB Mismatch search took: {end_mismatch - start_mismatch:.4f} seconds")
+
+    # -----------------------------------------------------
+    # STAGE 4: COMBINE AND RETURN RESULTS
+    # -----------------------------------------------------
+    sim_arr = [d['sim'] for d in all_ext_data]
+    final_eob_results_list = []
+    for i in range(num_waveforms):
+        final_eob_results_list.append({
+            'sim': sim_arr[i],
+            'mismatch': float(final_eob_mismatches[i]),
+        })
+        
+
+    padded_t_nr = np.zeros((num_nr_surr, max_len_nr), dtype=np.float64)
+    padded_h_nr = np.zeros_like(padded_t_nr, dtype=np.complex128)
+
+
+    padded_t_nrsurr = np.zeros((num_nr_surr, max_len_nrsurr), dtype=np.float64)
+    padded_h_nrsurr = np.zeros_like(padded_t_nrsurr, dtype=np.complex128)
+    batched_params = {
+        'nr_peak_time': np.zeros(num_nr_surr),
+    }
+
+    all_nrsurr_data = []
+    for data_point in all_ext_data:
+        if(data_point['h_nrsurr'] is not None):
+            all_nrsurr_data.append(data_point)
+    for i,data_point in enumerate(all_nrsurr_data):
+        len_m = len(data_point['h_nrsurr'].t)
+        padded_t_nrsurr[i, -len_m:] = data_point['h_nrsurr'].t
+        padded_h_nrsurr[i, -len_m:] = data_point['h_nrsurr'].y
+        len_n = len(data_point['NR_strain'].t)
+        padded_t_nr[i, -len_n:] = data_point['NR_strain'].t
+        padded_h_nr[i, -len_n:] = data_point['NR_strain'].y
+        batched_params['nr_peak_time'][i] = data_point['NR_strain'].time_at_maximum()
+    
+    print("Calculating all mismatches...")
+    start_mismatch = time.time()
+
+    final_nrsurr_mismatches= mismatch_utils.find_best_mismatch_padded(
+        jnp.asarray(padded_t_nrsurr), padded_h_nrsurr,
+        jnp.asarray(padded_t_nr), jnp.asarray(padded_h_nr),
+        jnp.asarray(batched_params['nr_peak_time']),
+        t0=t0, tf=tf, coarse_window=5.0, coarse_t_num=101, fine_window=0.2, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
+    )
+    
+    final_nrsurr_mismatches.block_until_ready()
+    end_mismatch = time.time()
+    print(f"NRSurr Mismatch search took: {end_mismatch - start_mismatch:.4f} seconds")
+
+    # -----------------------------------------------------
+    # STAGE 4: COMBINE AND RETURN RESULTS
+    # -----------------------------------------------------
+    sim_arr = [d['sim'] for d in all_ext_data]
+    final_nrsurr_results_list = []
+    for i in range(num_nr_surr):
+        final_nrsurr_results_list.append({
+            'sim': sim_arr[i],
+            'mismatch': float(final_nrsurr_mismatches[i]),
+        })
+    
+    return final_eob_results_list, final_nrsurr_results_list
 def main():
-    all_data = prepare_data()
+    #all_data = prepare_data()
+    all_ext_data = prepare_ext_data()
+    print("done preparing data")
+    print(len(all_ext_data))
+
+
     #do this after prepare_data to avoid os.fork() issues
-    check_jax_devices()
-    final_results = run_full_jax_pipeline(all_data)
+    #check_jax_devices()
 
+
+    #final_results = run_full_jax_pipeline(all_data)
+    final_eob_results_list, final_nrsurr_results_list = run_full_jax_ext_pipeline(all_ext_data)
+    print(final_eob_results_list)
+    print(final_nrsurr_results_list)
+    #exit()
     # Save final results
-    with open('final_mismatch_results.pkl', 'wb') as f:
-        pickle.dump(final_results, f)
+    #with open('N8_10M_mismatch_results.pkl', 'wb') as f:
+    #    pickle.dump(final_results, f)
 
+    with open('10M_mismatch_results_eob.pkl', 'wb') as f:
+        pickle.dump(final_eob_results_list, f)
+    with open('10M_mismatch_results_nrsurr.pkl', 'wb') as f:
+        pickle.dump(final_nrsurr_results_list, f)
 if __name__=="__main__":
     main()

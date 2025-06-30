@@ -2,9 +2,7 @@
 #JAX implemented mismatch search
 
 #Notes:
-#This code is only meant for merger-ringdown searches
-#If the waveform is not already aligned at peak, this may cause issues as it will not search for large time shifts
-#This is done on purpose since this is designed for merger-ringdown mismatch calculations specific to BOB-NR searches
+#This code is only meant for merger-ringdown searches. It performs a time domain integration since we want to calculate the mismatch over a fixed time window.
 
 #When we pass in EOB/surrogate data, we align at peak with the NR data beforehand, so the ideal time shift should be close to 0
 
@@ -124,18 +122,18 @@ def mismatch_trapz(
 #     mismatch = 1.0 - maximized_overlap
 #     return mismatch
 
-@partial(jit, static_argnames=('t0', 'tf', 'coarse_t_num', 'fine_t_num','integration_points'))
+@partial(jit, static_argnames=('t0', 'tf', 'coarse_window', 'coarse_t_num', 'fine_window', 'fine_t_num','integration_points'))
 def find_best_mismatch_padded(
     padded_t_model, padded_h_model,
     padded_t_nr, padded_h_nr,
     nr_peak_time_batch,
-    t0, tf, coarse_t_num, fine_t_num, integration_points
+    t0, tf, coarse_window, coarse_t_num, fine_window, fine_t_num, integration_points
 ):
 
     
     def find_best_for_one_waveform(t_m, h_m, t_n, h_n, nr_peak):
 
-        t_range_1 = jnp.linspace(-5.0, 5.0, coarse_t_num)
+        t_range_1 = jnp.linspace(-coarse_window, coarse_window, coarse_t_num)
         
         @vmap
         def do_search(t_shift):
@@ -151,7 +149,6 @@ def find_best_mismatch_padded(
         t_shift_1 = t_range_1[min_idx_1]
 
 
-        fine_window = 0.2
         t_range_2 = jnp.linspace(
             t_shift_1 - fine_window, 
             t_shift_1 + fine_window, 
@@ -164,8 +161,11 @@ def find_best_mismatch_padded(
         mismatch_2 = mismatches_2[min_idx_2]
         t_shift_2 = t_range_2[min_idx_2]
         
-        is_fine_search_better = mismatch_2 < mismatch_1
+        #debug.print("t_shift_1 = {x}",x=t_shift_1)
+        #debug.print("t_shift_2 = {x}",x=t_shift_2)
 
+        is_fine_search_better = mismatch_2 < mismatch_1
+        
         final_mismatch = jnp.where(is_fine_search_better, mismatch_2, mismatch_1)
         #final_t_shift = jnp.where(is_fine_search_better, t_shift_2, t_shift_1)
         

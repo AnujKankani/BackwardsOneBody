@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 from scipy.optimize import least_squares, curve_fit, brute, fmin
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
-import gen_utils
 import qnm
 try:
     from BackwardsOneBody import BOB_terms
+    from BackwardsOneBody import gen_utils
 except:
     import BOB_terms
+    import gen_utils
 
 class BOB:
     def __init__(self):
