@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import scri
 import spherical_functions as sf
 from scipy.signal import butter, filtfilt, detrend, lfilter
-from scipy.optimize import brute
-
+from scipy.optimize import minimize
+from numpy import trapz
 #some useful functions
 def find_nearest_index(array, value):
     array = np.asarray(array)
@@ -65,11 +65,11 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
         grav_lmn = qnm.modes_cache(s=-2,l=l,m=m,n=n)
         omega_qnm, A, C = grav_lmn(a=chif)#qnm package uses M = 1 so a = chi here
     omega_qnm /= Mf #rescale to remnant black hole mass
-    w_r = omega_qnm.real 
+    w_r = np.abs(omega_qnm.real)
     imag_qnm = np.abs(omega_qnm.imag)
     tau = 1./imag_qnm
     return w_r,tau
-def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
+def mismatch(BOB_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_BOB=True):
     #simple mismatch function where it is assumed that the amplitudes are aligned at peak
     #and phases are aligned (to the extent the user wants them to be)
     if (not(np.array_equal(BOB_data.t,NR_data.t))):
@@ -81,19 +81,37 @@ def mismatch(BOB_data,NR_data,t0,tf,resample_NR_to_BOB=True):
     
     peak_time = NR_data.time_at_maximum()
     
+    
+    dx = BOB_data.t[1] - BOB_data.t[0]
+
+    if(use_trapz):
+        NR_data = NR_data.cropped(init=peak_time+t0,end=peak_time+tf)
+        BOB_data = BOB_data.cropped(init=peak_time+t0,end=peak_time+tf)
+
     numerator_integrand = np.conj(BOB_data.y)*NR_data.y
-    numerator = np.real(sdi(numerator_integrand,BOB_data.t,peak_time+t0,peak_time+tf))
+    if(use_trapz is False):
+        numerator = (sdi(numerator_integrand,BOB_data.t,peak_time+t0,peak_time+tf))
+    else:
+        numerator = (trapz(numerator_integrand,BOB_data.t))
     
     denominator1_integrand = np.conj(BOB_data.y)*BOB_data.y
-    denominator1 = np.real(sdi(denominator1_integrand,BOB_data.t,peak_time+t0,peak_time+tf))
+    if(use_trapz is False):
+        denominator1 = np.real(sdi(denominator1_integrand,BOB_data.t,peak_time+t0,peak_time+tf))
+    else:
+        denominator1 = np.real(trapz(denominator1_integrand,BOB_data.t))
     
     denominator2_integrand = np.conj(NR_data.y)*NR_data.y
-    denominator2 = np.real(sdi(denominator2_integrand,NR_data.t,peak_time+t0,peak_time+tf))
+    if(use_trapz is False):
+        denominator2 = np.real(sdi(denominator2_integrand,NR_data.t,peak_time+t0,peak_time+tf))
+    else:
+        denominator2 = np.real(trapz(denominator2_integrand,NR_data.t))
     
-    mismatch = ((numerator)/np.sqrt(denominator1*denominator2))
+    #maximized overlap when numerator = |numerator|
+    max_mismatch = (np.abs(numerator)/np.sqrt(denominator1*denominator2))
 
-    return 1.-mismatch   
+    return 1.-max_mismatch   
 def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
+    raise ValueError("Warning: This function is old and needs to be replaced.")
     if (not(np.array_equal(model.t,NR_data.t))):
         if(resample_NR_to_model):
             print("resampling to equal times")
@@ -118,104 +136,94 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
             min_mismatch = mismatch_val
             best_phi0 = phi0
     return best_phi0,min_mismatch
-
-def phi_time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=True,
-                           phi0_step=0.01, t_shift_range=np.linspace(-5,5,101)):
-
-    # Set up phase grid
-    phi0_range = np.arange(0, 2*np.pi, phi0_step)
-
-
-    # Search over time and phase offsets
+def time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=True,
+                           t_shift_range=np.arange(-5,5,0.1)):
     min_mismatch = 1e10
-    best_phi0 = 0.0
-    best_t_shift = 0.0
-    orig_model = model.copy()
-
-    for t_shift in t_shift_range:
-        orig_model = model.copy()
-        for phi0 in phi0_range:
-            model_ = orig_model.time_shifted(t_shift)
-            model_ = model_.phase_shifted(phi0)
-            mismatch_val = mismatch(model_,NR_data,t0,tf)
+    def mismatch_search(t_shift_range,min_mismatch):
+        best_t_shift = 0
+        for t_shift in t_shift_range:
+            model_ = kuibit_ts(model.t + t_shift,model.y)
+            mismatch_val = mismatch(model_,NR_data,t0,tf,use_trapz=True,resample_NR_to_BOB=resample_NR_to_model)
             if mismatch_val < min_mismatch:
                 min_mismatch = mismatch_val
-                best_phi0 = phi0
                 best_t_shift = t_shift
-
-    return best_t_shift, best_phi0, min_mismatch
-
-
-
-def estimate_parameters(BOB,t0=0,tf=100,print_verbose=False):
-    #we use a grid search across mass and spins
-    #in theory scipy optimize should be more efficient, but in testing it has mixed results
-    #we start with a coarse search with dm, dchi = 0.01, then refine it with dm, dchi = 0.001, then dm, dchi = 0.0001
-    def grid_search(mass_range,spin_range,w_r_arr,tau_arr):
-        min_mass = mass_range[0]
-        min_spin = spin_range[0]
-        min_mismatch = 1e10
-        for i in range(len(mass_range)):
-            M = mass_range[i]
-            for j in range(len(spin_range)): 
-                chi = spin_range[j]
-                w_r = w_r_arr[i*len(spin_range)+j]
-                tau = tau_arr[i*len(spin_range)+j]
-                BOB.mf = M
-                BOB.chif = chi
-                BOB.Omega_QNM = w_r/np.abs(BOB.m)
-                BOB.Omega_ISCO = get_Omega_isco(chi,M)
-                BOB.Omega_0 = BOB.Omega_ISCO
-                BOB.Phi_0 = 0
-                BOB.w_r = w_r
-                BOB.tau = tau
-                BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
-
-                t,y = BOB.construct_BOB()
-                BOB_ts = kuibit_ts(t,y)
-                NR_ts = BOB.NR_based_on_BOB_ts
-                mismatch_val = mismatch(BOB_ts,NR_ts,t0,tf)
-                if(mismatch_val < min_mismatch):
-                    min_mismatch = mismatch_val
-                    min_mass = M
-                    min_spin = chi
-        return min_mass,min_spin,min_mismatch
-    #we pre-store the qnms to allow for numba optimizations in the grid search
-    def store_qnms(mass_range,spin_range):
-        w_r_arr, tau_arr = [],[]
-        for M in mass_range:
-            for chi in spin_range:
-                w_r,tau = get_qnm(chi,M,BOB.l,BOB.m)
-                w_r_arr.append(w_r)
-                tau_arr.append(tau)
-        return np.array(w_r_arr),np.array(tau_arr)
-    mass_range = np.arange(0.75,1.0,0.01)
-    spin_range = np.arange(0.0,1.0-0.001,0.01)
-    w_r_arr,tau_arr = store_qnms(mass_range,spin_range)
-    min_mass,min_spin,min_mismatch = grid_search(mass_range,spin_range,w_r_arr,tau_arr)
-    if(print_verbose):
-        print("\ncoarse search min mismatch = ",min_mismatch)
-        print("coarse search min mass = ",min_mass)
-        print("coarse search min spin = ",min_spin)
-    #we choose 0.02 instead of 0.01 as a safety cushion since the coarse search is a ballpark value
-    mass_range = np.arange(min_mass-0.02,min_mass+0.02,0.001)
-    spin_range = np.arange(min_spin-0.02,min_spin+0.02,0.001)
-    w_r_arr,tau_arr = store_qnms(mass_range,spin_range)
-    min_mass,min_spin,min_mismatch = grid_search(mass_range,spin_range,w_r_arr,tau_arr)
-    if(print_verbose):
-        print("\nfine search min mismatch = ",min_mismatch)
-        print("fine search min mass = ",min_mass)
-        print("fine search min spin = ",min_spin)
-    mass_range = np.arange(min_mass-0.002,min_mass+0.002,0.0001)
-    spin_range = np.arange(min_spin-0.002,min_spin+0.002,0.0001)
-    w_r_arr,tau_arr = store_qnms(mass_range,spin_range)
-    min_mass,min_spin,min_mismatch = grid_search(mass_range,spin_range,w_r_arr,tau_arr)
-    if(print_verbose):
-        print("\nvery fine search min mismatch = ",min_mismatch)
-        print("very fine search min mass = ",min_mass)
-        print("very fine search min spin = ",min_spin,"\n")
+        return best_t_shift,min_mismatch
     
-    return min_mass,min_spin,min_mismatch
+    best_t_shift,min_mismatch = mismatch_search(t_shift_range,min_mismatch)
+    t_shift_range = np.arange(best_t_shift-0.2,best_t_shift+0.2,0.01)
+    best_t_shift,min_mismatch = mismatch_search(t_shift_range,min_mismatch)
+    return min_mismatch
+def estimate_parameters(BOB,mf_guess,chif_guess,t0=0,tf=75):
+    #we use a scipy optimizer to find the best mass and spin
+    #we start with a good guess based on a grid search of 1e-3 spacing in mass and spin
+    if(BOB.what_should_BOB_create=="psi4"):
+        #Psi4
+        A = 1.42968337
+        B = 0.08424419
+        C = -1.22848524
+        NR_ts = BOB.psi4_data
+    elif(BOB.what_should_BOB_create=="news"):
+        #News
+        A = 0.33568227
+        B = 0.03450997
+        C = -0.18763176  
+        NR_ts = BOB.news_data
+    else:
+        raise ValueError("BOB should create either news or psi4 for this function")
+    
+    def create_guess(x):
+        mf = x[0]
+        chif = x[1]
+        
+        BOB.mf = mf
+        BOB.chif_with_sign = chif
+        BOB.chif = np.abs(chif)
+        #This is critical because trying to lsq fit the frequency with incorrect qnm data creates a lot of problems
+        BOB.Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C 
+        w_r,tau = get_qnm(BOB.chif,BOB.mf,BOB.l,BOB.m,sign=np.sign(BOB.chif_with_sign))
+        BOB.Omega_QNM = w_r/np.abs(BOB.m)
+        BOB.Phi_0 = 0
+        BOB.tau = tau
+        BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
+        t,y = BOB.construct_BOB()
+        BOB_ts = kuibit_ts(t,y)
+
+        mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf)
+        return mismatch
+    
+    out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)])
+    return out
+def estimate_parameters_grid(BOB,mf_guess,chif_guess):
+    raise ValueError("Warning: This function needs to be replaced.")
+    m_range = np.arange(mf_guess-1e-3,mf_guess+1e-3,1e-4)
+    chif_range = np.arange(chif_guess-1e-3,chif_guess+1e-3,1e-4)
+    min_mismatch = 1e10
+    best_mf = 0
+    best_chif = 0
+    A = 0.33568227
+    B = 0.03450997
+    C = -0.18763176  
+    for m in m_range:
+        for chif in chif_range:
+            BOB.mf = m
+            BOB.chif_with_sign = chif
+            BOB.chif = np.abs(chif)
+            BOB.Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C 
+            w_r,tau = get_qnm(BOB.chif,BOB.mf,BOB.l,BOB.m,sign=np.sign(BOB.chif_with_sign))
+            BOB.Omega_QNM = w_r/np.abs(BOB.m)
+            BOB.Phi_0 = 0
+            BOB.tau = tau
+            BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
+            t,y = BOB.construct_BOB()
+            BOB_ts = kuibit_ts(t,y)
+            NR_ts = BOB.news_data
+            mismatch = time_grid_mismatch(BOB_ts,NR_ts,0,75)
+            if mismatch < min_mismatch:
+                min_mismatch = mismatch
+                best_mf = m
+                best_chif = chif
+    return [best_mf,best_chif]
+
 def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     import qnmfits
     #we use qnmfits for their qnm fitting procedure
