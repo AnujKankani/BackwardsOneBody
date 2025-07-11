@@ -37,7 +37,11 @@ def get_phase(ts):
         y = -y
     return kuibit_ts(ts.t,y)
 def get_frequency(ts):
-    return kuibit_ts(ts.t,-ts.phase_angular_velocity().y)
+    tp = ts.time_at_maximum()
+    freq = ts.phase_angular_velocity()
+    if(freq.y[find_nearest_index(freq.t,tp)]<0):
+        freq.y = -freq.y
+    return kuibit_ts(ts.t,freq.y)
 def get_r_isco(chi,M):
     #Bardeen Press Teukolskly eq 2.21
     #defined for prograde orbits
