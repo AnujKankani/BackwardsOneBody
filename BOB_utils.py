@@ -89,7 +89,7 @@ class BOB:
             self.Ap = self.strain_data.abs_max()
             self.tp = self.strain_data.time_at_maximum()
         elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
-            NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("strain")
+            NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
             if('mass' in val):
@@ -103,7 +103,7 @@ class BOB:
                 self.Ap = self.current_quadrupole_data.abs_max()
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
         elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
-            NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("news")
+            NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("news")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
             if('mass' in val):
@@ -117,7 +117,7 @@ class BOB:
                 self.Ap = self.current_quadrupole_data.abs_max()
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
         elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
-            NR_mass,NR_current = self.construct_NR_mass_and_current_quadrupole("psi4")
+            NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("psi4")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
             if('mass' in val):
@@ -387,7 +387,7 @@ class BOB:
         try:
             start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
             end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM])
+            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM-1e-10])
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO")
             popt = [self.Omega_ISCO]
@@ -824,6 +824,8 @@ class BOB:
         old_optimize_Omega0_and_Phi0_via_mismatch = self.optimize_Omega0_and_Phi0_via_mismatch
         old_t = self.t
 
+        
+
         #The order of events here is very important depending on what optimization parameters are set
         
         #First we check if mismatch optimization is set. These cases require special care because amplitude data is also needed, which means frequency data may be required if X_using_Y is set
@@ -938,6 +940,16 @@ class BOB:
         t_lm,y_lm = self.construct_BOB()
         NR_lm = self.data.y
 
+        plt.plot(t_lm,y_lm.real,label='BOB')
+        plt.plot(self.data.t,NR_lm.real,label='NR')
+        plt.legend()
+        plt.show()
+
+        plt.plot(t_lm,y_lm.imag,label='BOB')
+        plt.plot(self.data.t,NR_lm.imag,label='NR')
+        plt.legend()
+        plt.show()
+
         #save settings to restore at the end
         old_ts = self.t
         old_m = self.m
@@ -968,10 +980,12 @@ class BOB:
         #create a common timeseries for both modes
         if(t_lm[0]>t_lmm[0]): 
             #lmm starts before lm so we want to start with lm and end with lmm
-            union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+            #union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+            union_ts = np.arange(t_lm[0],t_lmm[-1],self.resample_dt)
         else:
             #lm starts before lmm so we want to start with lmm and end with lm
-            union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+            #union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+            union_ts = np.arange(t_lmm[0],t_lm[-1],self.resample_dt)
 
         #resample the BOB timeseries to the common timeseries
         self.t = union_ts
