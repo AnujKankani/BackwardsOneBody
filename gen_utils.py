@@ -115,7 +115,9 @@ def mismatch(BOB_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_BOB=True):
 
     return 1.-max_mismatch   
 def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
-    raise ValueError("Warning: This function is old and needs to be replaced.")
+    #raise ValueError("Warning: This function is old and needs to be replaced.")
+    print("!!!!!!!!!!!!!!!!!!!!YOU SHOULD NOT USE THS FUNCTION!!!!!!!!!!!!!!!!!")
+    print("It is here as a convenience tool for debugging. Use time_grid_mismatch instead")
     if (not(np.array_equal(model.t,NR_data.t))):
         if(resample_NR_to_model):
             print("resampling to equal times")
@@ -139,7 +141,8 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
         if(mismatch_val < min_mismatch):
             min_mismatch = mismatch_val
             best_phi0 = phi0
-    return best_phi0,min_mismatch
+    best_model = kuibit_ts(model.t,amp_model*np.exp(-1j*np.sign(m)*(phase_model.y + best_phi0)))
+    return best_phi0,min_mismatch,best_model
 def time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=True,
                            t_shift_range=np.arange(-5,5,0.1)):
     min_mismatch = 1e10
@@ -157,45 +160,102 @@ def time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=True,
     t_shift_range = np.arange(best_t_shift-0.2,best_t_shift+0.2,0.01)
     best_t_shift,min_mismatch = mismatch_search(t_shift_range,min_mismatch)
     return min_mismatch
-def estimate_parameters(BOB,mf_guess,chif_guess,t0=0,tf=75):
+def estimate_parameters(BOB,
+                        mf_guess,
+                        chif_guess,
+                        Omega0_guess=0.155,
+                        t0=0,
+                        tf=75,
+                        force_Omega0_optimization=False,
+                        NR_data=None,
+                        make_current_naturally=False,
+                        make_mass_naturally=False,
+                        include_Omega0_as_parameter=False,
+                        include_2Omega0_as_parameters=False,
+                        perform_phase_alignment_first=False):
+
+    if(force_Omega0_optimization and include_Omega0_as_parameter):
+        raise ValueError("force_Omega0_optimization and include_Omega0_as_parameter cannot both be True")
+    if(make_current_naturally is True and make_mass_naturally is True):
+        raise ValueError("make_current_naturally and make_mass_naturally cannot both be True")
+    if((force_Omega0_optimization and include_2Omega0_as_parameters) or (force_Omega0_optimization and include_Omega0_as_parameter)):
+        raise ValueError("force_Omega0_optimization and include_2Omega0_as_parameters cannot both be True")
     #we use a scipy optimizer to find the best mass and spin
-    #we start with a good guess based on a grid search of 1e-3 spacing in mass and spin
     if(BOB.what_should_BOB_create=="psi4"):
         #Psi4
         A = 1.42968337
         B = 0.08424419
         C = -1.22848524
         NR_ts = BOB.psi4_data
-    elif(BOB.what_should_BOB_create=="news"):
+    if(BOB.what_should_BOB_create=="news"):
         #News
         A = 0.33568227
         B = 0.03450997
         C = -0.18763176  
         NR_ts = BOB.news_data
-    else:
-        raise ValueError("BOB should create either news or psi4 for this function")
+        
+    if(NR_data is not None):
+        NR_ts = NR_data
     
     def create_guess(x):
         mf = x[0]
         chif = x[1]
-        
+        if(include_Omega0_as_parameter):
+            lm_Omega0_guess = x[2]
+        if(include_2Omega0_as_parameters):
+            lmm_Omega0_guess = x[3]
         BOB.mf = mf
         BOB.chif_with_sign = chif
         BOB.chif = np.abs(chif)
-        #This is critical because trying to lsq fit the frequency with incorrect qnm data creates a lot of problems
-        BOB.Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C 
-        w_r,tau = get_qnm(BOB.chif,BOB.mf,BOB.l,BOB.m,sign=np.sign(BOB.chif_with_sign))
+        if(force_Omega0_optimization):
+            BOB.optimize_Omega0 = True
+            BOB.start_fit_before_tpeak = t0
+            BOB.end_fit_after_tpeak = tf
+        else:
+            BOB.optimize_Omega0 = False
+            BOB.Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C 
+
+        if(include_Omega0_as_parameter):
+            #keep this for ordinary (l,m) &(l,-m) modes
+            BOB.Omega_0 = lm_Omega0_guess
+        w_r,tau = get_qnm(BOB.chif,BOB.mf,BOB.l,np.abs(BOB.m),sign=np.sign(BOB.chif_with_sign))
         BOB.Omega_QNM = w_r/np.abs(BOB.m)
         BOB.Phi_0 = 0
         BOB.tau = tau
         BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
-        t,y = BOB.construct_BOB()
-        BOB_ts = kuibit_ts(t,y)
-
-        mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf)
+        try:
+            if(make_current_naturally is False and make_mass_naturally is False):
+                t,y = BOB.construct_BOB()
+            elif(make_current_naturally):
+                if(include_2Omega0_as_parameters):
+                    t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess,lmm_Omega0=lmm_Omega0_guess)
+                elif(include_Omega0_as_parameter):
+                    t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess)
+                else:
+                    t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first)
+            elif(make_mass_naturally):
+                if(include_2Omega0_as_parameters):
+                    t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess,lmm_Omega0=lmm_Omega0_guess)
+                elif(include_Omega0_as_parameter):  
+                    t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess)
+                else:
+                    t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first)
+            else:
+                raise ValueError("Invalid options for make_current_naturally and make_mass_naturally")
+            BOB_ts = kuibit_ts(t,y)
+            mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf)
+        except Exception as e:
+            mismatch = np.inf
+            print(e)
         return mismatch
+    #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
+    if(include_2Omega0_as_parameters):
+        out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+    elif(include_Omega0_as_parameter):
+        out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
     
-    out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)])
+    else:
+        out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
     return out
 def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     raise ValueError("Warning: This function needs to be replaced.")
@@ -227,7 +287,6 @@ def estimate_parameters_grid(BOB,mf_guess,chif_guess):
                 best_mf = m
                 best_chif = chif
     return [best_mf,best_chif]
-
 def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     import qnmfits
     #we use qnmfits for their qnm fitting procedure

@@ -387,7 +387,7 @@ class BOB:
         try:
             start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
             end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_ISCO],bounds=[0,self.Omega_QNM-1e-10])
+            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_ISCO],bounds=[0+1e-10,self.Omega_QNM-1e-10])
         except:
             print("fit failed, setting Omega_0 = Omega_ISCO")
             popt = [self.Omega_ISCO]
@@ -904,7 +904,7 @@ class BOB:
             raise ValueError("Invalid option for what_to_create in construct_NR_mass_and_current_quadrupole. If you see this error, please raise a issue on the github.")
         
         NR_current = NR_lm.y - (-1)**np.abs(self.m)*np.conj(NR_lmm.y)
-        NR_current = 1j/np.sqrt(2)*NR_current
+        NR_current = (1j/np.sqrt(2))*NR_current
         NR_current = kuibit_ts(NR_lm.t,NR_current)
 
         NR_mass = NR_lm.y + (-1)**np.abs(self.m)*np.conj(NR_lmm.y)
@@ -912,7 +912,8 @@ class BOB:
         NR_mass = kuibit_ts(NR_lm.t,NR_mass)
 
         return NR_current,NR_mass
-    def construct_BOB_current_quadrupole_naturally(self,perform_phase_alignment_first = False):
+    def construct_BOB_current_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
+
         #Comstruct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
         #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
 
@@ -937,18 +938,10 @@ class BOB:
         #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
         #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
 
+        if(lm_Omega0 is not None):
+            self.Omega_0 = lm_Omega0
         t_lm,y_lm = self.construct_BOB()
         NR_lm = self.data.y
-
-        plt.plot(t_lm,y_lm.real,label='BOB')
-        plt.plot(self.data.t,NR_lm.real,label='NR')
-        plt.legend()
-        plt.show()
-
-        plt.plot(t_lm,y_lm.imag,label='BOB')
-        plt.plot(self.data.t,NR_lm.imag,label='NR')
-        plt.legend()
-        plt.show()
 
         #save settings to restore at the end
         old_ts = self.t
@@ -976,6 +969,8 @@ class BOB:
         self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
+        if(lmm_Omega0 is not None):
+            self.Omega_0 = lmm_Omega0
         t_lmm,y_lmm = self.construct_BOB()
         #create a common timeseries for both modes
         if(t_lm[0]>t_lmm[0]): 
@@ -995,13 +990,17 @@ class BOB:
         NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
         NR_lmm = self.data.resampled(union_ts)
 
+
         current_wave = BOB_lm.y - (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
         current_wave = 1j*current_wave/np.sqrt(2)
 
         NR_current = NR_lm.y - (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
         NR_current = 1j*NR_current/np.sqrt(2)
 
+        
         self.current_quadrupole_data = kuibit_ts(union_ts,NR_current)
+
+
 
         #restore the old settings and use the user choices to perform the appropriate phase alignment on the mass wave
         #Note we purposely don't allow phase alignments on the (l,+/-m) modes and the mass wave since that is using NR data twice for what is one free parameter
@@ -1014,32 +1013,35 @@ class BOB:
         BOB_phase = gen_utils.get_phase(temp_ts)
         NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_current))
 
+        #TODO: fix this
         
-        if(self.perform_phase_alignment):
-            if(self.optimize_Phi0):
-                #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
-                #the peak time is chosen to be the peak time of the mass wave
-                temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
-                temp_NR_phase = NR_phase.resampled(temp_ts)
-                temp_BOB_phase = BOB_phase.resampled(temp_ts)
+        # if(self.perform_phase_alignment):
+        #     if(self.optimize_Phi0):
+        #         #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
+        #         #the peak time is chosen to be the peak time of the mass wave
+        #         temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
+        #         temp_NR_phase = NR_phase.resampled(temp_ts)
+        #         temp_BOB_phase = BOB_phase.resampled(temp_ts)
                 
-                #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
-                self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
-                BOB_phase.y = BOB_phase.y + self.Phi_0
-                BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
+        #         #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
+        #         self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
+        #         BOB_phase.y = BOB_phase.y + self.Phi_0
+        #         BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
+
                 
-            else:
-                #temporary work around
-                self.Phi_0 = 0
-                old_data = self.data
-                self.data = self.current_wave_data
-                phase = self.phase_alignment(BOB_phase.y)
-                self.data = old_data
-                BOB_phase.y = phase
-                BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
+        #     else:
+        #         raise ValueError("Phase alignment for quadrupole requires optimize_Phi0 to be True")
+        #         #temporary work around
+        #         # self.Phi_0 = 0
+        #         # old_data = self.data
+        #         # self.data = self.current_wave_data
+        #         # phase = self.phase_alignment(BOB_phase.y)
+        #         # self.data = old_data
+        #         # BOB_phase.y = phase
+        #         # BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
             
-        else:
-            BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
+        # else:
+        #     BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
 
         #restore (l,m) and (l,-m) as automatic data
         if(self.__what_to_create=="psi4"):
@@ -1064,9 +1066,9 @@ class BOB:
         self.optimize_Phi0 = old_optimize_Phi0
         self.Phi_0 = 0
         
-
+        BOB_current_wave = current_wave
         return union_ts,BOB_current_wave
-    def construct_BOB_mass_quadrupole_naturally(self,perform_phase_alignment_first = False):
+    def construct_BOB_mass_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
         #Comstruct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
         #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
 
@@ -1090,7 +1092,8 @@ class BOB:
         
         #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
         #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
-
+        if(lm_Omega0 is not None):
+            self.Omega_0 = lm_Omega0
         t_lm,y_lm = self.construct_BOB()
         NR_lm = self.data.y
 
@@ -1120,14 +1123,18 @@ class BOB:
         self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
+        if(lmm_Omega0 is not None):
+            self.Omega_0 = lmm_Omega0
         t_lmm,y_lmm = self.construct_BOB()
         #create a common timeseries for both modes
         if(t_lm[0]>t_lmm[0]): 
             #lmm starts before lm so we want to start with lm and end with lmm
-            union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+            #union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+            union_ts = np.arange(t_lm[0],t_lmm[-1],self.resample_dt)
         else:
             #lm starts before lmm so we want to start with lmm and end with lm
-            union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+            #union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+            union_ts = np.arange(t_lmm[0],t_lm[-1],self.resample_dt)
 
         #resample the BOB timeseries to the common timeseries
         self.t = union_ts
@@ -1136,6 +1143,7 @@ class BOB:
         
         NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
         NR_lmm = self.data.resampled(union_ts)
+
 
         mass_wave = BOB_lm.y + (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
         mass_wave = mass_wave/np.sqrt(2)
@@ -1151,37 +1159,46 @@ class BOB:
             self.perform_phase_alignment = old_perform_phase_alignment
             self.optimize_Phi0 = old_optimize_Phi0
 
-        temp_ts = kuibit_ts(union_ts,mass_wave)
-        t_peak = temp_ts.time_at_maximum()
-        BOB_phase = gen_utils.get_phase(temp_ts)
-        NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_mass))
+        #TODO: fix this
 
-        
-        if(self.perform_phase_alignment):
-            if(self.optimize_Phi0):
-                #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
-                #the peak time is chosen to be the peak time of the mass wave
-                temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
-                temp_NR_phase = NR_phase.resampled(temp_ts)
-                temp_BOB_phase = BOB_phase.resampled(temp_ts)
+        # temp_ts = kuibit_ts(union_ts,mass_wave)
+        # t_peak = temp_ts.time_at_maximum()
+        # BOB_phase = gen_utils.get_phase(temp_ts)
+        # NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_mass))
+
+        # if(self.perform_phase_alignment):
+        #     if(self.optimize_Phi0):
+        #         #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
+        #         #the peak time is chosen to be the peak time of the mass wave
+        #         #temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
+        #         if(NR_phase.t[-1]<t_peak+self.end_fit_after_tpeak):
+        #             print("NR_phase.t[0],NR_phase.t[-1] = ",NR_phase.t[0],NR_phase.t[-1])
+        #             print("t_peak + self.end_fit_after_tpeak = ",t_peak + self.end_fit_after_tpeak)
+        #             raise ValueError("NR mass wave ends before the end of the fit region")
+        #         else:
+        #             temp_ts = np.arange(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,self.resample_dt)
+        #         temp_NR_phase = NR_phase.resampled(temp_ts)
+        #         temp_BOB_phase = BOB_phase.resampled(temp_ts)
                 
-                #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
-                self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
-                BOB_phase.y = BOB_phase.y + self.Phi_0
-                BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
+        #         #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
+        #         self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
+        #         BOB_phase.y = BOB_phase.y + self.Phi_0
+        #         BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
                 
-            else:
-                #temporary work around
-                self.Phi_0 = 0
-                old_data = self.data
-                self.data = self.mass_wave_data
-                phase = self.phase_alignment(BOB_phase.y)
-                self.data = old_data
-                BOB_phase.y = phase
-                BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
+        #     else:
+        #         raise ValueError("Mass quadrupole construction requires optimize_Phi0 = True")
+                    
+        #         # #temporary work around
+        #         # self.Phi_0 = 0
+        #         # old_data = self.data
+        #         # self.data = self.mass_wave_data
+        #         # phase = self.phase_alignment(BOB_phase.y)
+        #         # self.data = old_data
+        #         # BOB_phase.y = phase
+        #         # BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
             
-        else:
-            BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
+        # else:
+        #     BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*np.sign(self.m)*BOB_phase.y)
 
         #restore (l,m) and (l,-m) as automatic data
         if(self.__what_to_create=="psi4"):
@@ -1206,7 +1223,7 @@ class BOB:
         self.optimize_Phi0 = old_optimize_Phi0
         self.Phi_0 = 0
         
-
+        BOB_mass_wave = mass_wave
         return union_ts,BOB_mass_wave
     def construct_BOB(self,print_mismatch=False,mismatch_time = [0,100]):
         if(self.minf_t0):
@@ -1221,9 +1238,9 @@ class BOB:
                 self.NR_based_on_BOB_ts = self.news_data.resampled(BOB_ts.t)
         else:
             if(BOB_ts.t[-1]>self.data.t[-1]):
-                raise ValueError("BOB.ts.t[-1]"+str(BOB_ts.t[-1])+" is greater than self.data.t[-1]"+str(self.data.t[-1])+" for "+self.sxs_id)
+                raise ValueError("BOB.ts.t[-1]"+str(BOB_ts.t[-1])+" is greater than self.data.t[-1]"+str(self.data.t[-1]))
             if(BOB_ts.t[0]<self.data.t[0]):
-                raise ValueError("BOB.ts.t[0]"+str(BOB_ts.t[0])+" is less than self.data.t[0]"+str(self.data.t[0])+" for "+self.sxs_id)
+                raise ValueError("BOB.ts.t[0]"+str(BOB_ts.t[0])+" is less than self.data.t[0]"+str(self.data.t[0]))
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
 
         if(print_mismatch):
@@ -1295,7 +1312,9 @@ class BOB:
             h = abd.h
             h22 = h.data[:,h.index(2,2)]
             h.t -= h.t[np.argmax(np.abs(h22))]
+            print("h.t[0] = ",h.t[0])
             abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
+            print("h.t[0] after superrest = ",abd.h.t[0])
 
 
         self.mf = abd.bondi_rest_mass()[-1]
