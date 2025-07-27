@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import scri
 import spherical_functions as sf
 from scipy.signal import butter, filtfilt, detrend, lfilter
-from scipy.optimize import minimize
+from scipy.optimize import minimize, differential_evolution
 from numpy import trapz
 #some useful functions
 def find_nearest_index(array, value):
@@ -74,8 +74,7 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     tau = 1./imag_qnm
     return w_r,tau
 def mismatch(BOB_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_BOB=True):
-    #simple mismatch function where it is assumed that the amplitudes are aligned at peak
-    #and phases are aligned (to the extent the user wants them to be)
+    #simple mismatch function
     if (not(np.array_equal(BOB_data.t,NR_data.t))):
         if(resample_NR_to_BOB):
             #print("resampling to equal times")
@@ -143,9 +142,9 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
             best_phi0 = phi0
     best_model = kuibit_ts(model.t,amp_model*np.exp(-1j*np.sign(m)*(phase_model.y + best_phi0)))
     return best_phi0,min_mismatch,best_model
-def time_grid_mismatch(model, NR_data, t0, tf, m=2, resample_NR_to_model=True,
+def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
                            t_shift_range=np.arange(-5,5,0.1)):
-    min_mismatch = 1e10
+    min_mismatch = np.inf
     def mismatch_search(t_shift_range,min_mismatch):
         best_t_shift = 0
         for t_shift in t_shift_range:
@@ -172,7 +171,8 @@ def estimate_parameters(BOB,
                         make_mass_naturally=False,
                         include_Omega0_as_parameter=False,
                         include_2Omega0_as_parameters=False,
-                        perform_phase_alignment_first=False):
+                        perform_phase_alignment_first=False,
+                        t_shift_range=np.arange(-5,5,0.1)):
 
     if(force_Omega0_optimization and include_Omega0_as_parameter):
         raise ValueError("force_Omega0_optimization and include_Omega0_as_parameter cannot both be True")
@@ -198,12 +198,14 @@ def estimate_parameters(BOB,
         NR_ts = NR_data
     
     def create_guess(x):
+        #print("trying",x)
         mf = x[0]
         chif = x[1]
         if(include_Omega0_as_parameter):
             lm_Omega0_guess = x[2]
         if(include_2Omega0_as_parameters):
             lmm_Omega0_guess = x[3]
+        BOB.fit_failed = False
         BOB.mf = mf
         BOB.chif_with_sign = chif
         BOB.chif = np.abs(chif)
@@ -243,19 +245,29 @@ def estimate_parameters(BOB,
             else:
                 raise ValueError("Invalid options for make_current_naturally and make_mass_naturally")
             BOB_ts = kuibit_ts(t,y)
-            mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf)
+            if(BOB.fit_failed):
+                print("fit failed for ",x)
+                mismatch = np.inf
+            else:
+                #print("fit worked for ",x)
+                mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf,t_shift_range=t_shift_range)
         except Exception as e:
             mismatch = np.inf
             print(e)
+            print("Search failed for ",x)
         return mismatch
     #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
     if(include_2Omega0_as_parameters):
         out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
     elif(include_Omega0_as_parameter):
-        out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
-    
+        out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)])
+        #out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+        out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
     else:
-        out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+        out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
+        #out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+        out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+        print("done!",out)
     return out
 def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     raise ValueError("Warning: This function needs to be replaced.")

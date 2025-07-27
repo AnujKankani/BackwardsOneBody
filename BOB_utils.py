@@ -19,7 +19,7 @@ class BOB:
         #some default values
         self.minf_t0 = True
         self.__start_before_tpeak = -100
-        self.__end_after_tpeak = 150
+        self.__end_after_tpeak = 175
         self.t0 = -10
         self.tp = 0
         
@@ -65,6 +65,9 @@ class BOB:
 
         self.use_strain_for_t0_optimization = False
         self.use_strain_for_Omega0_optimization = False
+
+        #flag to see if a attempted fit failed
+        self.fit_failed = False
 
 
     @property
@@ -176,7 +179,6 @@ class BOB:
     @set_start_before_tpeak.setter
     def set_start_before_tpeak(self,value):
         self.__start_before_tpeak = value
-        #self.t = np.linspace(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,int((self.__end_after_tpeak-self.__start_before_tpeak))*10+1)
         self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
     
@@ -286,7 +288,6 @@ class BOB:
         Omega = Omega[start_index:end_index]
         return Omega
     def fit_t0_and_omega(self,x,t0,Omega_0):
-        #print("trying t0 = ",t0-self.tp," and omega_0 = ",Omega_0)
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         self.t0 = t0
@@ -310,7 +311,6 @@ class BOB:
         #freq = gen_utils.get_frequency(self.data)
         freq = kuibit_ts(t_freq,y_freq)
         t0,Omega_0 = p
-        print("trying t0 = ",t0-self.tp," and omega_0 = ",Omega_0)
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         self.t0 = t0
@@ -381,15 +381,21 @@ class BOB:
             freq_ts = gen_utils.get_frequency(self.strain_data)
         else:
             freq_ts = gen_utils.get_frequency(self.data)
+
         freq_ts = freq_ts.resampled(self.t)
-        freq_ts.y = freq_ts.y/np.abs(self.m)
+        freq_ts.y = freq_ts.y/np.abs(self.m) #turn it into big Omega
         
         try:
             start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
             end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_ISCO],bounds=[0+1e-10,self.Omega_QNM-1e-10])
-        except:
+
+            popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_QNM/2],bounds=[0+1e-10,self.Omega_QNM-1e-10])
+            Omega = BOB_terms.BOB_news_freq(self)
+
+        except Exception as e:
             print("fit failed, setting Omega_0 = Omega_ISCO")
+            print(e)
+            self.fit_failed = True
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
     def fit_Phi0(self):
@@ -891,6 +897,7 @@ class BOB:
         return BOB_ts
     def construct_NR_mass_and_current_quadrupole(self,what_to_create):
         #construct the mass and current quadrupole waves from the NR data
+        what_to_create = what_to_create.lower()
         if(what_to_create=="psi4"):
             NR_lm = self.psi4_data
             NR_lmm = self.psi4_mm_data
@@ -1258,6 +1265,7 @@ class BOB:
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
         self.chif = sim.metadata.remnant_dimensionless_spin
+        self.M_tot = sim.metadata.reference_mass1 + sim.metadata.reference_mass2
         
         sign = np.sign(self.chif[2])
         if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
@@ -1312,9 +1320,7 @@ class BOB:
             h = abd.h
             h22 = h.data[:,h.index(2,2)]
             h.t -= h.t[np.argmax(np.abs(h22))]
-            print("h.t[0] = ",h.t[0])
             abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
-            print("h.t[0] after superrest = ",abd.h.t[0])
 
 
         self.mf = abd.bondi_rest_mass()[-1]
