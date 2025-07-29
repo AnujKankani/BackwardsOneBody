@@ -19,7 +19,7 @@ class BOB:
         #some default values
         self.minf_t0 = True
         self.__start_before_tpeak = -100
-        self.__end_after_tpeak = 175
+        self.__end_after_tpeak = 100
         self.t0 = -10
         self.tp = 0
         
@@ -79,18 +79,21 @@ class BOB:
         if(val=="psi4" or val=="strain_using_psi4" or val=="news_using_psi4"):
             self.__what_to_create = val
             self.data = self.psi4_data
-            self.Ap = self.psi4_data.abs_max()
-            self.tp = self.psi4_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data.abs())
+            self.Ap = Ap
+            self.tp = tp
         elif(val=="news" or val=="strain_using_news"):
             self.__what_to_create = val
             self.data = self.news_data
-            self.Ap = self.news_data.abs_max()
-            self.tp = self.news_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data.abs())
+            self.Ap = Ap
+            self.tp = tp
         elif(val=="strain"):
             self.__what_to_create = val
             self.data = self.strain_data
-            self.Ap = self.strain_data.abs_max()
-            self.tp = self.strain_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
+            self.Ap = Ap
+            self.tp = tp
         elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
@@ -98,12 +101,14 @@ class BOB:
             if('mass' in val):
                 self.__what_to_create = "mass_quadrupole_with_strain"
                 self.data = self.mass_quadrupole_data
-                self.Ap = self.mass_quadrupole_data.abs_max()
-                self.tp = self.mass_quadrupole_data.time_at_maximum()
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.mass_quadrupole_data.abs())
+                self.Ap = Ap
+                self.tp = tp
             else:
                 self.__what_to_create = "current_quadrupole_with_strain"
                 self.data = self.current_quadrupole_data
-                self.Ap = self.current_quadrupole_data.abs_max()
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.current_quadrupole_data.abs())
+                self.Ap = Ap
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
         elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("news")
@@ -112,13 +117,15 @@ class BOB:
             if('mass' in val):
                 self.__what_to_create = "mass_quadrupole_with_news"
                 self.data = self.mass_quadrupole_data
-                self.Ap = self.mass_quadrupole_data.abs_max()
-                self.tp = self.mass_quadrupole_data.time_at_maximum()
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.mass_quadrupole_data.abs())
+                self.Ap = Ap
+                self.tp = tp
             else:
                 self.__what_to_create = "current_quadrupole_with_news"
                 self.data = self.current_quadrupole_data
-                self.Ap = self.current_quadrupole_data.abs_max()
-                self.tp = self.current_quadrupole_data.time_at_maximum()      
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.current_quadrupole_data.abs())
+                self.Ap = Ap
+                self.tp = tp      
         elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("psi4")
             self.mass_quadrupole_data = NR_mass
@@ -126,13 +133,15 @@ class BOB:
             if('mass' in val):
                 self.__what_to_create = "mass_quadrupole_with_psi4"
                 self.data = self.mass_quadrupole_data
-                self.Ap = self.mass_quadrupole_data.abs_max()
-                self.tp = self.mass_quadrupole_data.time_at_maximum()
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.mass_quadrupole_data.abs())
+                self.Ap = Ap
+                self.tp = tp
             else:
                 self.__what_to_create = "current_quadrupole_with_psi4"
                 self.data = self.current_quadrupole_data
-                self.Ap = self.current_quadrupole_data.abs_max()
-                self.tp = self.current_quadrupole_data.time_at_maximum()      
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.current_quadrupole_data.abs())
+                self.Ap = Ap
+                self.tp = tp      
         else:
             raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
         self.t = np.arange(self.__start_before_tpeak+self.tp,self.__end_after_tpeak+self.tp,self.resample_dt)
@@ -1288,6 +1297,7 @@ class BOB:
         hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
         peak_strain_time = hm.time_at_maximum()
         self.strain_tp = peak_strain_time
+        self.h_L2_norm_tp = h.max_norm_time()
 
         psi4 = sim.psi4
         psi4 = psi4.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))

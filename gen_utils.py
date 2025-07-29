@@ -8,6 +8,7 @@ import spherical_functions as sf
 from scipy.signal import butter, filtfilt, detrend, lfilter
 from scipy.optimize import minimize, differential_evolution
 from numpy import trapz
+from scipy.interpolate import CubicSpline
 #some useful functions
 def find_nearest_index(array, value):
     array = np.asarray(array)
@@ -73,35 +74,46 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     imag_qnm = np.abs(omega_qnm.imag)
     tau = 1./imag_qnm
     return w_r,tau
-def mismatch(BOB_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_BOB=True):
+def get_tp_Ap_from_spline(amp):
+    #we assume junk radiation has been removed, so the largest amplitude is the physical peak
+    spline = CubicSpline(amp.t,amp.y)
+    dspline = spline.derivative()
+    critical_points = dspline.roots()
+    y_candidates = spline(critical_points)
+    max_idx = np.argmax(y_candidates)
+    tp = critical_points[max_idx]
+    Ap = y_candidates[max_idx]
+    return tp,Ap
+    
+def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,return_best_phi0=False):
     #simple mismatch function
-    if (not(np.array_equal(BOB_data.t,NR_data.t))):
-        if(resample_NR_to_BOB):
+    if (not(np.array_equal(model_data.t,NR_data.t))):
+        if(resample_NR_to_model):
             #print("resampling to equal times")
-            NR_data = NR_data.resampled(BOB_data.t)
+            NR_data = NR_data.resampled(model_data.t)
         else:
-            raise ValueError("Time arrays must be identical or set resample_NR_to_BOB to True")
+            raise ValueError("Time arrays must be identical or set resample_NR_to_model to True")
     
     peak_time = NR_data.time_at_maximum()
     
     
-    dx = BOB_data.t[1] - BOB_data.t[0]
+    dx = model_data.t[1] - model_data.t[0]
 
     if(use_trapz):
         NR_data = NR_data.cropped(init=peak_time+t0,end=peak_time+tf)
-        BOB_data = BOB_data.cropped(init=peak_time+t0,end=peak_time+tf)
+        model_data = model_data.cropped(init=peak_time+t0,end=peak_time+tf)
 
-    numerator_integrand = np.conj(BOB_data.y)*NR_data.y
+    numerator_integrand = np.conj(model_data.y)*NR_data.y
     if(use_trapz is False):
-        numerator = (sdi(numerator_integrand,BOB_data.t,peak_time+t0,peak_time+tf))
+        numerator = (sdi(numerator_integrand,model_data.t,peak_time+t0,peak_time+tf))
     else:
-        numerator = (trapz(numerator_integrand,BOB_data.t))
+        numerator = (trapz(numerator_integrand,model_data.t))
     
-    denominator1_integrand = np.conj(BOB_data.y)*BOB_data.y
+    denominator1_integrand = np.conj(model_data.y)*model_data.y
     if(use_trapz is False):
-        denominator1 = np.real(sdi(denominator1_integrand,BOB_data.t,peak_time+t0,peak_time+tf))
+        denominator1 = np.real(sdi(denominator1_integrand,model_data.t,peak_time+t0,peak_time+tf))
     else:
-        denominator1 = np.real(trapz(denominator1_integrand,BOB_data.t))
+        denominator1 = np.real(trapz(denominator1_integrand,model_data.t))
     
     denominator2_integrand = np.conj(NR_data.y)*NR_data.y
     if(use_trapz is False):
@@ -111,7 +123,9 @@ def mismatch(BOB_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_BOB=True):
     
     #maximized overlap when numerator = |numerator|
     max_mismatch = (np.abs(numerator)/np.sqrt(denominator1*denominator2))
-
+    best_phi0 = -np.angle(numerator)
+    if(return_best_phi0):
+        return 1.-max_mismatch,best_phi0
     return 1.-max_mismatch   
 def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
     #raise ValueError("Warning: This function is old and needs to be replaced.")
@@ -143,22 +157,38 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
     best_model = kuibit_ts(model.t,amp_model*np.exp(-1j*np.sign(m)*(phase_model.y + best_phi0)))
     return best_phi0,min_mismatch,best_model
 def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
-                           t_shift_range=np.arange(-5,5,0.1)):
+                           t_shift_range=np.arange(-10,10,0.1),return_best_t_and_phi0=False):
     min_mismatch = np.inf
     def mismatch_search(t_shift_range,min_mismatch):
         best_t_shift = 0
+        best_phi0 = 0 
         for t_shift in t_shift_range:
             model_ = kuibit_ts(model.t + t_shift,model.y)
-            mismatch_val = mismatch(model_,NR_data,t0,tf,use_trapz=True,resample_NR_to_BOB=resample_NR_to_model)
+            if(return_best_t_and_phi0):
+                mismatch_val,phi0 = mismatch(model_,NR_data,t0,tf,use_trapz=True,resample_NR_to_model=resample_NR_to_model,return_best_phi0=True)
+            else:
+                mismatch_val = mismatch(model_,NR_data,t0,tf,use_trapz=True,resample_NR_to_model=resample_NR_to_model)
             if mismatch_val < min_mismatch:
                 min_mismatch = mismatch_val
                 best_t_shift = t_shift
-        return best_t_shift,min_mismatch
+                best_phi0 = phi0
+
+        if(return_best_t_and_phi0):
+            return min_mismatch,best_t_shift,best_phi0
+        return min_mismatch,best_t_shift
     
-    best_t_shift,min_mismatch = mismatch_search(t_shift_range,min_mismatch)
+    if(return_best_t_and_phi0):
+        min_mismatch,best_t_shift,best_phi0 = mismatch_search(t_shift_range,min_mismatch)
+    else:
+        min_mismatch,best_t_shift = mismatch_search(t_shift_range,min_mismatch)
+
     t_shift_range = np.arange(best_t_shift-0.2,best_t_shift+0.2,0.01)
-    best_t_shift,min_mismatch = mismatch_search(t_shift_range,min_mismatch)
-    return min_mismatch
+    if(return_best_t_and_phi0):
+        min_mismatch,best_t_shift,best_phi0 = mismatch_search(t_shift_range,min_mismatch)
+        return min_mismatch,best_t_shift,best_phi0
+    else:
+        min_mismatch,best_t_shift = mismatch_search(t_shift_range,min_mismatch)
+        return min_mismatch
 def estimate_parameters(BOB,
                         mf_guess,
                         chif_guess,
