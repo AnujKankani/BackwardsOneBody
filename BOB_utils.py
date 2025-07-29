@@ -1271,6 +1271,7 @@ class BOB:
     def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True): 
         print("loading SXS data: ",sxs_id)
         sim = sxs.load(sxs_id,download=download)
+        ref_time = sim.metadata.reference_time
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
         self.chif = sim.metadata.remnant_dimensionless_spin
@@ -1292,17 +1293,17 @@ class BOB:
 
         h = sim.h
         h = h.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
-        hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
+        hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
         #we also store the (l,-m) mode for current and quadrupole wave construction
-        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
+        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m).cropped(init=ref_time+100)
         peak_strain_time = hm.time_at_maximum()
         self.strain_tp = peak_strain_time
         self.h_L2_norm_tp = h.max_norm_time()
 
         psi4 = sim.psi4
         psi4 = psi4.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
-        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
-        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)
+        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m).cropped(init=ref_time+100)
+        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m).cropped(init=ref_time+100)
         self.psi4_tp = psi4m.time_at_maximum()
 
         newsm = hm.spline_differentiated(1)
@@ -1353,19 +1354,27 @@ class BOB:
         sxs_h_waveform = h.copy().to_sxs #convert scri wavefrom mode to a sxs waveform mode
         BOB.strain_wm = sxs_h_waveform
 
-        hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
-        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
+        hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
+        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m).cropped(init=ref_time+100)
 
         psi4 = abd.psi4.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
-        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
-        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)
+        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m).cropped(init=ref_time+100)
+        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m).cropped(init=ref_time+100)
 
         newsm = hm.spline_differentiated(1)
         newsmm = hmm.spline_differentiated(1)
 
-        self.strain_tp = hm.time_at_maximum()
-        self.news_tp = newsm.time_at_maximum()
-        self.psi4_tp = psi4m.time_at_maximum()
+        tp,Ap = gen_utils.get_tp_Ap_from_spline(hm)
+        self.strain_tp = tp
+        self.strain_Ap = Ap
+
+        tp,Ap = gen_utils.get_tp_Ap_from_spline(newsm)
+        self.news_tp = tp
+        self.news_Ap = Ap
+
+        tp,Ap = gen_utils.get_tp_Ap_from_spline(psi4m)
+        self.psi4_tp = tp
+        self.psi4_Ap = Ap
 
         self.full_strain_data = h
         self.full_psi4_data = psi4
