@@ -1354,12 +1354,12 @@ class BOB:
         sxs_h_waveform = h.copy().to_sxs #convert scri wavefrom mode to a sxs waveform mode
         BOB.strain_wm = sxs_h_waveform
 
-        hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
-        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m).cropped(init=ref_time+100)
+        hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
+        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
 
         psi4 = abd.psi4.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
-        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m).cropped(init=ref_time+100)
-        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m).cropped(init=ref_time+100)
+        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
+        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)
 
         newsm = hm.spline_differentiated(1)
         newsmm = hmm.spline_differentiated(1)
