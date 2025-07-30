@@ -1364,15 +1364,15 @@ class BOB:
         newsm = hm.spline_differentiated(1)
         newsmm = hmm.spline_differentiated(1)
 
-        tp,Ap = gen_utils.get_tp_Ap_from_spline(hm)
+        tp,Ap = gen_utils.get_tp_Ap_from_spline(hm.abs())
         self.strain_tp = tp
         self.strain_Ap = Ap
 
-        tp,Ap = gen_utils.get_tp_Ap_from_spline(newsm)
+        tp,Ap = gen_utils.get_tp_Ap_from_spline(newsm.abs())
         self.news_tp = tp
         self.news_Ap = Ap
 
-        tp,Ap = gen_utils.get_tp_Ap_from_spline(psi4m)
+        tp,Ap = gen_utils.get_tp_Ap_from_spline(psi4m.abs())
         self.psi4_tp = tp
         self.psi4_Ap = Ap
 
