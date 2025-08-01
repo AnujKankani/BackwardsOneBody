@@ -18,7 +18,7 @@ class BOB:
         qnm.download_data()
         #some default values
         self.minf_t0 = True
-        self.__start_before_tpeak = -100
+        self.__start_before_tpeak = -75
         self.__end_after_tpeak = 100
         self.t0 = -10
         self.tp = 0
@@ -1352,7 +1352,14 @@ class BOB:
 
         h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
         sxs_h_waveform = h.copy().to_sxs #convert scri wavefrom mode to a sxs waveform mode
-        BOB.strain_wm = sxs_h_waveform
+
+        self.strain_wm = sxs_h_waveform
+        if(perform_superrest_transformation):
+            #superrest cuts off a lot of the inspiral data. By default max_norm_time ignores the first 1/4 of the data
+            #so for the superrest case, this removes the actual peak
+            self.h_L2_norm_tp = sxs_h_waveform.max_norm_time(skip_fraction_of_data=10)
+        else:
+            self.h_L2_norm_tp = sxs_h_waveform.max_norm_time()
 
         hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
         hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)

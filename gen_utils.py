@@ -84,7 +84,6 @@ def get_tp_Ap_from_spline(amp):
     tp = critical_points[max_idx]
     Ap = y_candidates[max_idx]
     return tp,Ap
-    
 def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,return_best_phi0=False):
     #simple mismatch function
     if (not(np.array_equal(model_data.t,NR_data.t))):
@@ -171,7 +170,8 @@ def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
             if mismatch_val < min_mismatch:
                 min_mismatch = mismatch_val
                 best_t_shift = t_shift
-                best_phi0 = phi0
+                if(return_best_t_and_phi0):
+                    best_phi0 = phi0
 
         if(return_best_t_and_phi0):
             return min_mismatch,best_t_shift,best_phi0
@@ -297,7 +297,6 @@ def estimate_parameters(BOB,
         out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
         #out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
         out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
-        print("done!",out)
     return out
 def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     raise ValueError("Warning: This function needs to be replaced.")
