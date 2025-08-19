@@ -41,9 +41,6 @@ class BOB:
         self.optimize_Omega0_and_Phi0 = False
         self.optimize_Phi0 = False
         self.optimize_Omega0_and_then_Phi0 = False
-        #These will optimize via minimizing the mismatch
-        self.optimize_Omega0_and_Phi0_via_mismatch = False
-        self.optimize_Phi0_via_mismatch = False
 
         self.NR_based_on_BOB_ts = None
         self.start_fit_before_tpeak = 0
@@ -55,8 +52,6 @@ class BOB:
 
         self.auto_switch_to_numerical_integration = True
 
-        self.__optimize_t0_via_mismatch = False
-        self.__optimize_t0_and_Omega0_via_mismatch = False
         self.__optimize_t0_and_Omega0 = False
         self.__optimize_t0 = False
 
@@ -205,24 +200,6 @@ class BOB:
             self.end_fit_after_tpeak = value
         if(value<self.start_fit_before_tpeak):
             raise ValueError("You have a ridiculous end time. Choose something sensible")
-    
-    @property
-    def optimize_t0_via_mismatch(self):
-        return self.__optimize_t0_via_mismatch
-    
-    @optimize_t0_via_mismatch.setter
-    def optimize_t0_via_mismatch(self,value):
-        self.minf_t0 = False
-        self.__optimize_t0_via_mismatch = value
-
-    @property
-    def optimize_t0_and_Omega0_via_mismatch(self):
-        return self.__optimize_t0_and_Omega0_via_mismatch
-    
-    @optimize_t0_and_Omega0_via_mismatch.setter
-    def optimize_t0_and_Omega0_via_mismatch(self,value):
-        self.minf_t0 = False
-        self.__optimize_t0_and_Omega0_via_mismatch = value
     
     @property
     def optimize_t0_and_Omega0(self):
@@ -466,77 +443,6 @@ class BOB:
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_then_Phi0")
         self.fit_Omega0()
         self.fit_Phi0()
-    def fit_Omega0_and_Phi0_via_mismatch(self):
-        if(self.perform_phase_alignment is False):
-            raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_Phi0_via_mismatch")
-        #This will be very expensive sine we have to search over a grid of Omega values and for each omega, another grid of phi values
-        #it would be nice to make this numba optimized at some point
-
-        #to make things faster, we will start with a coarse search and then refine further
-                
-        def find_best_Omega0_and_Phi0(Omega0_range,Phi0_range):
-            best_mismatch = 1e10
-            best_Omega0 = self.Omega_ISCO
-            best_Phi0 = 0
-            for Omega0 in Omega0_range:
-                for Phi0 in Phi0_range:
-                    self.Omega_0 = Omega0
-                    self.Phi_0 = Phi0
-                    #This function will never be called for X_using_Y
-                    Phi, Omega = self.get_correct_Phi_and_Omega()
-                    amp = self.BOB_amplitude_given_Ap(Omega)
-                    phase = np.abs(self.m)*Phi
-                    temp_BOB = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
-                    
-                    mismatch = gen_utils.mismatch(temp_BOB,self.data.resampled(self.t),self.start_fit_before_tpeak,self.end_fit_after_tpeak)
-                    if(mismatch<best_mismatch):
-                        best_mismatch = mismatch
-                        best_Omega0 = Omega0
-                        best_Phi0 = Phi0
-            return best_mismatch,best_Omega0,best_Phi0
-
-        Omega0_range = np.arange(1e-10,self.Omega_QNM-1e-10,self.Omega_QNM/100)
-        Phi0_range = np.arange(0,2*np.pi-1e-10,0.1)
-        best_mismatch,best_Omega0,best_Phi0 = find_best_Omega0_and_Phi0(Omega0_range,Phi0_range)
-        #print("Omega_QNM  = ",self.Omega_QNM)
-        #print("Best Mismatch = ",best_mismatch)
-        #print("Best Omega0 = ",best_Omega0)
-        #print("Best Phi0 = ",best_Phi0)
-        
-        #we keep a factor of 2 as a safety margin since we are searching over a coarse grid and it just gives us a ballpark value
-        Omega0_range = np.arange(best_Omega0-2*self.Omega_QNM/100,best_Omega0+2*self.Omega_QNM/100,self.Omega_QNM/1000)
-        Phi0_range = np.arange(0,2*np.pi,0.01)
-        best_mismatch,best_Omega0,best_Phi0 = find_best_Omega0_and_Phi0(Omega0_range,Phi0_range)
-        #print("Best Mismatch = ",best_mismatch)
-        #print("Best Omega0 = ",best_Omega0)
-        #print("Best Phi0 = ",best_Phi0)
-
-        self.Omega_0 = best_Omega0
-        self.Phi_0 = best_Phi0
-    def fit_Phi0_via_mismatch(self):
-        if(self.perform_phase_alignment is False):
-            raise ValueError("perform_phase_alignment must be True for fit_Phi0_via_mismatch")
-        if(self.tp+self.__end_after_tpeak<self.tp+self.end_fit_after_tpeak):
-            self.end_fit_after_tpeak = self.__end_after_tpeak
-        #Since we may only want to fit ove a limited sample, we create a temporary time array
-        
-        #if we are using X_using_Y, we need to use X not Y for the ***NR*** data
-        Phi,Omega = self.get_correct_Phi_and_Omega()
-        if("using" in self.__what_to_create):
-            if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
-                data_ts = self.strain_data.resampled(self.t)
-            if(self.__what_to_create=="news_using_psi4"):
-                data_ts = self.news_data.resampled(self.t)
-        else:
-            data_ts = self.data.resampled(self.t)
-
-        Phi = kuibit_ts(self.t,Phi)
-        amp = self.BOB_amplitude_given_Ap(Omega)
-        amp = kuibit_ts(self.t,amp)
-        BOB_ts = kuibit_ts(self.t,amp.y*np.exp(-1j*self.m*Phi.y))
-
-        phi0,mismatch = gen_utils.phi_grid_mismatch(BOB_ts,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
-        self.Phi_0 = phi0/np.abs(self.m)
     def fit_t0_and_Omega0(self):
         raise ValueError("fit_t0_and_Omega0 is not working right now. TODO: fix")
         if('psi4' in self.__what_to_create):
@@ -588,111 +494,6 @@ class BOB:
         self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)]
         self.fitted_t0 = self.t0
         self.fitted_Omega0 = self.Omega_0
-    def find_best_t0_via_mismatch(self):
-        if(self.minf_t0):
-            raise ValueError("Cannot find best t0 via mismatch if t0 = -inf")
-        #in principal any waveform can be use to determine Omega_0, and testing shows it can have a very big impact
-        freq_to_find_Omega_0 = gen_utils.get_frequency(self.data).cropped(init=self.tp-200,end=self.tp+50)
-        t_isco = self.data.t[gen_utils.find_nearest_index(freq_to_find_Omega_0.y,self.Omega_ISCO*np.abs(self.m))]       
-        t0_range = np.arange(self.tp-50,self.tp-1e-10,1)
-
-        best_mismatch = 1e10
-        best_t0 = t_isco
-        best_phi0 = 0
-        for t0 in t0_range:
-            self.t0 = t0
-            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-            self.Omega_0 = freq_to_find_Omega_0.y[gen_utils.find_nearest_index(freq_to_find_Omega_0.t,t0)]/np.abs(self.m)
-            self.Phi_0 = 0 
-            try:
-                Phi,Omega = self.get_correct_Phi_and_Omega()
-                amp = self.BOB_amplitude_given_Ap(Omega)
-                phase = np.abs(self.m)*Phi
-                BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
-                if("using" in self.__what_to_create):
-                    if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
-                        data_ts = self.strain_data.resampled(self.t)
-                    elif(self.__what_to_create=="news_using_psi4"):
-                        data_ts = self.news_data.resampled(self.t)
-                else:
-                    data_ts = self.data.resampled(self.t)
-                #when we search for the best phase we do not want to send in the resampled data, we will calculate the mismatch over the resampled time
-                #but the phase should be based on the original time because utlimately we want to use the original time to create BOB
-                phi0, mismatch = gen_utils.phi_grid_mismatch(BOB_ts,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
-            except:
-                #skip over any bad cases
-                continue
-            if(mismatch<best_mismatch):
-                best_mismatch = mismatch
-                best_t0 = t0
-                best_phi0 = phi0
-        self.t0 = best_t0
-        self.fitted_t0 = best_t0
-        self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-        self.Omega_0 = freq_to_find_Omega_0.y[gen_utils.find_nearest_index(freq_to_find_Omega_0.t,best_t0)]/np.abs(self.m)
-        self.Phi_0 = best_phi0/np.abs(self.m)
-
-        Phi,Omega = self.get_correct_Phi_and_Omega()
-        amp = self.BOB_amplitude_given_Ap(Omega)
-        phase = np.abs(self.m)*Phi
-        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
-    def find_best_t0_and_Omega0_via_mismatch(self):
-        raise ValueError("This method is not supported yet. I need to rewrite the mismatch function here.")
-        print("This is very slow and may take a while.")
-        #The physicality of this method is questionable but I am including it for testing
-        if(self.minf_t0):
-            raise ValueError("Cannnot optimize t0 if t0=-inf")
-        
-
-        #both ranges are quite large so we will have to do a coarse then fine search
-        def search(t0_range,Omega0_range):
-            best_mismatch = 1e10
-            best_t0 = self.tp-10
-            best_phi0 = 0
-            best_Omega0 = self.Omega_0
-            for t0 in t0_range:
-                print("searching t0 = ",t0)
-                self.t0 = t0
-                self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-                for Omega0 in Omega0_range:
-                    self.Omega_0 = Omega0
-                    self.Phi_0 = 0
-                    try:
-                        Phi,Omega = self.get_correct_Phi_and_Omega()
-                        amp = self.BOB_amplitude_given_Ap(Omega)
-                        phase = np.abs(self.m)*Phi
-                        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase)) #since self.t is temp_ts we don't need to resample
-                        if("using" in self.__what_to_create):
-                            if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
-                                data_ts = self.strain_data.resampled(self.t)
-                            elif(self.__what_to_create=="news_using_psi4"):
-                                data_ts = self.news_data.resampled(self.t)
-                        else:
-                            data_ts = self.data.resampled(self.t)
-                        phi0, mismatch = gen_utils.phi_grid_mismatch(BOB_ts,data_ts,self.start_fit_before_tpeak,self.end_fit_after_tpeak)
-                    except:
-                        continue
-                    if(mismatch<best_mismatch):
-                        best_mismatch = mismatch
-                        best_t0 = t0
-                        best_phi0 = phi0
-                        best_Omega0 = Omega0
-            return best_t0,best_Omega0,best_phi0
-
-        #first we do a coarse search
-        t0_range = np.arange(self.tp-50,self.tp-1e-10,5)
-        Omega0_range = np.arange(0,self.Omega_QNM-1e-10,self.Omega_QNM/10)
-        best_t0, best_Omega0,best_phi0 = search(t0_range,Omega0_range)
-        
-        #now we do a fine search around the best values
-        t0_range = np.arange(best_t0-5,best_t0+5,1)
-        Omega0_range = np.arange(best_Omega0-self.Omega_QNM/10,best_Omega0+self.Omega_QNM/10,self.Omega_QNM/100)
-        best_t0, best_Omega0,best_phi0 = search(t0_range,Omega0_range)
-
-        self.t0 = best_t0
-        self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-        self.Phi_0 = best_phi0/np.abs(self.m)
-        self.Omega_0 = best_Omega0
     def get_t_isco(self):
         freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
         t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
@@ -762,36 +563,23 @@ class BOB:
     def construction_parameter_checks(self):
         #Perform parameter sanity checks
         if("using" in self.__what_to_create):
-            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0 or self.optimize_Omega0_and_Phi0_via_mismatch):
-                raise ValueError("optimize_Omega0_and_Phi0, optimize_Omega0_and_then_Phi0, or optimize_Omega0_and_Phi0_via_mismatch cannot be True at the same time when building strain using psi4/news or news using psi4.\n\
+            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
+                raise ValueError("optimize_Omega0_and_Phi0, optimize_Omega0_and_then_Phi0 cannot be True at the same time when building strain using psi4/news or news using psi4.\n\
                 If you want to optimize Omega0 for psi4/news and do a phase alignment on the final strain waveform \n\
                 set optimize_Omega0 = True and optimize_Phi0 = True separately.")
         if(self.optimize_Omega0_and_Phi0 is True and self.optimize_Omega0_and_then_Phi0 is True):
             raise ValueError("Both optimize_Omega0_and_Phi0 and optimize_Omega0_and_then_Phi0 cannot be True at the same time.")
-        if(self.optimize_Omega0_and_Phi0_via_mismatch and (self.optimize_Omega0 or self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0 or self.optimize_Phi0_via_mismatch)):
-            raise ValueError("optimize_Omega0_and_Phi0_via_mismatch cannot be True at the same time as optimize_Omega0, optimize_Phi0, optimize_Omega0_and_then_Phi0, or optimize_Phi0_via_mismatch.")
-        if(self.optimize_Phi0_via_mismatch and (self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_Phi0_via_mismatch)):
-            raise ValueError("optimize_Phi0_via_mismatch cannot be True at the same time as optimize_Phi0 or optimize_Omega0_and_then_Phi0 or optimize_Omega0_and_Phi0 or optimize_Omega0_and_Phi0_via_mismatch.")
-        if(self.perform_phase_alignment is False and (self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0 or self.optimize_Phi0_via_mismatch or self.optimize_Omega0_and_Phi0_via_mismatch)):
-            raise ValueError("perform_phase_alignment cannot be False at the same time as optimize_Phi0, optimize_Omega0_and_then_Phi0, optimize_Phi0_via_mismatch, or optimize_Omega0_and_Phi0_via_mismatch.")
+        if(self.perform_phase_alignment is False and (self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0)):
+            raise ValueError("perform_phase_alignment cannot be False at the same time as optimize_Phi0, optimize_Omega0_and_then_Phi0.")
     def construct_BOB_finite_t0(self):
         #Perform parameter sanity checks
-        if(self.optimize_Omega0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0 or self.optimize_Omega0_and_Phi0_via_mismatch):
+        if(self.optimize_Omega0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
             raise ValueError("Cannot optimize Omega0 for finite t0 values.")
-        if(self.optimize_Phi0 and self.optimize_Phi0_via_mismatch):
-            raise ValueError("Cannot have optimize_Phi0 and optimize_Phi0_via_mismatch True at the same time.")
 
         old_perform_phase_alignment = self.perform_phase_alignment
         old_optimize_Phi0 = self.optimize_Phi0
-        old_optimize_Phi0_via_mismatch = self.optimize_Phi0_via_mismatch
 
-        if(self.__optimize_t0_via_mismatch):
-            self.find_best_t0_via_mismatch()
-            self.perform_phase_alignment = False
-        elif(self.__optimize_t0_and_Omega0_via_mismatch):
-            self.find_best_t0_and_Omega0_via_mismatch()
-            self.perform_phase_alignment = False
-        elif(self.__optimize_t0_and_Omega0):
+        if(self.__optimize_t0_and_Omega0):
             self.fit_t0_and_Omega0()
         elif(self.__optimize_t0):
             self.fit_t0()
@@ -799,9 +587,6 @@ class BOB:
             pass
         if(self.optimize_Phi0 is True):
             self.fit_Phi0()
-            self.perform_phase_alignment = False
-        if(self.optimize_Phi0_via_mismatch is True):
-            self.fit_Phi0_via_mismatch()
             self.perform_phase_alignment = False
         
         phase = None
@@ -821,7 +606,6 @@ class BOB:
 
         self.perform_phase_alignment = old_perform_phase_alignment
         self.optimize_Phi0 = old_optimize_Phi0
-        self.optimize_Phi0_via_mismatch = old_optimize_Phi0_via_mismatch
         self.Phi_0 = 0
         self.Omega_0 = self.Omega_ISCO
 
@@ -835,51 +619,26 @@ class BOB:
         old_optimize_Phi0 = self.optimize_Phi0
         old_optimize_Omega0_and_Phi0 = self.optimize_Omega0_and_Phi0
         old_optimize_Omega0_and_then_Phi0 = self.optimize_Omega0_and_then_Phi0
-        old_optimize_Phi0_via_mismatch = self.optimize_Phi0_via_mismatch
-        old_optimize_Omega0_and_Phi0_via_mismatch = self.optimize_Omega0_and_Phi0_via_mismatch
         old_t = self.t
 
-        
-
-        #The order of events here is very important depending on what optimization parameters are set
-        
-        #First we check if mismatch optimization is set. These cases require special care because amplitude data is also needed, which means frequency data may be required if X_using_Y is set
-        #Simulatenous optimizations of omega0 and phi0 cannot be set for X_using_Y cases. This is ensured in the parameter checks.
-        if(self.optimize_Phi0_via_mismatch or self.optimize_Omega0_and_Phi0_via_mismatch):
-            #if we are lsq optimzing Omega0 and mismatch optimizing Phi0
-            if(self.optimize_Omega0):
-                self.fit_Omega0()
-                if(self.optimize_Phi0_via_mismatch):
-                    self.fit_Phi0_via_mismatch()
-                    self.perform_phase_alignment = False
-            elif(self.optimize_Omega0_and_Phi0_via_mismatch):
-                #we are mismatch optimizing both Omega0 and Phi0
-                self.fit_Omega0_and_Phi0_via_mismatch()
-                self.perform_phase_alignment = False
-            else:
-                self.fit_Phi0_via_mismatch()
-                self.perform_phase_alignment = False
-            #The above calls should set Omega0 and Phi0 to the correct values based on the optimization choice            
-        else:
-            #Cases where no mismatch optimization is set
-            if(self.optimize_Omega0_and_then_Phi0 is True):
-                self.fit_Omega0_and_then_Phi0()
-                self.perform_phase_alignment = False
-            #Omega0 should always be optimized before Phi0
-            #Note: this should identical to the case above for non X_using_Y cases.
-            elif(self.optimize_Omega0 is True):
-                self.fit_Omega0()
-                if(self.optimize_Phi0 is True):
-                    self.fit_Phi0()
-                    self.perform_phase_alignment = False
-            elif(self.optimize_Phi0 is True):
+        if(self.optimize_Omega0_and_then_Phi0 is True):
+            self.fit_Omega0_and_then_Phi0()
+            self.perform_phase_alignment = False
+        #Omega0 should always be optimized before Phi0
+        #Note: this should identical to the case above for non X_using_Y cases.
+        elif(self.optimize_Omega0 is True):
+            self.fit_Omega0()
+            if(self.optimize_Phi0 is True):
                 self.fit_Phi0()
                 self.perform_phase_alignment = False
-            elif(self.optimize_Omega0_and_Phi0 is True):
-                self.fit_Omega0_and_Phi0()
-                self.perform_phase_alignment = False
-            else:
-                pass
+        elif(self.optimize_Phi0 is True):
+            self.fit_Phi0()
+            self.perform_phase_alignment = False
+        elif(self.optimize_Omega0_and_Phi0 is True):
+            self.fit_Omega0_and_Phi0()
+            self.perform_phase_alignment = False
+        else:
+            pass
 
         #now that the correct Omega0 and Phi0 have been set based on the optimization choices, we can calculate the amplitude and phase
         self.fitted_Omega0 = self.Omega_0 #if no omega0 optimization takes place, then this should just return omega_isco
@@ -898,8 +657,6 @@ class BOB:
         self.optimize_Omega0_and_Phi0 = old_optimize_Omega0_and_Phi0
         self.optimize_Omega0_and_then_Phi0 = old_optimize_Omega0_and_then_Phi0
         self.optimize_Omega0 = old_optimize_Omega0
-        self.optimize_Phi0_via_mismatch = old_optimize_Phi0_via_mismatch
-        self.optimize_Omega0_and_Phi0_via_mismatch = old_optimize_Omega0_and_Phi0_via_mismatch
         self.Phi_0 = 0
         self.Omega_0 = self.Omega_ISCO
         self.t = old_t
@@ -1241,7 +998,7 @@ class BOB:
         
         BOB_mass_wave = mass_wave
         return union_ts,BOB_mass_wave
-    def construct_BOB(self,print_mismatch=False,mismatch_time = [0,100]):
+    def construct_BOB(self):
         if(self.minf_t0):
             BOB_ts = self.construct_BOB_minf_t0()
         else:
@@ -1259,14 +1016,6 @@ class BOB:
                 raise ValueError("BOB.ts.t[0]"+str(BOB_ts.t[0])+" is less than self.data.t[0]"+str(self.data.t[0]))
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
 
-        if(print_mismatch):
-            if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
-                mismatch = gen_utils.mismatch(BOB_ts,self.strain_data.resampled(BOB_ts.t),mismatch_time[0],mismatch_time[-1])
-            elif(self.__what_to_create=="news_using_psi4"):
-                mismatch = gen_utils.mismatch(BOB_ts,self.news_data.resampled(BOB_ts.t),mismatch_time[0],mismatch_time[-1])
-            else:
-                mismatch = gen_utils.mismatch(BOB_ts,self.NR_based_on_BOB_ts,mismatch_time[0],mismatch_time[-1])
-            print("Mismatch = ",mismatch)
         return BOB_ts.t,BOB_ts.y
     def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True): 
         print("loading SXS data: ",sxs_id)
@@ -1466,151 +1215,6 @@ class BOB:
         temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m)
         return temp_ts.t,temp_ts.y
 #convenience class for template generation
-class quickBOB():
-    def __init__(self):
-        self.Omega_0 = 1
-        self.Phi_0 = 0
-        self.Ap = 1
-        self.tp = 0
-        self.Omega_QNM = 1
-        self.tau = 1
-        self.t = np.arange(self.tp-10,75+self.tp,0.1)
-        self.t_tp_tau = (self.t - self.tp)/self.tau
-def test_phase_freq_t0_inf():
-
-    #numerically differentiate the phase to make sure it matches our frequency
-    chif = 0.5
-    mf = 0.975
-    w_r,tau = gen_utils.get_qnm(chif,mf,2,2,0)
-    Omega_QNM = w_r/2. 
-    Omega_ISCO = gen_utils.get_Omega_isco(chif,mf)
-    tp = 0
-    t = np.linspace(-50+tp,50+tp,201)
-    t_tp_tau = (t-tp)/tau
-    
-    BOB_obj = BOB()
-    BOB_obj.Omega_0 = Omega_0
-    BOB_obj.Omega_QNM = Omega_QNM
-    BOB_obj.t_tp_tau = t_tp_tau
-    BOB_obj.tau = tau
-    BOB_obj.t = t
-
-    Psi4_Omega = kuibit_ts(t,BOB_obj.BOB_psi4_freq())
-    Psi4_Phi   = kuibit_ts(t,BOB_obj.BOB_psi4_phase())
-    
-    News_Omega = kuibit_ts(t,BOB_obj.BOB_news_freq())
-    News_Phi   = kuibit_ts(t,BOB_obj.BOB_news_phase())
-
-    Strain_Omega = kuibit_ts(t,BOB_obj.BOB_strain_freq())
-    Strain_Phi   = kuibit_ts(t,BOB_obj.BOB_strain_phase())
-
-    dPsi4_Phi_dt   = Psi4_Phi.spline_differentiated(1)
-    dNews_Phi_dt   = News_Phi.spline_differentiated(1)
-    dStrain_Phi_dt = Strain_Phi.spline_differentiated(1)
-
-    plt.plot(Strain_Omega.t,Strain_Omega.y,color='black',label='Analytic')
-    plt.plot(dStrain_Phi_dt.t,dStrain_Phi_dt.y,color='green',label='Numerical')
-    plt.title("Strain Omega Test")
-    plt.legend()
-    plt.show()
-
-    plt.plot(Strain_Omega.t,Strain_Omega.y-dStrain_Phi_dt.y)
-    plt.title('Resiudal Strain Omega test')
-    plt.show()
-
-    plt.plot(News_Omega.t,News_Omega.y,color='black',label='Analytic')
-    plt.plot(dNews_Phi_dt.t,dNews_Phi_dt.y,color='green',label='Numerical')
-    plt.title("News Omega Test")
-    plt.legend()
-    plt.show()
-
-    plt.plot(News_Omega.t,News_Omega.y-dNews_Phi_dt.y)
-    plt.title('Resiudal News Omega test')
-    plt.show()
-
-    plt.plot(Psi4_Omega.t,Psi4_Omega.y,color='black',label='Analytic')
-    plt.plot(dPsi4_Phi_dt.t,dPsi4_Phi_dt.y,color='green',label='Numerical')
-    plt.title("Psi4 Omega Test")
-    plt.legend()
-    plt.show()
-
-    plt.plot(Psi4_Omega.t,Psi4_Omega.y-dPsi4_Phi_dt.y)
-    plt.title('Resiudal Psi4 Omega test')
-    plt.show()
-def test_phase_freq_finite_t0():
-    chif = 0.5
-    mf = 0.975
-    w_r,tau = gen_utils.get_qnm(chif,mf,2,2,0)
-    Omega_QNM = w_r/2. 
-    Omega_ISCO = gen_utils.get_Omega_isco(chif,mf)
-    Omega_0 = Omega_ISCO
-    
-    
-
-    BOB_obj = BOB()
-    BOB_obj.tp = 0
-    #BOB_obj.start_before_tp = -500
-    #BOB_obj.end_after_tpeak = 100
-    #t = np.linspace(BOB_obj.start_before_tp,BOB_obj.end_after_tpeak,201)
-    t = BOB_obj.t
-    tp = 0
-    t0 = -20
-    t_tp_tau = (t-tp)/tau
-    t0_tp_tau = (t0-tp)/tau
-    BOB_obj.Omega_0 = Omega_0
-    BOB_obj.Omega_QNM = Omega_QNM
-    print("Omega_0 = ",Omega_0)
-    print("Omega_QNM = ",Omega_QNM)
-    BOB_obj.t0_tp_tau = t0_tp_tau
-    BOB_obj.t_tp_tau = t_tp_tau
-    BOB_obj.tau = tau
-    BOB_obj.t = t
-    print(len(t))
-    print(len(BOB_obj.t_tp_tau))    
-    Psi4_Omega = kuibit_ts(t,BOB_obj.BOB_psi4_freq_finite_t0())
-    Psi4_Phi   = kuibit_ts(t,BOB_obj.BOB_psi4_phase_finite_t0()[0])
-
-    News_Omega = kuibit_ts(t,BOB_obj.BOB_news_freq_finite_t0())
-    News_Phi   = kuibit_ts(t,BOB_obj.BOB_news_phase_finite_t0_numerically()[0])
-
-    Strain_Omega = kuibit_ts(t,BOB_obj.BOB_strain_freq_finite_t0())
-    Strain_Phi   = kuibit_ts(t,BOB_obj.BOB_strain_phase_finite_t0()[0])
-
-    dPsi4_Phi_dt   = Psi4_Phi.spline_differentiated(1)
-    dNews_Phi_dt   = News_Phi.spline_differentiated(1)
-    dStrain_Phi_dt = Strain_Phi.spline_differentiated(1)
-
-    
-    plt.plot(Strain_Omega.t,Strain_Omega.y,color='black',label='Analytic')
-    plt.plot(dStrain_Phi_dt.t,dStrain_Phi_dt.y,color='green',label='Numerical')
-    plt.title("Strain Omega Test")
-    plt.legend()
-    plt.show()
-
-    plt.plot(Strain_Omega.t,Strain_Omega.y-dStrain_Phi_dt.y)
-    plt.title('Resiudal Strain Omega test')
-    plt.show()
-
-    plt.plot(News_Omega.t,News_Omega.y,color='black',label='Analytic')
-    plt.plot(dNews_Phi_dt.t,dNews_Phi_dt.y,color='green',label='Numerical')
-    plt.title("News Omega Test")
-    plt.legend()
-    plt.show()
-
-    plt.plot(News_Omega.t,News_Omega.y-dNews_Phi_dt.y)
-    plt.title('Resiudal News Omega test')
-    plt.show()
-
-    plt.plot(Psi4_Omega.t,Psi4_Omega.y,color='black',label='Analytic')
-    plt.plot(dPsi4_Phi_dt.t,dPsi4_Phi_dt.y,color='green',label='Numerical')
-    plt.title("Psi4 Omega Test")
-    plt.legend()
-    plt.show()
-
-    plt.plot(Psi4_Omega.t,Psi4_Omega.y-dPsi4_Phi_dt.y)
-    plt.title('Resiudal Psi4 Omega test')
-    plt.show()
-
 
 if __name__=="__main__":
     #pass
