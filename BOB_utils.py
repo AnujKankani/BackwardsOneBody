@@ -1275,6 +1275,7 @@ class BOB:
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
         self.chif = sim.metadata.remnant_dimensionless_spin
+        self.metadata = sim.metadata
         self.M_tot = sim.metadata.reference_mass1 + sim.metadata.reference_mass2
         
         sign = np.sign(self.chif[2])
@@ -1320,7 +1321,7 @@ class BOB:
         self.psi4_data = psi4m
         self.full_psi4_data = psi4
         self.psi4_mm_data = psi4mm
-    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False):
+    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False):
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
         print("loading CCE data")
         abd = qnmfits.cce.load(cce_id)
@@ -1349,8 +1350,10 @@ class BOB:
         self.w_r = np.abs(w_r)
         self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
-
+        if(inertial_to_coprecessing_transformation):
+            h = h.to_coprecessing_frame()
         h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
+        self.strain_scri_wm = h.copy()
         sxs_h_waveform = h.copy().to_sxs #convert scri wavefrom mode to a sxs waveform mode
 
         self.strain_wm = sxs_h_waveform

@@ -9,6 +9,7 @@ from scipy.signal import butter, filtfilt, detrend, lfilter
 from scipy.optimize import minimize, differential_evolution
 from numpy import trapz
 from scipy.interpolate import CubicSpline
+import sxs
 #some useful functions
 def find_nearest_index(array, value):
     array = np.asarray(array)
@@ -190,8 +191,8 @@ def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
         min_mismatch,best_t_shift = mismatch_search(t_shift_range,min_mismatch)
         return min_mismatch
 def estimate_parameters(BOB,
-                        mf_guess,
-                        chif_guess,
+                        mf_guess=0.95,
+                        chif_guess=0.5,
                         Omega0_guess=0.155,
                         t0=0,
                         tf=75,
@@ -202,7 +203,8 @@ def estimate_parameters(BOB,
                         include_Omega0_as_parameter=False,
                         include_2Omega0_as_parameters=False,
                         perform_phase_alignment_first=False,
-                        t_shift_range=np.arange(-5,5,0.1)):
+                        start_with_wide_search = False,
+                        t_shift_range=np.arange(-10,10,0.1)):
 
     if(force_Omega0_optimization and include_Omega0_as_parameter):
         raise ValueError("force_Omega0_optimization and include_Omega0_as_parameter cannot both be True")
@@ -210,6 +212,13 @@ def estimate_parameters(BOB,
         raise ValueError("make_current_naturally and make_mass_naturally cannot both be True")
     if((force_Omega0_optimization and include_2Omega0_as_parameters) or (force_Omega0_optimization and include_Omega0_as_parameter)):
         raise ValueError("force_Omega0_optimization and include_2Omega0_as_parameters cannot both be True")
+    if(include_2Omega0_as_parameters is True and include_Omega0_as_parameter is False):
+        raise ValueError("include_2Omega0_as_parameters is True and include_Omega0_as_parameter is False")
+    #store BOB parameters
+    old_mf = BOB.mf
+    old_chif = BOB.chif
+    old_chif_with_sign = BOB.chif_with_sign
+    old_Omega0 = BOB.Omega_0
     #we use a scipy optimizer to find the best mass and spin
     if(BOB.what_should_BOB_create=="psi4"):
         #Psi4
@@ -288,15 +297,28 @@ def estimate_parameters(BOB,
         return mismatch
     #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
     if(include_2Omega0_as_parameters):
-        out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+        if(start_with_wide_search):
+            out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)])
+            out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+        else:
+            out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
     elif(include_Omega0_as_parameter):
-        out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)])
-        #out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
-        out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+        if(start_with_wide_search):
+            out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)])
+            out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+        else:
+            out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
     else:
-        out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
-        #out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
-        out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+        if(start_with_wide_search):
+            out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
+            out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+        else:
+            out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+    #reset parameters in BOB
+    BOB.mf = old_mf
+    BOB.chif = old_chif
+    BOB.chif_with_sign = old_chif_with_sign
+    BOB.Omega_0 = old_Omega0
     return out
 def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     raise ValueError("Warning: This function needs to be replaced.")
@@ -494,8 +516,17 @@ def compute_one_more_term(nth_derivative,t,freq):
     one_over_iomega = 1/(-1j*freq)
     deriv_val = kuibit_ts(t,nth_derivative).spline_differentiated(1).y*one_over_iomega
     return deriv_val
-
-    
+def load_lower_lev_SXS(sim):
+    location = sim.location
+    print(location,sim.lev_numbers)
+    if(len(sim.lev_numbers)>1):
+       try:        
+           sim_lower = sxs.load(location[:-1]+str(sim.lev_numbers[-2]))
+       except:
+            raise ValueError("Lower level not found")
+    else:
+        raise ValueError("only one Level found")
+    return sim_lower
 
 
 
