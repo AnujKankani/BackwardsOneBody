@@ -1099,10 +1099,10 @@ class BOB:
         self.w_r = np.abs(w_r)
         self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
+        h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
         if(inertial_to_coprecessing_transformation):
             print("converting to coprecessing frame!")
             h = h.to_coprecessing_frame()
-        h = abd.h.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
         self.strain_scri_wm = h.copy()
         sxs_h_waveform = h.copy().to_sxs #convert scri wavefrom mode to a sxs waveform mode
 
