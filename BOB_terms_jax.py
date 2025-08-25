@@ -44,6 +44,26 @@ def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
     Omega2 = Omega_minus * jnp.tanh(tt) / 2. + Omega_plus / 2.
     return m*jnp.sqrt(jnp.maximum(Omega2, 1e-12)) 
 
+def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
+    omega = BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m) #news_freq_jax returns little omega
+    Omega = omega/m
+
+    Omega_minus_Q = jnp.abs(Omega - Omega_QNM) 
+    Omega_minus_0 = jnp.abs(Omega - Omega_0)   
+    
+    # Handle the log(0) case safely by adding a small epsilon
+    epsilon = 1e-40
+    Omega_minus_Q = jnp.where(Omega_minus_Q == 0, epsilon, Omega_minus_Q)
+    Omega_minus_0 = jnp.where(Omega_minus_0 == 0, epsilon, Omega_minus_0)
+
+
+    outer = tau / 2.0
+    inner1 = jnp.log(Omega + Omega_QNM) - jnp.log(Omega_minus_Q)
+    inner2 = jnp.log(Omega + Omega_0) - jnp.log(Omega_minus_0)
+    
+    phase = (outer * (Omega_QNM * inner1 - Omega_0 * inner2) + Phi_0)*m
+    
+    return phase,omega
 def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
     tt = (t - t_p) / tau
     k = (Omega_QNM**4 - Omega_0**4) / 2.0
@@ -108,6 +128,46 @@ def get_series_terms_ad(t, Omega_0, Omega_QNM, tau, Ap, t_p, omega_func, A_func,
     # Define the operator D's pre-factor g(t) = 1 / (i * ω(t))
     def g_func(time):
         omega = omega_func(time, Omega_0, Omega_QNM, tau, t_p, m)
+        return 1.0 / (1j * omega)
+
+    # List to hold the functions that compute [f₀, Df₀, D²f₀, ...]
+    term_funcs = [f0_func]
+    
+    # Recursively build the derivative functions
+    for i in range(1, N + 1):
+        prev_term_func = term_funcs[-1]
+        
+        # Use jax.checkpoint to break the computational graph and save memory
+        # during compilation for deep derivative chains.
+        prev_term_func_checkpointed = checkpoint(prev_term_func)
+        
+        deriv_of_prev = complex_scalar_derivative(prev_term_func_checkpointed)
+        
+        next_term_func = lambda t, g=g_func, deriv=deriv_of_prev: g(t) * deriv(t)
+        term_funcs.append(next_term_func)
+
+    # Evaluate all functions over the time array using vmap
+    all_terms = jnp.stack([vmap(f)(t) for f in term_funcs])
+    
+    return all_terms
+@partial(jit, static_argnames=('omega_func', 'A_func','N'))
+def get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0, omega_func, A_func, m, N):
+    """
+    Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
+    using JAX's automatic differentiation.
+
+    Returns:
+        A 2D array of shape (N+1, len(t)) containing the raw terms.
+    """
+    # Define the base function f₀(t) = A(t) / (i * ω(t))
+    def f0_func(time):
+        A = A_func(time, tau, Ap, t_p)
+        omega = omega_func(time, Omega_0, Omega_QNM, tau,t_0, t_p, m)
+        return A / (1j * omega)
+
+    # Define the operator D's pre-factor g(t) = 1 / (i * ω(t))
+    def g_func(time):
+        omega = omega_func(time, Omega_0, Omega_QNM, tau,t_0, t_p, m)
         return 1.0 / (1j * omega)
 
     # List to hold the functions that compute [f₀, Df₀, D²f₀, ...]
