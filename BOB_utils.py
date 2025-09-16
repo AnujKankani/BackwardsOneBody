@@ -14,7 +14,50 @@ except:
     import gen_utils
 
 class BOB:
+    '''
+    A class to construct BOB waveforms
+
+    Attributes:
+        minf_t0 (bool): Whether to use t0 = -infinity
+        __start_before_tpeak (int): Start time before tpeak
+        __end_after_tpeak (int): End time after tpeak
+        t0 (int): Initial time
+        tp (int): Time of peak
+        phase_alignment_time (int): Time to perform phase alignment
+        what_is_BOB_building (str): What BOB is building
+        l (int): l value
+        m (int): m value
+        Phi_0 (float): Initial phase
+        perform_phase_alignment (bool): Whether to perform phase alignment
+        resample_dt (float): Resampling time step
+        t (numpy.ndarray): Time array
+        strain_tp (float): Strain time at peak
+        news_tp (float): News time at peak
+        psi4_tp (float): Psi4 time at peak
+        optimize_Omega0 (bool): Whether to optimize Omega0
+        optimize_Omega0_and_Phi0 (bool): Whether to optimize Omega0 and Phi0
+        optimize_Phi0 (bool): Whether to optimize Phi0
+        optimize_Omega0_and_then_Phi0 (bool): Whether to optimize Omega0 and then Phi0
+        optimize_t0_and_Omega0 (bool): Whether to optimize t0 and Omega0
+        optimize_t0 (bool): Whether to optimize t0
+        fitted_t0 (float): Fitted t0
+        fitted_Omega0 (float): Fitted Omega0
+        use_strain_for_t0_optimization (bool): Whether to use strain for t0 optimization
+        use_strain_for_Omega0_optimization (bool): Whether to use strain for Omega0 optimization
+        fit_failed (bool): Whether the fit failed
+        NR_based_on_BOB_ts (numpy.ndarray): NR based on BOB timeseries
+        start_fit_before_tpeak (int): Start time before tpeak for fitting
+        end_fit_after_tpeak (int): End time after tpeak for fitting
+        perform_final_time_alignment (bool): Whether to perform final time alignment
+        perform_final_amplitude_rescaling (bool): Whether to perform final amplitude rescaling
+        full_strain_data (numpy.ndarray): Full strain data
+        auto_switch_to_numerical_integration (bool): Whether to automatically switch to numerical integration
+        __optimize_t0_and_Omega0 (bool): Whether to optimize t0 and Omega0
+        __optimize_t0 (bool): Whether to optimize t0
+    '''
     def __init__(self):
+        '''
+        '''
         qnm.download_data()
         #some default values
         self.minf_t0 = True
@@ -67,9 +110,13 @@ class BOB:
 
     @property
     def what_should_BOB_create(self):
+        '''
+        '''
         return self.__what_to_create
     @what_should_BOB_create.setter
     def what_should_BOB_create(self,value):
+        '''
+        '''
         val = value.lower()
         if(val=="psi4" or val=="strain_using_psi4" or val=="news_using_psi4"):
             self.__what_to_create = val
@@ -144,9 +191,13 @@ class BOB:
         
     @property
     def set_initial_time(self):
+        '''
+        '''
         return self.t0
     @set_initial_time.setter
     def set_initial_time(self,value):
+        '''
+        '''
         if(self.__what_to_create == "Nothing"):
             raise ValueError("Please specify BOB.what_should_BOB_create first.")
         if(isinstance(value,tuple)):
@@ -169,29 +220,41 @@ class BOB:
 
     @property
     def set_phase_alignment_time(self):
+        '''
+        '''
         return self.phase_alignment_time
     @set_phase_alignment_time.setter
     def set_phase_alignment_time(self,value):
+        '''
+        '''
         if(value>self.__end_after_tpeak):
             print("chosen phase alignment time is later than end time. Aligning at last time step - 5.")
             self.phase_alignment_time = self.__end_after_tpeak - 5
 
     @property
     def set_start_before_tpeak(self):
+        '''
+        '''
         return self.__start_before_tpeak
     
     @set_start_before_tpeak.setter
     def set_start_before_tpeak(self,value):
+        '''
+        '''
         self.__start_before_tpeak = value
         self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
     
     @property
     def set_end_after_tpeak(self):
+        '''
+        '''
         return self.__end_after_tpeak
     
     @set_end_after_tpeak.setter
     def set_end_after_tpeak(self,value):
+        '''
+        '''
         self.__end_after_tpeak = value
         self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
@@ -203,36 +266,52 @@ class BOB:
     
     @property
     def optimize_t0_and_Omega0(self):
+        '''
+        '''
         return self.__optimize_t0_and_Omega0
     
     @optimize_t0_and_Omega0.setter
     def optimize_t0_and_Omega0(self,value):
+        '''
+        '''
         self.minf_t0 = False
         self.__optimize_t0_and_Omega0 = value
     
     @property
     def optimize_t0(self):
+        '''
+        '''
         return self.__optimize_t0
     
     @optimize_t0.setter
     def optimize_t0(self,value):
+        '''
+        '''
         self.minf_t0 = False
         self.__optimize_t0 = value
     
     
     
     def hello_world(self):
+        '''
+        '''
         import ascii_funcs
         ascii_funcs.welcome_to_BOB()
         #ascii_funcs.print_sean_face()
     def meet_the_creator(self):
+        '''
+        '''
         import ascii_funcs
         #ascii_funcs.welcome_to_BOB()
         ascii_funcs.print_sean_face()
     def valid_choices(self):
+        '''
+        '''
         print("valid choices for what_should_BOB_create are: ")
         print(" psi4\n news\n strain\n strain_using_psi4\n strain_using_news\n news_using_psi4\n mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
     def get_correct_Phi_and_Omega(self):
+        '''
+        '''
         #Even in the cases of strain_using_news, we still want to use the news frequency in all of the Omega0 optimizations because the analytical news frequency term
         #is built assuming the BOB amplitude best describes the news. While in principle, the accuracy could be improved for strain_using_news (and all X_using_Y cases)
         #by optimizing Omega0 against the NR strain frequency, this would be unphysical.
@@ -259,6 +338,8 @@ class BOB:
             raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
         return Phi,Omega
     def fit_omega(self,x,Omega_0):
+        '''
+        '''
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         if('psi4' in self.__what_to_create):
@@ -274,6 +355,8 @@ class BOB:
         Omega = Omega[start_index:end_index]
         return Omega
     def fit_t0_and_omega(self,x,t0,Omega_0):
+        '''
+        '''
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         self.t0 = t0
@@ -294,6 +377,8 @@ class BOB:
             Omega = np.full_like(self.t,1e10)
         return Omega[start_index:end_index]
     def residual_t0_and_omega(self,p,t_freq,y_freq):
+        '''
+        '''
         #freq = gen_utils.get_frequency(self.data)
         freq = kuibit_ts(t_freq,y_freq)
         t0,Omega_0 = p
@@ -321,6 +406,8 @@ class BOB:
         print(np.sum((np.array(Omega[start_index:end_index],dtype=np.float64)-np.array(freq.y[start_data_index:end_data_index],dtype=np.float64))**2))
         return np.sum((np.array(Omega[start_index:end_index],dtype=np.float64)-np.array(freq.y[start_data_index:end_data_index],dtype=np.float64))**2)
     def fit_t0_only(self,t00,freq_data):
+        '''
+        '''
         #freq data passed in is big Omega, where w = m*Omega
         self.t0 = t00[0] 
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
@@ -344,6 +431,8 @@ class BOB:
         res = np.sum((Omega[start_index:end_index]-freq_data.y[start_data_index:end_data_index])**2)
         return res
     def fit_omega_and_phase(self,x,Omega_0,Phi_0):
+        '''
+        '''
         #this should never be called if X_using_Y
         #paramter checks are done in construction functions
         self.Phi_0 = Phi_0
@@ -354,6 +443,8 @@ class BOB:
         Phi = Phi[start_index:end_index]
         return Phi   
     def fit_Omega0(self):
+        '''
+        '''
         """
         Fits the initial angular frequency of the QNM (Omega_0) by fitting the frequency of the data to the QNM frequency.
         Only works for t0 = -infinity.
@@ -385,6 +476,8 @@ class BOB:
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
     def fit_Phi0(self):
+        '''
+        '''
         #whenever we fit Phi0 it is important that everything is sampled on the same self.t timeseries, since that is what will be used to construct BOB
 
         #This function can be called if using X_using_Y. But phi0 should be fit to X not Y since that is the end quantity we wnat
@@ -415,6 +508,8 @@ class BOB:
         end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
         self.Phi_0 = np.mean(phase_ts.y[start_index:end_index] - Phi.y[start_index:end_index])
     def fit_Omega0_and_Phi0(self):
+        '''
+        '''
         if(self.perform_phase_alignment is False):
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_Phi0")
         if(self.minf_t0 is False):
@@ -438,12 +533,16 @@ class BOB:
         self.Omega_0 = popt[0]
         self.Phi_0 = popt[1]
     def fit_Omega0_and_then_Phi0(self):
+        '''
+        '''
         #This will first fit for Omega_0 and then fit for Phi_0
         if(self.perform_phase_alignment is False):
             raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_then_Phi0")
         self.fit_Omega0()
         self.fit_Phi0()
     def fit_t0_and_Omega0(self):
+        '''
+        '''
         raise ValueError("fit_t0_and_Omega0 is not working right now. TODO: fix")
         if('psi4' in self.__what_to_create):
             print("fitting t0 and Omega0 for psi4 frequencies usually does not work... the waveform may be bad")
@@ -477,6 +576,8 @@ class BOB:
             self.t0_tp_tau = (self.t0 - self.tp)/self.tau
             self.Omega_0 = self.Omega_ISCO
     def fit_t0(self):
+        '''
+        '''
         #We do a grid based search instead of a lsq search for several reasons including
         #1. Each t_0 is linked to a omega_0, and we have some finite timestep
         #2. The lsq fit can get trapped in local minimums, especially if we provide a good initial guess
@@ -495,10 +596,14 @@ class BOB:
         self.fitted_t0 = self.t0
         self.fitted_Omega0 = self.Omega_0
     def get_t_isco(self):
+        '''
+        '''
         freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
         t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
         return t_isco - self.tp
     def phase_alignment(self,phase):
+        '''
+        '''
         
         #if we are creating strain by constructing BOB for news/psi4, we want to perform the phase alignment on the NR strain data since strain is the final output
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
@@ -514,6 +619,8 @@ class BOB:
         phase  = phase - phase_difference
         return phase
     def BOB_amplitude_given_Ap(self,Omega=0):
+        '''
+        '''
         amp = self.Ap/np.cosh(self.t_tp_tau)
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
             amp = amp/(np.abs(self.m)*Omega)
@@ -525,6 +632,8 @@ class BOB:
         
         return amp 
     def rescale_amplitude(self,amp):
+        '''
+        '''
         #Note: The mismatch is not affected by an overall rescaling of the amplitude
         #So this really only matters as a visual effect or when calculating residuals
         #we only rescale amplitude in the cases where we are creating strain using news/psi4 or news using psi4
@@ -543,6 +652,8 @@ class BOB:
             pass
         return amp
     def realign_amplitude(self,amp):
+        '''
+        '''
         #we only perform a time alignment in the cases where we are creating strain using news/psi4 or news using psi4
         #In the other cases tp should be the same as the NR tp by construction
         #The amplitude will not peak at the same time as self.tp b/c the amplitude has been rescales such as |h| = |psi4|/w^2 already, so the peak time has changed
@@ -561,6 +672,8 @@ class BOB:
             #all other cases should have the amplitude set to the peak NR value by construction
             pass
     def construction_parameter_checks(self):
+        '''
+        '''
         #Perform parameter sanity checks
         if("using" in self.__what_to_create):
             if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
@@ -572,6 +685,8 @@ class BOB:
         if(self.perform_phase_alignment is False and (self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0)):
             raise ValueError("perform_phase_alignment cannot be False at the same time as optimize_Phi0, optimize_Omega0_and_then_Phi0.")
     def construct_BOB_finite_t0(self):
+        '''
+        '''
         #Perform parameter sanity checks
         if(self.optimize_Omega0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
             raise ValueError("Cannot optimize Omega0 for finite t0 values.")
@@ -611,6 +726,8 @@ class BOB:
 
         return BOB_ts
     def construct_BOB_minf_t0(self):
+        '''
+        '''
         #at some point I need to rewrite this function completely
         self.construction_parameter_checks()
         #The construction process may change some of the parameters so we will store them and restore them at the end
@@ -662,6 +779,8 @@ class BOB:
         self.t = old_t
         return BOB_ts
     def construct_NR_mass_and_current_quadrupole(self,what_to_create):
+        '''
+        '''
         #construct the mass and current quadrupole waves from the NR data
         what_to_create = what_to_create.lower()
         if(what_to_create=="psi4"):
@@ -686,6 +805,8 @@ class BOB:
 
         return NR_current,NR_mass
     def construct_BOB_current_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
+        '''
+        '''
 
         #Comstruct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
         #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
@@ -842,6 +963,8 @@ class BOB:
         BOB_current_wave = current_wave
         return union_ts,BOB_current_wave
     def construct_BOB_mass_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
+        '''
+        '''
         #Comstruct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
         #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
 

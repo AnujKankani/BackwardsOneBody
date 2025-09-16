@@ -34,10 +34,35 @@ def convert_BOB_to_JAXBOB(BOB):
     return temp
 
 def BOB_amplitude_jax(t, tau, Ap, t_p):
+    '''
+    Eq.5
+
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Ap (sympy.Symbol): Amplitude at congruence convergence
+
+    Returns:
+        A: Waveform amplitude at time t
+    '''
     tt = (t - t_p) / tau
     return Ap / jnp.cosh(tt)
 
 def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
+    '''
+    Eq. 6 returns frequency of news
+    Args:
+        t (sympy.Symbol): Time 
+        t_p (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        m (int): Mode number
+
+    Returns:
+        N: News (first time derivative of strain) frequency at time t
+    '''
     tt = (t - t_p) / tau
     Omega_minus = Omega_QNM**2 - Omega_0**2
     Omega_plus  = Omega_QNM**2 + Omega_0**2
@@ -45,6 +70,21 @@ def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
     return m*jnp.sqrt(jnp.maximum(Omega2, 1e-12)) 
 
 def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
+    '''
+    Returns phase of news and its frequency
+    Args:
+        t (sympy.Symbol): Time 
+        t_p (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+        m (int): Mode number
+
+    Returns:
+        N: News (first time derivative of strain) phase at time t
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     omega = BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m) #news_freq_jax returns little omega
     Omega = omega/m
 
@@ -65,18 +105,56 @@ def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
     
     return phase,omega
 def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
+    '''
+    Args:
+        t (sympy.Symbol): Time 
+        t_p (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        m (int): Mode number
+
+    Returns:
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     tt = (t - t_p) / tau
     k = (Omega_QNM**4 - Omega_0**4) / 2.0
     X = Omega_0**4 + k * (jnp.tanh(tt) + 1.0)
     return m*jnp.sqrt(jnp.sqrt(jnp.maximum(X, 1e-12)))
 
 def BOB_strain_freq(t, Omega_0, Omega_QNM, tau, t_p,m):
+    '''
+    Eq.7? This should return only Omega_lm
+
+    Args:
+        t (sympy.Symbol): Time 
+        t_p (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        m (int): Mode number
+
+    Returns:
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     tt = (t - t_p) / tau
     Omega_ratio = Omega_0/Omega_QNM
     tanh_tt_m1 = jnp.tanh(tt)-1
     return m*Omega_QNM*(Omega_ratio**(tanh_tt_m1/(-2.)))
 
 def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
+    '''
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
     k_denom = 1 - jnp.tanh(t0p)
@@ -85,6 +163,19 @@ def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     return m*(jnp.sqrt(jnp.sqrt(jnp.maximum(X, 1e-12))))
 
 def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
+    '''
+    Eq. 6 returns frequency of news
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        N: News (first time derivative of strain) frequency at time t
+    '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
     F_denom = 1 - jnp.tanh(t0p)
@@ -93,6 +184,20 @@ def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     return m*jnp.sqrt(jnp.maximum(Omega2, 1e-12))
 
 def BOB_strain_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
+    '''
+    Eq.7? This should return only Omega_lm
+
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of congruence convergence
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
     Omega_ratio = Omega_0/Omega_QNM
