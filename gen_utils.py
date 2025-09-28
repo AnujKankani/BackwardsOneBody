@@ -25,13 +25,16 @@ def find_nearest_index(array, value):
     return idx
 def get_kuibit_lm(w,l,m):
     '''
-    Get the (l,m) mode from a scri WaveformModes object
+    Gives the index of the (l,m) mode in a scri WaveformModes object, w. Then slices the 2-D array, w.data,
+    to return the (l,m) mode waveform for all time. In other words, returning the index'th column of w.data.
+    Lastly, takes the time steps from w (labeled as time) and uses them to create a TimeSeries object for the
+    given (l,m) mode waveform.
     args:
         w (scri.WaveformModes): WaveformModes object
         l (int): l value
         m (int): m value
     returns:
-        w_temp (numpy.ndarray): (l,m) mode
+        ts (object): time series of (l,m) mode waveform
     '''
     index = w.index(l, m)
     w_temp = w.data[:,index]
@@ -39,13 +42,17 @@ def get_kuibit_lm(w,l,m):
     return kuibit_ts(time,w_temp)
 def get_kuibit_lm_psi4(w,l,m):
     '''
-    Get the (l,m) mode from a scri WaveformModes object
+    ASK DIFFERENCE BETWEEN THIS AND get_kuibit_lm
+    Gives the index of the (l,m) mode in a scri WaveformModes object, w. Then slices the 2-D array, w.data,
+    to return the (l,m) mode waveform for all time. In other words, returning the index'th column of w.data.
+    Lastly, takes the time steps from w (labeled as time) and uses them to create a TimeSeries object for the
+    given (l,m) mode waveform.
     args:
         w (scri.WaveformModes): WaveformModes object
         l (int): l value
         m (int): m value
     returns:
-        w_temp (numpy.ndarray): (l,m) mode
+        ts (object): time series of (l,m) mode waveform
     '''
     index = w.index(l, m)
     w_temp = w[:,index].ndarray
@@ -53,7 +60,11 @@ def get_kuibit_lm_psi4(w,l,m):
     return kuibit_ts(time,w_temp)
 def get_kuibit_frequency_lm(w,l,m):
     '''
-    Get the (l,m) mode frequency from a scri WaveformModes object
+    Creates a time series of the (l,m) mode frequency from a scri WaveformModes object, w. Using this time series,
+    the time derivative of the phase is taken to get the frequency. In other words, a new time series is created 
+    which now includes the sampling times and angular frequencies of w. The phase is unwrapped to ensure a smooth 
+    frequency time series. Then creates a new time series object using the sampling times and the negative of the 
+    angular frequency time series to ensure positive frequencies.
     args:
         w (scri.WaveformModes): WaveformModes object
         l (int): l value
@@ -82,7 +93,7 @@ def get_phase(ts):
     return kuibit_ts(ts.t,y)
 def get_frequency(ts):
     '''
-    Get the frequency of a timeseries
+    Get the frequency of a kuibit timeseries
     args:
         ts (kuibit_ts): timeseries
     returns:
@@ -95,7 +106,7 @@ def get_frequency(ts):
     return kuibit_ts(ts.t,freq.y)
 def get_r_isco(chi,M):
     '''
-    Get theisco radius
+    Get the isco radius
     args:
         chi (float): dimensionless spin
         M (float): mass
@@ -113,7 +124,7 @@ def get_r_isco(chi,M):
     return r_isco
 def get_Omega_isco(chi,M):
     '''
-    Get theisco angular velocity
+    Get the isco angular velocity
     args:
         chi (float): dimensionless spin
         M (float): mass
@@ -128,7 +139,7 @@ def get_Omega_isco(chi,M):
     return Omega
 def get_qnm(chif,Mf,l,m,n=0,sign=1):
     '''
-    Get the qnm
+    Returns both the real, w_r, and imaginary, 1/tau, parts of the qnm.
     args:
         chif (float): dimensionless spin
         Mf (float): mass
@@ -138,6 +149,7 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
         sign (int): sign of the mode
     returns:
         omega_qnm (float): qnm frequency
+        tau (float): qnm damping time
     '''
     #omega_qnm, all_C, ells = qnmfits.read_qnms.qnm_from_tuple((l,m,n,1),chif,M=M)
     if(sign==-1):
@@ -154,12 +166,12 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     return w_r,tau
 def get_tp_Ap_from_spline(amp):
     '''
-    Get the time of peak and amplitude from a timeseries
+    Get the time of peak amplitude and peak amplitude from a timeseries
     args:
         amp (kuibit_ts): timeseries
     returns:
-        tp (float): time of peak
-        Ap (float): amplitude at peak
+        tp (float): Time of peak amplitude
+        Ap (float): Peak Waveform Amplitude
     '''
     #we assume junk radiation has been removed, so the largest amplitude is the physical peak
     spline = CubicSpline(amp.t,amp.y)
@@ -345,6 +357,32 @@ def estimate_parameters(BOB,
                         t_shift_range=np.arange(-10,10,0.1)):
     '''
     Estimate the parameters of a BOB waveform
+    args:
+        BOB (BOB): BOB waveform
+        mf_guess (float): guess for mass
+        chif_guess (float): guess for spin
+        Omega0_guess (float): guess for frequency
+
+        t0 (float): time after peak to begin mismatch
+        tf (float): time after peak to end mismatch
+
+        force_Omega0_optimization (bool): whether to force Omega0 optimization
+        NR_data (kuibit_ts): reference timeseries
+        make_current_naturally (bool): whether to make current naturally
+        make_mass_naturally (bool): whether to make mass naturally
+
+        !!!! ANUJ ADD STUFF HERE !!!!!
+        include_Omega0_as_parameter (bool): whether to include Omega0 as a parameter
+        include_2Omega0_as_parameters (bool): whether to include 2Omega0 as a parameter
+        perform_phase_alignment_first (bool): whether to perform phase alignment first
+        start_with_wide_search (bool): whether to start with a wide search
+        t_shift_range (numpy.ndarray): range of t_shift values to search over
+    returns:
+        best_mf (float): best mass
+        best_chif (float): best spin
+        best_Omega0 (float): best frequency
+        best_t0 (float): best time of peak
+        best_tf (float): best time of end
     '''
     if(force_Omega0_optimization and include_Omega0_as_parameter):
         raise ValueError("force_Omega0_optimization and include_Omega0_as_parameter cannot both be True")
@@ -475,7 +513,7 @@ def estimate_parameters_grid(BOB,mf_guess,chif_guess):
         mf_guess (float): guess for mass
         chif_guess (float): guess for spin
     returns:
-        out (scipy.optimize.OptimizeResult): optimization result
+        out (scipy.optimize.OptimizeResult): optimization result; best mass and spin
     '''
     raise ValueError("Warning: This function needs to be replaced.")
     m_range = np.arange(mf_guess-1e-3,mf_guess+1e-3,1e-4)
@@ -508,7 +546,8 @@ def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     return [best_mf,best_chif]
 def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     '''
-    Create a QNM comparison between a BOB waveform and a reference timeseries
+    Create a QNM comparison between a BOB waveform and a reference timeseries. The sampling times and y values
+    can be retrieved from a time series, ts, by using ts.t and ts.y respectively.
     args:
         t (numpy.ndarray): time array
         y (numpy.ndarray): BOB waveform
@@ -579,6 +618,15 @@ def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     return master_mismatch_arr,A220_dict,A221_dict,A222_dict,qnm_wm_master_arr
 def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     '''
+    HUH?
+    Converts a time and data array into a scri waveform mode object
+    args:
+        times (numpy.ndarray): times
+        y_22_data (numpy.ndarray): data
+        ell_min (int): minimum ell
+        ell_max (int): maximum ell
+    returns:
+        wm (scri.WaveformModes): waveform mode
     '''
     #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
     #but modified for our purposes here
@@ -615,7 +663,8 @@ def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     return wm
 def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     '''
-    Create a scri psi4 waveform mode
+    HUH?
+    Converts a time and data array into a scri psi4 waveform mode object
     args:
         times (numpy.ndarray): times
         y_22_data (numpy.ndarray): data

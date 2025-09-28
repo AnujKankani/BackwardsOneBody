@@ -39,9 +39,9 @@ def BOB_amplitude_jax(t, tau, Ap, t_p):
 
     Args:
         t (sympy.Symbol): Time 
-        tp (sympy.Symbol): Time of congruence convergence
+        tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Ap (sympy.Symbol): Amplitude at congruence convergence
+        Ap (sympy.Symbol): Peak Waveform Amplitude
 
     Returns:
         A: Waveform amplitude at time t
@@ -61,7 +61,7 @@ def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
         m (int): Mode number
 
     Returns:
-        N: News (first time derivative of strain) frequency at time t
+        omega: News (first time derivative of strain) frequency at time t (Omega*m)
     '''
     tt = (t - t_p) / tau
     Omega_minus = Omega_QNM**2 - Omega_0**2
@@ -82,8 +82,8 @@ def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
         m (int): Mode number
 
     Returns:
-        N: News (first time derivative of strain) phase at time t
-        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+        phase: News (first time derivative of strain) phase at time t (Phi*m)
+        omega: News (first time derivative of strain) frequency at time t (Omega*m)
     '''
     omega = BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m) #news_freq_jax returns little omega
     Omega = omega/m
@@ -115,7 +115,7 @@ def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
         m (int): Mode number
 
     Returns:
-        Omega: Weyl Scalar (psi_4) frequency at time t
+        omega: Weyl Scalar (psi_4) frequency at time t (Omega*m)
     '''
     tt = (t - t_p) / tau
     k = (Omega_QNM**4 - Omega_0**4) / 2.0
@@ -135,7 +135,7 @@ def BOB_strain_freq(t, Omega_0, Omega_QNM, tau, t_p,m):
         m (int): Mode number
 
     Returns:
-        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+        omega: Strain frequency at time t (waveform frequency) (Omega*m)
     '''
     tt = (t - t_p) / tau
     Omega_ratio = Omega_0/Omega_QNM
@@ -146,14 +146,15 @@ def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
     Args:
         t (sympy.Symbol): Time 
-        t0 (sympy.Symbol): Initial Condition time
-        tp (sympy.Symbol): Time of congruence convergence
+        t_0 (sympy.Symbol): Initial Condition time
+        t_p (sympy.Symbol): Time of congruence convergence
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        m (int): Mode number
 
     Returns:
-        Omega: Weyl Scalar (psi_4) frequency at time t
+        omega: Weyl Scalar (psi_4) frequency at time t (Omega*m)
     '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
@@ -167,14 +168,15 @@ def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     Eq. 6 returns frequency of news
     Args:
         t (sympy.Symbol): Time 
-        t0 (sympy.Symbol): Initial Condition time
-        tp (sympy.Symbol): Time of congruence convergence
+        t_0 (sympy.Symbol): Initial Condition time
+        t_p (sympy.Symbol): Time of congruence convergence
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        m (int): Mode number
 
     Returns:
-        N: News (first time derivative of strain) frequency at time t
+        omega: News (first time derivative of strain) frequency at time t (Omega*m)
     '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
@@ -189,14 +191,15 @@ def BOB_strain_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 
     Args:
         t (sympy.Symbol): Time 
-        t0 (sympy.Symbol): Initial Condition time
-        tp (sympy.Symbol): Time of congruence convergence
+        t_0 (sympy.Symbol): Initial Condition time
+        t_p (sympy.Symbol): Time of congruence convergence
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        m (int): Mode number
 
     Returns:
-        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+        omega: Strain frequency at time t (waveform frequency) (Omega*m)   
     '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
