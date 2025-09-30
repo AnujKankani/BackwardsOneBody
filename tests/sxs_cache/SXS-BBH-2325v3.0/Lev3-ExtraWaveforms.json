@@ -1,0 +1,576 @@
+{
+    "/Strain_Outer.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "h",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    },
+    "/Psi4_Outer.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "psi4",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    },
+    "/Psi4_N2.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "psi4",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    },
+    "/Strain_N3.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "h",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    },
+    "/Psi4_N3.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "psi4",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    },
+    "/Strain_N4.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "h",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    },
+    "/Psi4_N4.dir": {
+        "sxs_format": "rotating_paired_diff_multishuffle_bzip2",
+        "data_info": {
+            "data_type": "psi4",
+            "m_is_scaled_out": true,
+            "r_is_scaled_out": true,
+            "spin_weight": -2,
+            "ell_min": 2,
+            "ell_max": 8
+        },
+        "version_info": {
+            "python": "3.10.14 | packaged by conda-forge | (main, Mar 20 2024, 12:45:18) [GCC 12.3.0]",
+            "numpy": "1.26.4",
+            "scipy": "1.13.1",
+            "h5py": "3.12.1",
+            "numba": "0.60.0",
+            "quaternion": "2024.0.3",
+            "spherical_functions": "2022.4.5",
+            "spinsfast": "2022.4.6",
+            "scri": "2022.9.0",
+            "quaternionic": "1.0.13",
+            "spherical": "1.0.14",
+            "sxs": "2024.0.25",
+            "spec_version_hist": [
+                [
+                    "ef51849550a1d8a5bbdd810c7debf0dd839e86dd",
+                    "Overall sign change in complex strain h."
+                ]
+            ]
+        },
+        "validation": {
+            "n_times": 21817
+        },
+        "modifications": {
+            "extrapolate": {
+                "CoordRadii": [
+                    "0257",
+                    "0265",
+                    "0274",
+                    "0283",
+                    "0293",
+                    "0304",
+                    "0315",
+                    "0328",
+                    "0341",
+                    "0356",
+                    "0372",
+                    "0390",
+                    "0409",
+                    "0431",
+                    "0454",
+                    "0481",
+                    "0510",
+                    "0544",
+                    "0582",
+                    "0627",
+                    "0678",
+                    "0739",
+                    "0811",
+                    "0900"
+                ]
+            },
+            "transform": {
+                "space_translation": [
+                    3.2466503417969756e-05,
+                    1.0180736887257462e-05,
+                    -8.200702302988559e-06
+                ],
+                "boost_velocity": [
+                    -2.1154149678038525e-07,
+                    -9.374610391595463e-08,
+                    -1.3598525959923662e-10
+                ]
+            },
+            "add_memory": {
+                "integration_start_time": 553.0
+            },
+            "truncate": {
+                "tol": 1e-10
+            }
+        }
+    }
+}

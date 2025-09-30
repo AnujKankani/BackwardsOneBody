@@ -81,8 +81,8 @@ def kuibit_ts_load(location):
 
 def test_initialize_with_sxs_data():
     # Set path for cache locally
-    cache_path = os.path.join(os.getcwd(), "sxs_cache")
-    sxs.write_config(cache_directory=cache_path)
+    # cache_path = os.path.join(os.getcwd(), "sxs_cache")
+    # sxs.write_config(cache_directory=cache_path)
 
     expected_params = BOB_params("SXS")
 
