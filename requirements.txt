@@ -1,3 +1,4 @@
 kuibit
 sxs
 qnmfits
+sympy
