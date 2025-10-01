@@ -9,7 +9,7 @@ except:
     import BOB_terms_jax
     import mismatch_utils
 
-
+import matplotlib.pyplot as plt
 import pickle
 from multiprocessing import Pool
 from os import cpu_count
@@ -25,8 +25,10 @@ import jax.numpy as jnp
 from jax import jit, vmap, debug
 try:
     from BackwardsOneBody import ext_utils
+    from BackwardsOneBody import gen_utils
 except:
     import ext_utils
+    import gen_utils
 
 def check_jax_devices():
     import jax
@@ -52,8 +54,7 @@ def check_jax_devices():
 def get_sims():
     #debugging
     #return ["SXS:BBH:2325"]
-    #return ["SXS:BBH:0160", "SXS:BBH:0172", "SXS:BBH:0176", "SXS:BBH:0178", "SXS:BBH:0185", "SXS:BBH:0186",
-    #"SXS:BBH:0188", "SXS:BBH:0189", "SXS:BBH:0192", "SXS:BBH:0195", "SXS:BBH:0198", "SXS:BBH:0199"]
+    #return ["SXS:BBH:0160", "SXS:BBH:0172", "SXS:BBH:0176", "SXS:BBH:0178", "SXS:BBH:0185", "SXS:BBH:0186","SXS:BBH:0188", "SXS:BBH:0189", "SXS:BBH:0192", "SXS:BBH:0195", "SXS:BBH:0198", "SXS:BBH:0199"]
     sim_array = [
     "SXS:BBH:0160", "SXS:BBH:0172", "SXS:BBH:0176", "SXS:BBH:0178", "SXS:BBH:0185", "SXS:BBH:0186",
     "SXS:BBH:0188", "SXS:BBH:0189", "SXS:BBH:0192", "SXS:BBH:0195", "SXS:BBH:0198", "SXS:BBH:0199",
@@ -154,7 +155,28 @@ def get_sims():
     "SXS:BBH:4120", "SXS:BBH:4121", "SXS:BBH:4123", "SXS:BBH:4161", "SXS:BBH:4166", "SXS:BBH:4189",
     "SXS:BBH:4213", "SXS:BBH:4235", "SXS:BBH:4236", "SXS:BBH:4260", "SXS:BBH:4261", "SXS:BBH:4284",
     "SXS:BBH:4430", "SXS:BBH:4431", "SXS:BBH:4432", "SXS:BBH:4434"]
+    #sim_arrays = np.array_split(sim_array,5)
     return sim_array
+def get_superkick_sims():
+    sxs_ids = [
+    # SKu6
+    "SXS:BBH:2428", "SXS:BBH:2429", "SXS:BBH:2430", "SXS:BBH:2431",
+    "SXS:BBH:2432", "SXS:BBH:2448", "SXS:BBH:2449", "SXS:BBH:2450",
+    
+    # SKu8
+    "SXS:BBH:2433", "SXS:BBH:2434", "SXS:BBH:2435", "SXS:BBH:2436",
+    
+    # SKu95
+    "SXS:BBH:2437", "SXS:BBH:2438", "SXS:BBH:2439", "SXS:BBH:2440",
+    "SXS:BBH:2441", "SXS:BBH:2442", "SXS:BBH:2443", "SXS:BBH:2444",
+    "SXS:BBH:2445", "SXS:BBH:2446", "SXS:BBH:2447",
+    
+    # SKd4
+    "SXS:BBH:2451", "SXS:BBH:2452", "SXS:BBH:2453", "SXS:BBH:2454",
+    "SXS:BBH:2455", "SXS:BBH:2456", "SXS:BBH:2457", "SXS:BBH:2458",
+    "SXS:BBH:2459", "SXS:BBH:2460", "SXS:BBH:2461", "SXS:BBH:2462"
+    ]
+    return sxs_ids
 def process_once(sim,BOB):
     #Since we will need to call JAX functions to convert the psi4/news to strain, I need to compute all JAX functions at once
     print("initializing with sxs data",sim)
@@ -167,20 +189,65 @@ def process_once(sim,BOB):
         BOB.set_end_after_tpeak = 80
 
     #BOB.perform_phase_alignment =  False
-    #BOB.start_fit_before_tpeak = 10
-    BOB.end_fit_after_tpeak = 75
-    BOB.optimize_Omega0 = True
-    BOB.optimize_Phi0 = True
+    #BOB.start_fit_before_tpeak = -10
+    #BOB.end_fit_after_tpeak = 75
+
+    BOB.optimize_Omega0 = False
+    #BOB.optimize_t0= True
+    #BOB.use_strain_for_t0_optimization = True
+
+    #BOB.optimize_Phi0 = True
     BOB.what_should_BOB_create = "news"
-    t_BOB_news,y_BOB_news = BOB.construct_BOB()
-    BOB_news = kuibit_ts(t_BOB_news,y_BOB_news)
+
+    #Psi4 
+    # A = 1.42968337
+    # B = 0.08424419
+    # C = -1.22848524
+
+    #News
+    A = 0.33568227
+    B = 0.03450997
+    C = -0.18763176   
+
+    #Strain
+    # A = 0.01663248
+    # B = 0.01798275
+    # C = 0.07882578
+
+    BOB_Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C
+    #BOB_Omega_0 = 0.1545835512015711 #News
+
+    BOB.Omega_0 = BOB_Omega_0
+
+    t_BOB,y_BOB = BOB.construct_BOB()
+    BOB_wf = kuibit_ts(t_BOB,y_BOB)
+
+
+    #BOB_wf = gen_utils.time_integral(BOB_wf,remove_drift=True)
+    #t_BOB = BOB_wf.t
+    
+
+
     NR_news = BOB.news_data
+    NR_news_peak = NR_news.time_at_maximum()
+    NR_news = NR_news.cropped(init=NR_news_peak-50)
+
     NR_strain = BOB.strain_data
     NR_strain_peak = NR_strain.time_at_maximum()
-    NR_strain = NR_strain.cropped(init=NR_strain_peak-200)
-    BOB.Omega_0 = BOB.fitted_Omega0
-    Phi,_ = BOB_terms.BOB_news_phase(BOB)
-    return sim,NR_strain,Phi,t_BOB_news,BOB.fitted_Omega0,BOB.Omega_QNM,BOB.tau,BOB.Ap,BOB.tp
+    NR_strain = NR_strain.cropped(init=NR_strain_peak-50)
+
+    NR_psi4 = BOB.psi4_data
+    NR_psi4_peak = NR_psi4.time_at_maximum()
+    NR_psi4 = NR_psi4.cropped(init=NR_psi4_peak-50)
+    
+
+    #BOB.Omega_0 = BOB.fitted_Omega0
+    BOB.Omega_0 = BOB_Omega_0 #Omega_0 gets reset after construction
+
+    NR_wf = NR_strain
+    Phi,Omega = BOB_terms.BOB_news_phase(BOB)
+
+    return sim,NR_wf,Phi,Omega,t_BOB,BOB.Omega_0,BOB.Omega_QNM,BOB.tau,BOB.Ap,BOB.tp,BOB_wf,-1e10#BOB.fitted_t0-BOB.tp
 def safe_process_simulation(args):
     sim, BOB = args
     try:
@@ -199,22 +266,29 @@ def process_ext_waveform(sim,df,BOB):
 
     h_eob_peak = h_eob.time_at_maximum()
 
-    h_eob = h_eob.cropped(init=h_eob_peak-50,end=h_eob_peak+100)#.spline_differentiated(1).aligned_at_maximum()
-    h_eob = h_eob.aligned_at_maximum()
+    eob_wf = h_eob.cropped(init=h_eob_peak-50,end=h_eob_peak+100)#.spline_differentiated(2)
+    eob_wf = eob_wf.aligned_at_maximum()
     #delta_t = BOB.strain_tp - BOB.news_tp
     strain = BOB.strain_data.aligned_at_maximum()
     #news = BOB.news_data.aligned_at_maximum()
     #psi4 = BOB.psi4_data.aligned_at_maximum()
+    #psi4_peak = psi4.time_at_maximum()
+    #si4 = psi4.cropped(init=psi4_peak-50,end=psi4_peak+100)
+    
 
-    strain_peak = strain.time_at_maximum()
-    NR_strain = strain.cropped(init=strain_peak-50,end=strain_peak+100)#.spline_differentiated(1).aligned_at_maximum()
+    #strain_peak = strain.time_at_maximum()
+    #NR_strain = strain.cropped(init=strain_peak-50,end=strain_peak+100).spline_differentiated(1).aligned_at_maximum()
+    #NR_strain = NR_strain.aligned_at_maximum()
+
+    NR_wf = strain.aligned_at_maximum()
+
 
     if(h_nrsurr is not None):
         h_nrsurr_peak = h_nrsurr.time_at_maximum()
-        h_nrsurr = h_nrsurr.cropped(init=h_nrsurr_peak-50,end=h_nrsurr_peak+100)#.spline_differentiated(1).aligned_at_maximum()
-        h_nrsurr = h_nrsurr.aligned_at_maximum()
-        return sim,NR_strain,h_eob,h_nrsurr
-    return sim,NR_strain,h_eob,None
+        nrsurr_wf = h_nrsurr.cropped(init=h_nrsurr_peak-50,end=h_nrsurr_peak+100)#.spline_differentiated(2)
+        nrsurr_wf = nrsurr_wf.aligned_at_maximum()
+        return sim,NR_wf,eob_wf,nrsurr_wf
+    return sim,NR_wf,eob_wf,None
 def safe_process_ext_waveform(args):
     sim,df,BOB = args
     try:
@@ -222,9 +296,8 @@ def safe_process_ext_waveform(args):
     except Exception as e:
         print(f"Error processing simulation: {e}")
         return None
-def prepare_data():
+def prepare_data(sims):
     BOB = BOB_utils.BOB()
-    sims = get_sims()
     with Pool(processes=min(len(sims), cpu_count())) as pool:
         # Process simulations in parallel
         results = pool.map(safe_process_simulation, [(sim, BOB) for sim in sims])
@@ -233,19 +306,22 @@ def prepare_data():
         print("No successful simulations.")
         return
     
-    sim_arr,NR_strain_arr,BOB_Phi_arr,BOB_t_arr,BOB_Omega_0_arr,BOB_Omega_QNM_arr,BOB_tau_arr,BOB_Ap_arr,BOB_tp_arr = zip(*successful_results)
+    sim_arr,NR_val_arr,BOB_Phi_arr,BOB_Omega_arr,BOB_t_arr,BOB_Omega_0_arr,BOB_Omega_QNM_arr,BOB_tau_arr,BOB_Ap_arr,BOB_tp_arr,BOB_wf_arr,BOB_t0_arr = zip(*successful_results)
     all_data = []
     for i in range(len(sim_arr)):
         all_data.append({
             "sim": sim_arr[i],
-            "NR_strain": NR_strain_arr[i],
+            "NR_val": NR_val_arr[i],
             "BOB_Phi": BOB_Phi_arr[i],
             "BOB_t": BOB_t_arr[i],
+            "BOB_Omega": BOB_Omega_arr[i],
             "BOB_Omega_0": BOB_Omega_0_arr[i],
             "BOB_Omega_QNM": BOB_Omega_QNM_arr[i],
             "BOB_tau": BOB_tau_arr[i],
             "BOB_Ap": BOB_Ap_arr[i],
-            "BOB_tp": BOB_tp_arr[i]
+            "BOB_tp": BOB_tp_arr[i],
+            "BOB_wf": BOB_wf_arr[i],
+            "BOB_t0": BOB_t0_arr[i]
         })
     return all_data
 def prepare_ext_data():
@@ -260,17 +336,17 @@ def prepare_ext_data():
         print("No successful simulations.")
         return
     
-    sim_arr,NR_strain_arr,h_eob_arr,h_nrsurr_arr = zip(*successful_results)
+    sim_arr,NR_val_arr,eob_wf_arr,nrsurr_wf_arr = zip(*successful_results)
     all_ext_data = []
     for i in range(len(sim_arr)):
         all_ext_data.append({
             "sim": sim_arr[i],
-            "NR_strain": NR_strain_arr[i],
-            "h_eob": h_eob_arr[i],
-            "h_nrsurr": h_nrsurr_arr[i]
+            "NR_val": NR_val_arr[i],
+            "eob_wf": eob_wf_arr[i],
+            "nrsurr_wf": nrsurr_wf_arr[i]
         })
     return all_ext_data
-    
+
 @partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
 def generate_single_waveform_sum(
     t, m, N, omega_func, A_func, # Static/Constant args
@@ -280,11 +356,29 @@ def generate_single_waveform_sum(
     This version takes flattened parameters to ensure JAX caching works perfectly.
     """
     all_raw_terms = BOB_terms_jax.get_series_terms_ad(
-        t, Omega_0, Omega_QNM, tau, Ap, tp, omega_func, A_func, m, N
+        t, Omega_0, Omega_QNM, tau, Ap, tp, omega_func, A_func, m, N+1
     )
-    return BOB_terms_jax.fast_truncated_sum(all_raw_terms)
+    series_sum = BOB_terms_jax.fast_truncated_sum(all_raw_terms)
+    
 
-def run_full_jax_pipeline(all_data):
+    return series_sum
+@partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
+def generate_single_waveform_sum_finite_t0(
+    t, m, N, omega_func, A_func, # Static/Constant args
+    Omega_0, Omega_QNM, tau, Ap, tp,t0  # Dynamic model params
+):
+    """
+    This version takes flattened parameters to ensure JAX caching works perfectly.
+    """
+    all_raw_terms = BOB_terms_jax.get_series_terms_ad_finite_t0(
+        t, Omega_0, Omega_QNM, tau, Ap, tp,t0, omega_func, A_func, m, N+1
+    )
+    series_sum = BOB_terms_jax.fast_truncated_sum(all_raw_terms)
+    
+
+    return series_sum
+
+def run_full_jax_pipeline(all_data,N_val):
     """
     Takes the prepared data list and runs the entire analysis in JAX.
     """
@@ -298,41 +392,45 @@ def run_full_jax_pipeline(all_data):
 
     # Find max lengths and create padded NumPy arrays
     max_len_model = max(len(d['BOB_t']) for d in all_data)
-    max_len_nr = max(len(d['NR_strain'].t) for d in all_data)
+    max_len_nr = max(len(d['NR_val'].t) for d in all_data)
     
     padded_t_model = np.zeros((num_waveforms, max_len_model), dtype=np.float64)
-    padded_phi_model = np.zeros_like(padded_t_model)
+    padded_Phi_model = np.zeros_like(padded_t_model)
+    padded_Omega_model = np.zeros_like(padded_t_model)
     model_mask = np.zeros_like(padded_t_model, dtype=bool)
     padded_t_nr = np.zeros((num_waveforms, max_len_nr), dtype=np.float64)
     padded_h_nr = np.zeros_like(padded_t_nr, dtype=np.complex128)
     nr_mask = np.zeros_like(padded_t_nr, dtype=bool)
+
+    padded_wf_BOB = np.zeros_like(padded_t_model,dtype=np.complex128)
+    
     
     # Batch scalar parameters into a dictionary for clean passing
     batched_params = {
         'Omega_0': np.zeros(num_waveforms), 'Omega_QNM': np.zeros(num_waveforms),
         'tau': np.zeros(num_waveforms), 'Ap': np.zeros(num_waveforms),
-        'tp': np.zeros(num_waveforms), 'nr_peak_time': np.zeros(num_waveforms),
+        'tp': np.zeros(num_waveforms),'t0':np.zeros(num_waveforms), 'nr_peak_time': np.zeros(num_waveforms),
     }
 
     # Single Python loop to fill the padded NumPy arrays
     for i, data_point in enumerate(all_data):
         len_m = len(data_point['BOB_t'])
         padded_t_model[i, -len_m:] = data_point['BOB_t']
-        padded_phi_model[i, -len_m:] = data_point['BOB_Phi']
-        model_mask[i, -len_m:] = True
+        padded_Phi_model[i, -len_m:] = data_point['BOB_Phi']
+        padded_Omega_model[i, -len_m:] = data_point['BOB_Omega']
+        padded_wf_BOB[i, -len_m:] = data_point['BOB_wf'].y
         
-        len_n = len(data_point['NR_strain'].t)
-        padded_t_nr[i, -len_n:] = data_point['NR_strain'].t
-        padded_h_nr[i, -len_n:] = data_point['NR_strain'].y
-        nr_mask[i, -len_n:] = True  
+        len_n = len(data_point['NR_val'].t)
+        padded_t_nr[i, -len_n:] = data_point['NR_val'].t
+        padded_h_nr[i, -len_n:] = data_point['NR_val'].y
         
         batched_params['Omega_0'][i] = data_point['BOB_Omega_0']
         batched_params['Omega_QNM'][i] = data_point['BOB_Omega_QNM']
         batched_params['tau'][i] = data_point['BOB_tau']
         batched_params['Ap'][i] = data_point['BOB_Ap']
         batched_params['tp'][i] = data_point['BOB_tp']
-        batched_params['nr_peak_time'][i] = data_point['NR_strain'].time_at_maximum()
-            
+        batched_params['nr_peak_time'][i] = data_point['NR_val'].time_at_maximum()
+        batched_params['t0'][i] = data_point['BOB_t0']
     # -----------------------------------------------------
     # STAGE 2: JAX WAVEFORM GENERATION (SINGLE BATCH CALL)
     # -----------------------------------------------------
@@ -340,7 +438,6 @@ def run_full_jax_pipeline(all_data):
     start_gen = time.time()
     
     # Define constant JAX parameters
-    N_val = 8
     common_m = 2.0
     
     # vmap the single generator over the batched axes
@@ -348,23 +445,35 @@ def run_full_jax_pipeline(all_data):
         generate_single_waveform_sum,
         in_axes=(0, None, None, None, None, 0, 0, 0, 0, 0) # t, m, N, funcs..., params...
     )
+
+    # vmapped_generator_finite_t0 = vmap(
+    #     generate_single_waveform_sum_finite_t0,
+    #     in_axes=(0, None, None, None, None, 0, 0, 0, 0, 0,0) # t, m, N, funcs..., params...
+    # )
     
     # JIT the whole vmapped operation
     fast_batch_generator = jit(vmapped_generator, static_argnames=('omega_func', 'A_func', 'N'))
+    #fast_batch_generator_finite_t0 = jit(vmapped_generator_finite_t0, static_argnames=('omega_func', 'A_func', 'N'))
     
     # Execute with NumPy arrays - JAX handles the transfer
     all_model_sums = fast_batch_generator(
         padded_t_model, common_m, N_val, BOB_terms_jax.BOB_news_freq_jax, BOB_terms_jax.BOB_amplitude_jax,
         batched_params['Omega_0'], batched_params['Omega_QNM'], batched_params['tau'], 
-        batched_params['Ap'], batched_params['tp']
+        batched_params['Ap'], batched_params['tp']#,batched_params['t0']
     )
 
-    phase_factors = jnp.exp(1j * common_m * jnp.asarray(padded_phi_model))
-    padded_h_model = jnp.conj(all_model_sums * phase_factors) * jnp.asarray(model_mask)
-    
+    phase_factors = jnp.exp(1j * common_m * jnp.asarray(padded_Phi_model))
+    padded_h_model = all_model_sums * phase_factors  
+
+    padded_h_model = jnp.conj(padded_h_model) #take conjugate for consistency with SXS
+
+
     padded_h_model.block_until_ready()
     end_gen = time.time()
     print(f"Waveform generation took: {end_gen - start_gen:.4f} seconds")
+
+
+
 
     # -----------------------------------------------------
     # STAGE 3: JAX MISMATCH CALCULATION (SINGLE BATCH CALL)
@@ -374,9 +483,16 @@ def run_full_jax_pipeline(all_data):
     delta_t = 0.1
     tf = 75
     t0 = 10
+
+    ############################################
+    what_BOB_thing_to_compare = padded_h_model
+    #padded_h_model
+    #padded_wf_BOB
+    ############################################
+
     num_points_for_integration = int(round((tf - t0) / delta_t)) + 1
     final_mismatches= mismatch_utils.find_best_mismatch_padded(
-        jnp.asarray(padded_t_model), padded_h_model,
+        jnp.asarray(padded_t_model), what_BOB_thing_to_compare,
         jnp.asarray(padded_t_nr), jnp.asarray(padded_h_nr),
         jnp.asarray(batched_params['nr_peak_time']),
         t0=t0, tf=tf, coarse_window=5.0, coarse_t_num=101, fine_window=0.2, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
@@ -390,11 +506,15 @@ def run_full_jax_pipeline(all_data):
     # STAGE 4: COMBINE AND RETURN RESULTS
     # -----------------------------------------------------
     sim_arr = [d['sim'] for d in all_data]
+    Omega0_arr = [d['BOB_Omega_0'] for d in all_data]
+    t0_arr = [d['BOB_t0'] for d in all_data]
     final_results_list = []
     for i in range(num_waveforms):
         final_results_list.append({
             'sim': sim_arr[i],
             'mismatch': float(final_mismatches[i]),
+            'Omega_0': float(Omega0_arr[i]),
+            't0': float(t0_arr[i])
         })
         
     return final_results_list
@@ -406,13 +526,13 @@ def run_full_jax_ext_pipeline(all_ext_data):
         return [], []
 
     # Find max lengths and create padded NumPy arrays
-    max_len_eob = max(len(d['h_eob'].t) for d in all_ext_data)
-    max_len_nr = max(len(d['NR_strain'].t) for d in all_ext_data)
+    max_len_eob = max(len(d['eob_wf'].t) for d in all_ext_data)
+    max_len_nr = max(len(d['NR_val'].t) for d in all_ext_data)
     max_len_nrsurr = 0
     num_nr_surr = 0
     for d in all_ext_data:
-        if(d['h_nrsurr'] is not None):
-            max_len_nrsurr = max(max_len_nrsurr,len(d['h_nrsurr'].t))
+        if(d['nrsurr_wf'] is not None):
+            max_len_nrsurr = max(max_len_nrsurr,len(d['nrsurr_wf'].t))
             num_nr_surr += 1
     
     padded_t_eob = np.zeros((num_waveforms, max_len_eob), dtype=np.float64)
@@ -425,14 +545,14 @@ def run_full_jax_ext_pipeline(all_ext_data):
     }
 
     for i, data_point in enumerate(all_ext_data):
-        len_m = len(data_point['h_eob'].t)
-        padded_t_eob[i, -len_m:] = data_point['h_eob'].t
-        padded_h_eob[i, -len_m:] = data_point['h_eob'].y
+        len_m = len(data_point['eob_wf'].t)
+        padded_t_eob[i, -len_m:] = data_point['eob_wf'].t
+        padded_h_eob[i, -len_m:] = data_point['eob_wf'].y
         
-        len_n = len(data_point['NR_strain'].t)
-        padded_t_nr[i, -len_n:] = data_point['NR_strain'].t
-        padded_h_nr[i, -len_n:] = data_point['NR_strain'].y
-        batched_params['nr_peak_time'][i] = data_point['NR_strain'].time_at_maximum()
+        len_n = len(data_point['NR_val'].t)
+        padded_t_nr[i, -len_n:] = data_point['NR_val'].t
+        padded_h_nr[i, -len_n:] = data_point['NR_val'].y
+        batched_params['nr_peak_time'][i] = data_point['NR_val'].time_at_maximum()
     
     print("Calculating all mismatches...")
     start_mismatch = time.time()
@@ -476,17 +596,19 @@ def run_full_jax_ext_pipeline(all_ext_data):
     }
 
     all_nrsurr_data = []
+    all_nrsurr_sims = []
     for data_point in all_ext_data:
-        if(data_point['h_nrsurr'] is not None):
+        if(data_point['nrsurr_wf'] is not None):
             all_nrsurr_data.append(data_point)
+            all_nrsurr_sims.append(data_point['sim'])
     for i,data_point in enumerate(all_nrsurr_data):
-        len_m = len(data_point['h_nrsurr'].t)
-        padded_t_nrsurr[i, -len_m:] = data_point['h_nrsurr'].t
-        padded_h_nrsurr[i, -len_m:] = data_point['h_nrsurr'].y
-        len_n = len(data_point['NR_strain'].t)
-        padded_t_nr[i, -len_n:] = data_point['NR_strain'].t
-        padded_h_nr[i, -len_n:] = data_point['NR_strain'].y
-        batched_params['nr_peak_time'][i] = data_point['NR_strain'].time_at_maximum()
+        len_m = len(data_point['nrsurr_wf'].t)
+        padded_t_nrsurr[i, -len_m:] = data_point['nrsurr_wf'].t
+        padded_h_nrsurr[i, -len_m:] = data_point['nrsurr_wf'].y
+        len_n = len(data_point['NR_val'].t)
+        padded_t_nr[i, -len_n:] = data_point['NR_val'].t
+        padded_h_nr[i, -len_n:] = data_point['NR_val'].y
+        batched_params['nr_peak_time'][i] = data_point['NR_val'].time_at_maximum()
     
     print("Calculating all mismatches...")
     start_mismatch = time.time()
@@ -495,7 +617,7 @@ def run_full_jax_ext_pipeline(all_ext_data):
         jnp.asarray(padded_t_nrsurr), padded_h_nrsurr,
         jnp.asarray(padded_t_nr), jnp.asarray(padded_h_nr),
         jnp.asarray(batched_params['nr_peak_time']),
-        t0=t0, tf=tf, coarse_window=5.0, coarse_t_num=101, fine_window=0.2, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
+        t0=t0, tf=tf, coarse_window=10.0, coarse_t_num=101, fine_window=0.2, fine_t_num=41, integration_points = num_points_for_integration #0.1M for coarse, 0.01 for fine
     )
     
     final_nrsurr_mismatches.block_until_ready()
@@ -505,7 +627,7 @@ def run_full_jax_ext_pipeline(all_ext_data):
     # -----------------------------------------------------
     # STAGE 4: COMBINE AND RETURN RESULTS
     # -----------------------------------------------------
-    sim_arr = [d['sim'] for d in all_ext_data]
+    sim_arr = all_nrsurr_sims
     final_nrsurr_results_list = []
     for i in range(num_nr_surr):
         final_nrsurr_results_list.append({
@@ -515,28 +637,37 @@ def run_full_jax_ext_pipeline(all_ext_data):
     
     return final_eob_results_list, final_nrsurr_results_list
 def main():
-    #all_data = prepare_data()
+    #sims = get_superkick_sims()
+    sims = get_sims()
+    #all_data = prepare_data(sims)
     all_ext_data = prepare_ext_data()
     print("done preparing data")
-    print(len(all_ext_data))
 
 
     #do this after prepare_data to avoid os.fork() issues
     #check_jax_devices()
 
-
-    #final_results = run_full_jax_pipeline(all_data)
+    # N_arr = [2,7]
+    # for N in N_arr:
+    #     final_results = run_full_jax_pipeline(all_data,N)
+    #     with open(f'News_mismatch_results_N{N}_Omega0_fit_p10.pkl', 'wb') as f:
+    #         print(final_results)
+    #         pickle.dump(final_results, f)
+        #print(final_results)
+        #for i,sim_pt in enumerate(sims):
+            #all_data = prepare_data(sim_pt)
+            #final_results = run_full_jax_pipeline(all_data,N)
+            #with open(f'News_mismatch_results_part{i}_numerical_integration.pkl', 'wb') as f:
+                #pickle.dump(final_results, f)
+                #print(final_results)
+    #print(final_results)
     final_eob_results_list, final_nrsurr_results_list = run_full_jax_ext_pipeline(all_ext_data)
-    print(final_eob_results_list)
-    print(final_nrsurr_results_list)
-    #exit()
-    # Save final results
-    #with open('N8_10M_mismatch_results.pkl', 'wb') as f:
-    #    pickle.dump(final_results, f)
 
-    with open('10M_mismatch_results_eob.pkl', 'wb') as f:
+
+    with open('News_mismatch_results_eob_p10.pkl', 'wb') as f:
         pickle.dump(final_eob_results_list, f)
-    with open('10M_mismatch_results_nrsurr.pkl', 'wb') as f:
+    with open('News_mismatch_results_nrsurr_p10.pkl', 'wb') as f:
         pickle.dump(final_nrsurr_results_list, f)
+
 if __name__=="__main__":
     main()
