@@ -1,4 +1,4 @@
-sxs==2025.0.10
+sxs
 kuibit==1.5.0
 sympy==1.13.3
 qnmfits==2025.3.1
