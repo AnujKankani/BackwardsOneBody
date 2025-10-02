@@ -1,4 +1,6 @@
-kuibit
-sxs
-qnmfits
-sympy
+sxs==2025.0.10
+kuibit==1.5.0
+sympy==1.13.3
+qnmfits==2025.3.1
+lalsuite==7.25.1
+pytest==8.4.2
