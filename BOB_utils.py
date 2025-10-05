@@ -1472,8 +1472,8 @@ class BOB:
         self.M_tot = sim.metadata.reference_mass1 + sim.metadata.reference_mass2
         
         sign = np.sign(self.chif[2])
-        if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
-            raise ValueError("Final spin has non-zero x or y component for "+sxs_id+" This is not supported currently")
+        #if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
+        #    raise ValueError("Final spin has non-zero x or y component for "+sxs_id+" This is not supported currently")
         self.chif = np.linalg.norm(self.chif)
         self.chif_with_sign = self.chif*sign
         self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
@@ -1487,6 +1487,8 @@ class BOB:
 
         h = sim.h
         h = h.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
+        if(inertial_to_coprecessing_transformation):
+            h = h.to_coprecessing_frame().copy()
         hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
         #we also store the (l,-m) mode for current and quadrupole wave construction
         hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m).cropped(init=ref_time+100)
@@ -1533,7 +1535,10 @@ class BOB:
         '''
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
         print("loading CCE data")
-        abd = qnmfits.cce.load(cce_id)
+        if(provide_own_abd is None):
+            abd = qnmfits.cce.load(cce_id)
+        else:
+            abd = provide_own_abd
         if(perform_superrest_transformation):
             print("performing superrest transformation")
             print("this may take ~20 minutes the first time")
@@ -1576,7 +1581,7 @@ class BOB:
 
         hm = gen_utils.get_kuibit_lm(h,self.l,self.m)
         hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m)
-
+        #TODO: psi4 is not affected by frame transformations
         psi4 = abd.psi4.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
         psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
         psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m)

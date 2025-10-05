@@ -242,9 +242,12 @@ def get_tp_Ap_from_spline(amp):
         ``(tp, Ap)`` where ``tp`` is the peak time and ``Ap`` is the peak amplitude.
     '''
     #we assume junk radiation has been removed, so the largest amplitude is the physical peak
-    spline = CubicSpline(amp.t,amp.y)
+    spline = CubicSpline(amp.t,amp.y,extrapolate=False)
     dspline = spline.derivative()
     critical_points = dspline.roots()
+    critical_points = critical_points[
+        (critical_points >= amp.t[0]) & (critical_points <= amp.t[-1])
+    ]
     y_candidates = spline(critical_points)
     max_idx = np.argmax(y_candidates)
     tp = critical_points[max_idx]
