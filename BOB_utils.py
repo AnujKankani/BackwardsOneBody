@@ -970,7 +970,7 @@ class BOB:
         return BOB_ts
     def construct_BOB_minf_t0(self):
         '''
-        This function is used to construct the BOB for a minimum frequency t0 value.
+        This function is used to construct the BOB taking t0 to be -infinity.
         Attributes:
             t (np.ndarray): Time array
             

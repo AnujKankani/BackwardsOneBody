@@ -13,28 +13,40 @@ import sxs
 #some useful functions
 def find_nearest_index(array, value):
     '''
-    Find the index of the nearest value in an array
-    args:
-        array (numpy.ndarray): Array to search
-        value (float): Value to find
-    returns:
-        idx (int): Index of the nearest value
+    Return the index of the element in ``array`` closest to ``value``.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        1D array to search.
+    value : float
+        Target value to find the nearest element to.
+
+    Returns
+    -------
+    int
+        Index of the nearest value in ``array``.
     '''
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return idx
 def get_kuibit_lm(w,l,m):
     '''
-    Gives the index of the (l,m) mode in a scri WaveformModes object, w. Then slices the 2-D array, w.data,
-    to return the (l,m) mode waveform for all time. In other words, returning the index'th column of w.data.
-    Lastly, takes the time steps from w (labeled as time) and uses them to create a TimeSeries object for the
-    given (l,m) mode waveform.
-    args:
-        w (scri.WaveformModes): WaveformModes object
-        l (int): l value
-        m (int): m value
-    returns:
-        ts (object): time series of (l,m) mode waveform
+    Extract the ``(l, m)`` mode from a ``scri.WaveformModes`` and return a kuibit ``TimeSeries``.
+
+    Parameters
+    ----------
+    w : scri.WaveformModes
+        Waveform containing spherical-harmonic modes.
+    l : int
+        Spherical-harmonic index ``l``.
+    m : int
+        Spherical-harmonic index ``m``.
+
+    Returns
+    -------
+    kuibit_ts
+        TimeSeries of the selected mode values over time.
     '''
     index = w.index(l, m)
     w_temp = w.data[:,index]
@@ -42,17 +54,25 @@ def get_kuibit_lm(w,l,m):
     return kuibit_ts(time,w_temp)
 def get_kuibit_lm_psi4(w,l,m):
     '''
-    ASK DIFFERENCE BETWEEN THIS AND get_kuibit_lm
-    Gives the index of the (l,m) mode in a scri WaveformModes object, w. Then slices the 2-D array, w.data,
-    to return the (l,m) mode waveform for all time. In other words, returning the index'th column of w.data.
-    Lastly, takes the time steps from w (labeled as time) and uses them to create a TimeSeries object for the
-    given (l,m) mode waveform.
-    args:
-        w (scri.WaveformModes): WaveformModes object
-        l (int): l value
-        m (int): m value
-    returns:
-        ts (object): time series of (l,m) mode waveform
+    Extract the ``(l, m)`` mode from a ``scri.WaveformModes`` psi4 object into a kuibit ``TimeSeries``.
+
+    Notes
+    -----
+    This accessor expects a ``psi4``-like object where mode data is accessed as ``w[:, index].ndarray``.
+
+    Parameters
+    ----------
+    w : scri.WaveformModes
+        Psi4 waveform containing spherical-harmonic modes.
+    l : int
+        Spherical-harmonic index ``l``.
+    m : int
+        Spherical-harmonic index ``m``.
+
+    Returns
+    -------
+    kuibit_ts
+        TimeSeries of the selected psi4 mode values over time.
     '''
     index = w.index(l, m)
     w_temp = w[:,index].ndarray
@@ -60,17 +80,24 @@ def get_kuibit_lm_psi4(w,l,m):
     return kuibit_ts(time,w_temp)
 def get_kuibit_frequency_lm(w,l,m):
     '''
-    Creates a time series of the (l,m) mode frequency from a scri WaveformModes object, w. Using this time series,
-    the time derivative of the phase is taken to get the frequency. In other words, a new time series is created 
-    which now includes the sampling times and angular frequencies of w. The phase is unwrapped to ensure a smooth 
-    frequency time series. Then creates a new time series object using the sampling times and the negative of the 
-    angular frequency time series to ensure positive frequencies.
-    args:
-        w (scri.WaveformModes): WaveformModes object
-        l (int): l value
-        m (int): m value
-    returns:
-        ts_temp (numpy.ndarray): (l,m) mode frequency
+    Compute the instantaneous angular frequency of the ``(l, m)`` mode as a kuibit ``TimeSeries``.
+
+    The phase of the mode is unwrapped and differentiated to obtain angular frequency. The sign is
+    flipped to ensure positive frequencies near merger.
+
+    Parameters
+    ----------
+    w : scri.WaveformModes
+        Waveform containing spherical-harmonic modes (psi4 recommended).
+    l : int
+        Spherical-harmonic index ``l``.
+    m : int
+        Spherical-harmonic index ``m``.
+
+    Returns
+    -------
+    kuibit_ts
+        TimeSeries of angular frequency for the selected mode.
     '''
     ts = get_kuibit_lm_psi4(w,l,m)
     #returns the time derivative of np.unwrap(np.angle(w.y))
@@ -79,11 +106,17 @@ def get_kuibit_frequency_lm(w,l,m):
     return kuibit_ts(ts_temp.t,-ts_temp.y)
 def get_phase(ts):
     '''
-    Get the phase of a timeseries
-    args:
-        ts (kuibit_ts): timeseries
-    returns:
-        ts_temp (kuibit_ts): phase timeseries
+    Return the unwrapped phase of a complex ``TimeSeries``.
+
+    Parameters
+    ----------
+    ts : kuibit_ts
+        Complex-valued time series.
+
+    Returns
+    -------
+    kuibit_ts
+        TimeSeries of unwrapped phase. Sign may be flipped to be positive near merger.
     '''
     y = np.unwrap(np.angle(ts.y))
     #we want to make sure the phase is positive near merger so this how we check for now
@@ -93,11 +126,17 @@ def get_phase(ts):
     return kuibit_ts(ts.t,y)
 def get_frequency(ts):
     '''
-    Get the frequency of a kuibit timeseries
-    args:
-        ts (kuibit_ts): timeseries
-    returns:
-        ts_temp (kuibit_ts): frequency timeseries
+    Compute the instantaneous angular frequency of a complex ``TimeSeries``.
+
+    Parameters
+    ----------
+    ts : kuibit_ts
+        Complex-valued time series.
+
+    Returns
+    -------
+    kuibit_ts
+        TimeSeries of angular frequency. Sign is chosen positive near peak amplitude.
     '''
     tp = ts.time_at_maximum()
     freq = ts.phase_angular_velocity()
@@ -106,12 +145,19 @@ def get_frequency(ts):
     return kuibit_ts(ts.t,freq.y)
 def get_r_isco(chi,M):
     '''
-    Get the isco radius
-    args:
-        chi (float): dimensionless spin
-        M (float): mass
-    returns:
-        r_isco (float):isco radius
+    Compute the prograde ISCO radius for a Kerr black hole.
+
+    Parameters
+    ----------
+    chi : float
+        Dimensionless spin of the remnant.
+    M : float
+        Mass of the remnant (in geometric units).
+
+    Returns
+    -------
+    float
+        ISCO radius.
     '''
     #Bardeen Press Teukolskly eq 2.21
     #defined for prograde orbits
@@ -124,12 +170,19 @@ def get_r_isco(chi,M):
     return r_isco
 def get_Omega_isco(chi,M):
     '''
-    Get the isco angular velocity
-    args:
-        chi (float): dimensionless spin
-        M (float): mass
-    returns:
-        Omega (float):isco angular velocity
+    Compute the orbital angular velocity at the ISCO for a Kerr black hole.
+
+    Parameters
+    ----------
+    chi : float
+        Dimensionless spin of the remnant.
+    M : float
+        Mass of the remnant (in geometric units).
+
+    Returns
+    -------
+    float
+        ISCO angular velocity.
     '''
     #Bardeen Press Teukolskly eq 2.16
     #defined for prograde orbits
@@ -139,17 +192,27 @@ def get_Omega_isco(chi,M):
     return Omega
 def get_qnm(chif,Mf,l,m,n=0,sign=1):
     '''
-    Returns both the real, w_r, and imaginary, 1/tau, parts of the qnm.
-    args:
-        chif (float): dimensionless spin
-        Mf (float): mass
-        l (int): l value
-        m (int): m value
-        n (int): n value
-        sign (int): sign of the mode
-    returns:
-        omega_qnm (float): qnm frequency
-        tau (float): qnm damping time
+    Get the fundamental quasinormal mode frequency components for a Kerr black hole.
+
+    Parameters
+    ----------
+    chif : float
+        Dimensionless final spin magnitude (|chi|).
+    Mf : float
+        Final black-hole mass (geometric units).
+    l : int
+        Spherical-harmonic index ``l``.
+    m : int
+        Spherical-harmonic index ``m`` (sign handled via ``sign``).
+    n : int, optional
+        Overtone number, by default 0.
+    sign : int, optional
+        Mode sign (+1 for m, -1 for -m), by default 1.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(w_r, tau)`` where ``w_r`` is the real angular frequency and ``tau`` is the damping time.
     '''
     #omega_qnm, all_C, ells = qnmfits.read_qnms.qnm_from_tuple((l,m,n,1),chif,M=M)
     if(sign==-1):
@@ -166,12 +229,17 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     return w_r,tau
 def get_tp_Ap_from_spline(amp):
     '''
-    Get the time of peak amplitude and peak amplitude from a timeseries
-    args:
-        amp (kuibit_ts): timeseries
-    returns:
-        tp (float): Time of peak amplitude
-        Ap (float): Peak Waveform Amplitude
+    Find the peak time and amplitude using a cubic-spline interpolation.
+
+    Parameters
+    ----------
+    amp : kuibit_ts
+        TimeSeries of amplitude (e.g., ``|h|`` or ``|psi4|``).
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(tp, Ap)`` where ``tp`` is the peak time and ``Ap`` is the peak amplitude.
     '''
     #we assume junk radiation has been removed, so the largest amplitude is the physical peak
     spline = CubicSpline(amp.t,amp.y)
@@ -184,18 +252,29 @@ def get_tp_Ap_from_spline(amp):
     return tp,Ap
 def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,return_best_phi0=False):   
     '''
-    Calculate the mismatch between a model and a reference timeseries
-    args:
-        model_data (kuibit_ts): model timeseries
-        NR_data (kuibit_ts): reference timeseries
-        t0 (float): start time
-        tf (float): end time
-        use_trapz (bool): whether to use trapezoidal integration
-        resample_NR_to_model (bool): whether to resample the reference timeseries to the model timeseries
-        return_best_phi0 (bool): whether to return the best phi0
-    returns:
-        mismatch (float): mismatch
-        best_phi0 (float): best phi0
+    Compute the normalized mismatch between a model and reference time series.
+
+    Parameters
+    ----------
+    model_data : kuibit_ts
+        Model complex time series.
+    NR_data : kuibit_ts
+        Reference complex time series.
+    t0 : float
+        Start time relative to the reference peak time.
+    tf : float
+        End time relative to the reference peak time.
+    use_trapz : bool, optional
+        If True, use trapezoidal integration; otherwise use spline definite integral, by default False.
+    resample_NR_to_model : bool, optional
+        If True, resample NR data onto the model time grid when they differ, by default True.
+    return_best_phi0 : bool, optional
+        If True, also return the phase shift that maximizes the overlap, by default False.
+
+    Returns
+    -------
+    float or tuple[float, float]
+        Mismatch in [0, 1]. If ``return_best_phi0`` is True, also returns ``best_phi0``.
     '''
     #simple mismatch function
     if (not(np.array_equal(model_data.t,NR_data.t))):
@@ -240,17 +319,31 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
     return 1.-max_mismatch   
 def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):  
     '''
-    Calculate the mismatch between a model and a reference timeseries for a grid of phi0 values
-    args:
-        model (kuibit_ts): model timeseries
-        NR_data (kuibit_ts): reference timeseries
-        t0 (float): start time
-        tf (float): end time
-        m (int): m value
-        resample_NR_to_model (bool): whether to resample the reference timeseries to the model timeseries
-    returns:
-        mismatch (float): mismatch
-        best_phi0 (float): best phi0
+    Scan over phase shifts to find the best overlap between model and reference.
+
+    Notes
+    -----
+    Deprecated helper retained for debugging; prefer ``time_grid_mismatch``.
+
+    Parameters
+    ----------
+    model : kuibit_ts
+        Model complex time series.
+    NR_data : kuibit_ts
+        Reference complex time series.
+    t0 : float
+        Start time relative to reference peak.
+    tf : float
+        End time relative to reference peak.
+    m : int, optional
+        Azimuthal index used for phase sign, by default 2.
+    resample_NR_to_model : bool, optional
+        If True, resample NR data onto model time grid, by default True.
+
+    Returns
+    -------
+    tuple[float, float, kuibit_ts]
+        ``(best_phi0, min_mismatch, best_model)``.
     '''
     #raise ValueError("Warning: This function is old and needs to be replaced.")
     print("!!!!!!!!!!!!!!!!!!!!YOU SHOULD NOT USE THS FUNCTION!!!!!!!!!!!!!!!!!")
@@ -283,31 +376,46 @@ def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):
 def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
                            t_shift_range=np.arange(-10,10,0.1),return_best_t_and_phi0=False):
     '''
-    Calculate the mismatch between a model and a reference timeseries for a grid of t_shift values
-    args:
-        model (kuibit_ts): model timeseries
-        NR_data (kuibit_ts): reference timeseries
-        t0 (float): start time
-        tf (float): end time
-        resample_NR_to_model (bool): whether to resample the reference timeseries to the model timeseries
-        t_shift_range (numpy.ndarray): range of t_shift values
-        return_best_t_and_phi0 (bool): whether to return the best t_shift and phi0
-    returns:
-        mismatch (float): mismatch
-        best_t_shift (float): best t_shift
-        best_phi0 (float): best phi0
+    Search over time shifts to minimize mismatch between model and reference.
+
+    Parameters
+    ----------
+    model : kuibit_ts
+        Model complex time series.
+    NR_data : kuibit_ts
+        Reference complex time series.
+    t0 : float
+        Start time relative to reference peak.
+    tf : float
+        End time relative to reference peak.
+    resample_NR_to_model : bool, optional
+        If True, resample NR data onto model time grid, by default True.
+    t_shift_range : numpy.ndarray, optional
+        Range of time shifts to search, by default ``np.arange(-10, 10, 0.1)``.
+    return_best_t_and_phi0 : bool, optional
+        If True, also return the best time shift and phase shift, by default False.
+
+    Returns
+    -------
+    float or tuple
+        Minimum mismatch, and optionally best ``t_shift`` and ``phi0``.
     '''
     min_mismatch = np.inf
     def mismatch_search(t_shift_range,min_mismatch):
         '''
-        Calculate the mismatch between a model and a reference timeseries for a grid of t_shift values
-        args:
-            t_shift_range (numpy.ndarray): range of t_shift values
-            min_mismatch (float): minimum mismatch
-        returns:
-            min_mismatch (float): minimum mismatch
-            best_t_shift (float): best t_shift
-            best_phi0 (float): best phi0
+        Helper to scan a range of time shifts and track the best values.
+
+        Parameters
+        ----------
+        t_shift_range : numpy.ndarray
+            Candidate time shifts to test.
+        min_mismatch : float
+            Current best mismatch (updated in place).
+
+        Returns
+        -------
+        tuple
+            Either ``(min_mismatch, best_t_shift)`` or ``(min_mismatch, best_t_shift, best_phi0)``.
         '''
 
         best_t_shift = 0
@@ -356,33 +464,45 @@ def estimate_parameters(BOB,
                         start_with_wide_search = False,
                         t_shift_range=np.arange(-10,10,0.1)):
     '''
-    Estimate the parameters of a BOB waveform
-    args:
-        BOB (BOB): BOB waveform
-        mf_guess (float): guess for mass
-        chif_guess (float): guess for spin
-        Omega0_guess (float): guess for frequency
+    Estimate BOB parameters by minimizing mismatch against NR data.
 
-        t0 (float): time after peak to begin mismatch
-        tf (float): time after peak to end mismatch
+    Parameters
+    ----------
+    BOB : object
+        A configured BOB instance.
+    mf_guess : float, optional
+        Initial guess for remnant mass, by default 0.95.
+    chif_guess : float, optional
+        Initial guess for signed dimensionless spin, by default 0.5.
+    Omega0_guess : float, optional
+        Initial guess for initial condition frequency, by default 0.155.
+    t0 : float, optional
+        Start time after peak for mismatch window, by default 0.
+    tf : float, optional
+        End time after peak for mismatch window, by default 75.
+    force_Omega0_optimization : bool, optional
+        If True, enforce Omega0 optimization during construction, by default False.
+    NR_data : kuibit_ts, optional
+        Reference data to compare against. If None, inferred from ``BOB`` selection.
+    make_current_naturally : bool, optional
+        If True, construct current quadrupole via natural method, by default False.
+    make_mass_naturally : bool, optional
+        If True, construct mass quadrupole via natural method, by default False.
+    include_Omega0_as_parameter : bool, optional
+        Include Omega0 as an optimization parameter, by default False.
+    include_2Omega0_as_parameters : bool, optional
+        Include both lm and lmm Omega0 as parameters (quadrupole builds), by default False.
+    perform_phase_alignment_first : bool, optional
+        If True, perform phase alignment before quadrupole combination, by default False.
+    start_with_wide_search : bool, optional
+        If True, run a global search before local refinement, by default False.
+    t_shift_range : numpy.ndarray, optional
+        Range of time shifts to search in mismatch, by default ``np.arange(-10, 10, 0.1)``.
 
-        force_Omega0_optimization (bool): whether to force Omega0 optimization
-        NR_data (kuibit_ts): reference timeseries
-        make_current_naturally (bool): whether to make current naturally
-        make_mass_naturally (bool): whether to make mass naturally
-
-        !!!! ANUJ ADD STUFF HERE !!!!!
-        include_Omega0_as_parameter (bool): whether to include Omega0 as a parameter
-        include_2Omega0_as_parameters (bool): whether to include 2Omega0 as a parameter
-        perform_phase_alignment_first (bool): whether to perform phase alignment first
-        start_with_wide_search (bool): whether to start with a wide search
-        t_shift_range (numpy.ndarray): range of t_shift values to search over
-    returns:
-        best_mf (float): best mass
-        best_chif (float): best spin
-        best_Omega0 (float): best frequency
-        best_t0 (float): best time of peak
-        best_tf (float): best time of end
+    Returns
+    -------
+    scipy.optimize.OptimizeResult
+        Optimizer result containing best-fit parameters.
     '''
     if(force_Omega0_optimization and include_Omega0_as_parameter):
         raise ValueError("force_Omega0_optimization and include_Omega0_as_parameter cannot both be True")
@@ -416,11 +536,17 @@ def estimate_parameters(BOB,
     
     def create_guess(x):   
         '''
-        Create a guess for the BOB parameters
-        args:
-            x (numpy.ndarray): parameters
-        returns:
-            
+        Objective function: construct BOB for candidate parameters and return mismatch.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Parameter vector with order depending on options.
+
+        Returns
+        -------
+        float
+            Mismatch value (lower is better).
         '''
         #print("trying",x)
         mf = x[0]
@@ -507,13 +633,21 @@ def estimate_parameters(BOB,
     return out
 def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     '''
-    Estimate the parameters of a BOB waveform using a grid search
-    args:
-        BOB (BOB): BOB object
-        mf_guess (float): guess for mass
-        chif_guess (float): guess for spin
-    returns:
-        out (scipy.optimize.OptimizeResult): optimization result; best mass and spin
+    Legacy grid-search estimator for BOB parameters.
+
+    Parameters
+    ----------
+    BOB : object
+        BOB instance.
+    mf_guess : float
+        Central value for remnant mass grid.
+    chif_guess : float
+        Central value for signed spin grid.
+
+    Returns
+    -------
+    list[float, float]
+        Best ``[mf, chif]`` found (deprecated function).
     '''
     raise ValueError("Warning: This function needs to be replaced.")
     m_range = np.arange(mf_guess-1e-3,mf_guess+1e-3,1e-4)
@@ -546,19 +680,31 @@ def estimate_parameters_grid(BOB,mf_guess,chif_guess):
     return [best_mf,best_chif]
 def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     '''
-    Create a QNM comparison between a BOB waveform and a reference timeseries. The sampling times and y values
-    can be retrieved from a time series, ts, by using ts.t and ts.y respectively.
-    args:
-        t (numpy.ndarray): time array
-        y (numpy.ndarray): BOB waveform
-        NR_data (numpy.ndarray): reference timeseries
-        mov_time (float): time for the moving mismatch
-        tf (float): time the mismatch is calculated until
-        mf (float): mass
-        chif (float): spin
-        n_qnms (int): number of QNMs
-    returns:
-        out (scipy.optimize.OptimizeResult): optimization result
+    Compare a model against NR by fitting QNM sums over a moving end-time window.
+
+    Parameters
+    ----------
+    t : numpy.ndarray
+        Sampling times of the model.
+    y : numpy.ndarray
+        Complex model values at ``t``.
+    NR_data : scri.WaveformModes
+        Reference waveform mode data (scri object).
+    mov_time : array-like
+        Start times for the moving-window comparison (relative to peak after alignment).
+    tf : float
+        End time for the mismatch calculation window.
+    mf : float
+        Remnant mass.
+    chif : float
+        Signed dimensionless remnant spin.
+    n_qnms : int, optional
+        Maximum number of overtones to include in fits, by default 7.
+
+    Returns
+    -------
+    tuple
+        ``(master_mismatch_arr, A220_dict, A221_dict, A222_dict, qnm_wm_master_arr)``.
     '''
     import qnmfits
     #we use qnmfits for their qnm fitting procedure
@@ -618,15 +764,23 @@ def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     return master_mismatch_arr,A220_dict,A221_dict,A222_dict,qnm_wm_master_arr
 def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     '''
-    HUH?
-    Converts a time and data array into a scri waveform mode object
-    args:
-        times (numpy.ndarray): times
-        y_22_data (numpy.ndarray): data
-        ell_min (int): minimum ell
-        ell_max (int): maximum ell
-    returns:
-        wm (scri.WaveformModes): waveform mode
+    Create a ``scri.WaveformModes`` object (news) from time samples and a single mode.
+
+    Parameters
+    ----------
+    times : numpy.ndarray
+        Sampling times.
+    y_22_data : numpy.ndarray
+        Complex data for the ``(2, 2)`` mode.
+    ell_min : int, optional
+        Minimum ``ell`` included in the WaveformModes, by default 2.
+    ell_max : int, optional
+        Maximum ``ell`` included. If None, inferred from provided data, by default None.
+
+    Returns
+    -------
+    scri.WaveformModes
+        Constructed news WaveformModes object.
     '''
     #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
     #but modified for our purposes here
@@ -663,15 +817,23 @@ def create_scri_news_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     return wm
 def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     '''
-    HUH?
-    Converts a time and data array into a scri psi4 waveform mode object
-    args:
-        times (numpy.ndarray): times
-        y_22_data (numpy.ndarray): data
-        ell_min (int): minimum ell
-        ell_max (int): maximum ell
-    returns:
-        wm (scri.WaveformModes): waveform mode
+    Create a ``scri.WaveformModes`` object (psi4) from time samples and a single mode.
+
+    Parameters
+    ----------
+    times : numpy.ndarray
+        Sampling times.
+    y_22_data : numpy.ndarray
+        Complex data for the ``(2, 2)`` mode.
+    ell_min : int, optional
+        Minimum ``ell`` included in the WaveformModes, by default 2.
+    ell_max : int, optional
+        Maximum ``ell`` included. If None, inferred from provided data, by default None.
+
+    Returns
+    -------
+    scri.WaveformModes
+        Constructed psi4 WaveformModes object.
     '''
     #based on https://github.com/sxs-collaboration/qnmfits/blob/main/qnmfits/utils.py  dict_to_WaveformModes
     #but modified for our purposes here
@@ -708,12 +870,19 @@ def create_scri_psi4_waveform_mode(times,y_22_data,ell_min=2,ell_max=None):
     return wm
 def weighted_detrend(signal, weight_power=2):
     '''
-    Weighted detrending
-    args:
-        signal (numpy.ndarray): signal
-        weight_power (float): weight power
-    returns:
-        signal (numpy.ndarray): detrended signal
+    Perform weighted linear detrending with heavier weight on later samples.
+
+    Parameters
+    ----------
+    signal : numpy.ndarray
+        Real-valued signal to detrend.
+    weight_power : float, optional
+        Exponent controlling the late-time weighting, by default 2.
+
+    Returns
+    -------
+    numpy.ndarray
+        Detrended signal.
     '''
     n = len(signal)
     x = np.arange(n)
@@ -730,15 +899,28 @@ def weighted_detrend(signal, weight_power=2):
     return signal - trend
 def time_integral(ts,order=2,f=0.1,dt=0.1,remove_drift = False):
     '''
-    Time integral with a butterworth highpass filter and a digital filter to ensure the phase doesn't change
-    args:
-        ts (kuibit_ts): timeseries
-        order (int): order of the butterworth filter
-        f (float): frequency of the butterworth filter
-        dt (float): time step
-        remove_drift (bool): whether to remove drift
-    returns:
-        ts (kuibit_ts): timeseries
+    Integrate a complex time series with high-pass filtering to control low-frequency drift.
+
+    The signal is optionally resampled to fixed timestep, high-pass filtered, and cumulatively
+    integrated. An optional weighted-detrend step can remove residual linear drift.
+
+    Parameters
+    ----------
+    ts : kuibit_ts
+        Complex time series to integrate.
+    order : int, optional
+        Butterworth filter order, by default 2.
+    f : float, optional
+        High-pass cutoff as a fraction of peak frequency, by default 0.1.
+    dt : float, optional
+        Desired timestep for resampling and integration, by default 0.1.
+    remove_drift : bool, optional
+        If True, apply weighted detrending to integral, by default False.
+
+    Returns
+    -------
+    kuibit_ts
+        Integrated complex time series.
     '''
     #time integral with a butterworth highpass filter and a digital filter to ensure the phase doesn't change
     #optional linear drift removal at end, with the highpass filter, it doesn't make much of a difference
@@ -763,13 +945,21 @@ def time_integral(ts,order=2,f=0.1,dt=0.1,remove_drift = False):
     return kuibit_ts(ts.t,real_int + 1j*imag_int)
 def compute_one_more_term(nth_derivative,t,freq):
     '''
-    Compute one final term on top of the autodifferentiated result
-    args:
-        nth_derivative (numpy.ndarray): nth derivative
-        t (numpy.ndarray): time array
-        freq (numpy.ndarray): frequency array
-    returns:
-        deriv_val (numpy.ndarray): derivative value
+    Compute an additional correction term using spline differentiation and 1/(i omega).
+
+    Parameters
+    ----------
+    nth_derivative : numpy.ndarray
+        Values of the nth derivative.
+    t : numpy.ndarray
+        Time samples corresponding to ``nth_derivative``.
+    freq : numpy.ndarray
+        Angular frequency samples at ``t``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Correction term values evaluated on ``t``.
     '''
     #we want to compute one final term on top of the autodifferentiated result
     one_over_iomega = 1/(-1j*freq)
@@ -777,11 +967,22 @@ def compute_one_more_term(nth_derivative,t,freq):
     return deriv_val
 def load_lower_lev_SXS(sim):
     '''
-    Load the lower level SXS simulation
-    args:
-        sim (sxs.Simulation): simulation
-    returns:
-        sim_lower (sxs.Simulation): lower level simulation
+    Load the next-lower available resolution for an SXS simulation.
+
+    Parameters
+    ----------
+    sim : sxs.Simulation
+        The loaded SXS Simulation at some refinement level.
+
+    Returns
+    -------
+    sxs.Simulation
+        The lower-resolution Simulation, if available.
+
+    Raises
+    ------
+    ValueError
+        If only one level exists or the lower level cannot be found.
     '''
     location = sim.location
     print(location,sim.lev_numbers)

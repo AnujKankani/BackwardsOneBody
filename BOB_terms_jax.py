@@ -35,7 +35,7 @@ def convert_BOB_to_JAXBOB(BOB):
 
 def BOB_amplitude_jax(t, tau, Ap, t_p):
     '''
-    Eq.5
+    Eq.5 in https://arxiv.org/abs/1810.00040
 
     Args:
         t (sympy.Symbol): Time 
@@ -51,10 +51,10 @@ def BOB_amplitude_jax(t, tau, Ap, t_p):
 
 def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
     '''
-    Eq. 6 returns frequency of news
+    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
     Args:
         t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
@@ -74,7 +74,7 @@ def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
     Returns phase of news and its frequency
     Args:
         t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
@@ -108,7 +108,7 @@ def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
     '''
     Args:
         t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
@@ -124,11 +124,11 @@ def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
 
 def BOB_strain_freq(t, Omega_0, Omega_QNM, tau, t_p,m):
     '''
-    Eq.7? This should return only Omega_lm
+    Eq.7 in https://arxiv.org/abs/1810.00040; returns only Omega_lm
 
     Args:
         t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
@@ -147,7 +147,7 @@ def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     Args:
         t (sympy.Symbol): Time 
         t_0 (sympy.Symbol): Initial Condition time
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
@@ -165,11 +165,11 @@ def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 
 def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
-    Eq. 6 returns frequency of news
+    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
     Args:
         t (sympy.Symbol): Time 
         t_0 (sympy.Symbol): Initial Condition time
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
@@ -187,12 +187,12 @@ def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 
 def BOB_strain_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
-    Eq.7? This should return only Omega_lm
+    Eq.7 in https://arxiv.org/abs/1810.00040; returns only Omega_lm
 
     Args:
         t (sympy.Symbol): Time 
         t_0 (sympy.Symbol): Initial Condition time
-        t_p (sympy.Symbol): Time of congruence convergence
+        t_p (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
