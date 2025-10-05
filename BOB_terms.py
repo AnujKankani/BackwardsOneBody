@@ -11,7 +11,7 @@ def define_BOB_symbols():
 
 def BOB_amplitude_sym(t, tp, tau, Ap):
     '''
-    Eq.5
+    Eq.5 in https://arxiv.org/abs/1810.00040
 
     Args:
         t (sympy.Symbol): Time 
@@ -28,7 +28,7 @@ def BOB_amplitude_sym(t, tp, tau, Ap):
 # --- Frequency and Phase (Finite t0) ---
 def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     '''
-    Eq.7? This should return only Omega_lm
+    Eq.7 in https://arxiv.org/abs/1810.00040, returns only Omega_lm
 
     Args:
         t (sympy.Symbol): Time 
@@ -49,7 +49,7 @@ def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
 
 def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
     '''
-    Eq. 10; returns both Phi and Omega_lm
+    Eq. 10 in https://arxiv.org/abs/1810.00040; returns both Phi and Omega_lm
     Args:
         t (sympy.Symbol): Time 
         t0 (sympy.Symbol): Initial Condition time
@@ -80,7 +80,7 @@ def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 
 def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     '''
-    Eq. 6 returns frequency of news
+    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
     Args:
         t (sympy.Symbol): Time 
         t0 (sympy.Symbol): Initial Condition time
@@ -170,7 +170,7 @@ def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 # --- Asymptotic (t0 -> -inf) ---
 def BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau):
     '''
-    Eq.7? This should return only Omega_lm
+    Eq.7 in https://arxiv.org/abs/1810.00040; returns only Omega_lm
 
     Args:
         t (sympy.Symbol): Time 
@@ -187,7 +187,7 @@ def BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau):
 
 def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
     '''
-    Eq. 10; returns both Phi and Omega_lm
+    Eq. 10 in https://arxiv.org/abs/1810.00040; returns both Phi and Omega_lm
     Args:
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
@@ -210,7 +210,7 @@ def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
 
 def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
     '''
-    Eq. 6 returns frequency of news
+    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
     Args:
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
