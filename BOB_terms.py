@@ -10,11 +10,37 @@ def define_BOB_symbols():
     return t, t0, tp, tau, Omega0, Omega_QNM, Ap, Phi_0
 
 def BOB_amplitude_sym(t, tp, tau, Ap):
+    '''
+    Eq.5 in https://arxiv.org/abs/1810.00040
+
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Ap (sympy.Symbol): Peak Waveform Amplitude
+
+    Returns:
+        A: Waveform amplitude at time t
+    '''
     x = (t - tp) / tau
     return Ap * sp.sech(x)
 
 # --- Frequency and Phase (Finite t0) ---
 def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
+    '''
+    Eq.7 in https://arxiv.org/abs/1810.00040, returns only Omega_lm
+
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of peak amplitude 
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
     Omega_ratio = Omega0 / Omega_QNM
@@ -22,6 +48,21 @@ def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     return Omega_QNM * Omega_ratio**exponent
 
 def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
+    '''
+    Eq. 10 in https://arxiv.org/abs/1810.00040; returns both Phi and Omega_lm
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+
+    Returns:
+        Phi: Phase of strain (phi)/(mode number)
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM)
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
@@ -38,6 +79,19 @@ def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
     return Phi, Omega
 
 def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
+    '''
+    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        N: News (first time derivative of strain) frequency at time t
+    '''
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
     F = (Omega_QNM**2 - Omega0**2) / (1 - sp.tanh(x0))
@@ -45,6 +99,21 @@ def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     return sp.sqrt(Omega2)
 
 def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
+    '''
+    Returns phase of news and its frequency
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+
+    Returns:
+        N: News (first time derivative of strain) phase at time t
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM)
     x0 = (t0 - tp) / tau
     F = (Omega_QNM**2 - Omega0**2) / (1 - sp.tanh(x0))
@@ -54,6 +123,18 @@ def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
     return term1 + term2 + Phi_0, Omega
 
 def BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
+    '''
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
     k = (Omega_QNM**4 - Omega0**4) / (1 - sp.tanh(x0))
@@ -61,6 +142,20 @@ def BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     return X**sp.Rational(1, 4)
 
 def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
+    '''
+    Args:
+        t (sympy.Symbol): Time 
+        t0 (sympy.Symbol): Initial Condition time
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+
+    Returns:
+        Phi: Phase of the Weyl Scalar (psi_4)
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     Omega = BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM)
     x0 = (t0 - tp) / tau
     k = (Omega_QNM**4 - Omega0**4) / (1 - sp.tanh(x0))
@@ -74,10 +169,37 @@ def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 
 # --- Asymptotic (t0 -> -inf) ---
 def BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau):
+    '''
+    Eq.7 in https://arxiv.org/abs/1810.00040; returns only Omega_lm
+
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     x = (t - tp)/tau
     return Omega_QNM * (Omega0 / Omega_QNM)**((sp.tanh(x) - 1) / sp.Integer(-2))
 
 def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
+    '''
+    Eq. 10 in https://arxiv.org/abs/1810.00040; returns both Phi and Omega_lm
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+
+    Returns:
+        Phi: Phase of strain (phi)/(mode number)
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau)
     x = (t - tp)/tau
     outer = tau / sp.Integer(2)
@@ -87,12 +209,38 @@ def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
     return outer * (Omega0 * Ei_sp(term1_arg) - Omega_QNM * Ei_sp(term2_arg)) + Phi_0, Omega
 
 def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
+    '''
+    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        N: News (first time derivative of strain) frequency at time t
+    '''
+
     x = (t - tp)/tau
     Omega_minus = Omega_QNM**2 - Omega0**2
     Omega_plus = Omega_QNM**2 + Omega0**2
     return sp.sqrt(Omega_minus * sp.tanh(x) / sp.Integer(2) + Omega_plus / sp.Integer(2))
 
 def BOB_news_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
+    '''
+    Returns phase of news and its frequency
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+
+    Returns:
+        N: News (first time derivative of strain) phase at time t
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)'''
     Omega = BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau)
     outer = tau / sp.Integer(2)
     inner1 = sp.log((Omega + Omega_QNM) / sp.Abs(Omega - Omega_QNM))
@@ -100,11 +248,35 @@ def BOB_news_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
     return outer * (Omega_QNM * inner1 - Omega0 * inner2) + Phi_0, Omega
 
 def BOB_psi4_freq_sym(t, tp, Omega0, Omega_QNM, tau):
+    '''
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+
+    Returns:
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     x = (t - tp)/tau
     k = (Omega_QNM**4 - Omega0**4) / sp.Integer(2)
     return (Omega0**4 + k * (sp.tanh(x) + 1))**sp.Rational(1, 4)
 
 def BOB_psi4_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
+    '''
+    Args:
+        t (sympy.Symbol): Time 
+        tp (sympy.Symbol): Time of peak amplitude
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+
+    Returns:
+        Phi: Phase of the Weyl Scalar (psi_4)
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     Omega = BOB_psi4_freq_sym(t, tp, Omega0, Omega_QNM, tau)
     Omega_minus_q0 = Omega_QNM - Omega0
     Omega_plus_q0 = Omega_QNM + Omega0
@@ -120,22 +292,58 @@ def BOB_psi4_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
 
 # --- Amplitude ---
 def BOB_amplitude(BOB):
+    '''
+    Returns the amplitude of the BOB waveform
+
+    Args:
+        BOB: BOB object
+
+    Returns:
+        A: Waveform amplitude at time t
+    '''
     return BOB.Ap / np.cosh(BOB.t_tp_tau)
 
 ### --- FINITE t0 MODELS --- ###
 
 def BOB_strain_freq_finite_t0(BOB):
+    '''
+    Returns the frequency of the BOB waveform strain
+
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega_ratio = BOB.Omega_0/BOB.Omega_QNM
     tanh_t_tp_tau_m1 = np.tanh(BOB.t_tp_tau)-1
     tanh_t0_tp_tau_m1 = np.tanh(BOB.t0_tp_tau)-1
     return BOB.Omega_QNM*(Omega_ratio**(tanh_t_tp_tau_m1/tanh_t0_tp_tau_m1))
 
 def BOB_strain_phase_finite_t0_numerically(BOB):
+    '''
+    Returns both the phase and frequency of the BOB waveform strain
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Phi: Phase of strain (phi)/(mode number)
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_strain_freq_finite_t0(BOB)
     Phase = cumulative_trapezoid(Omega, BOB.t, initial=0)
     return Phase + BOB.Phi_0, Omega
 
 def BOB_strain_phase_finite_t0(BOB):
+    '''
+    Returns both the phase and frequency of the BOB waveform strain
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Phi: Phase of strain (phi)/(mode number)
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     try:
         Omega = BOB_strain_freq_finite_t0(BOB)
         outer = BOB.Omega_QNM*BOB.tau/2.
@@ -156,6 +364,14 @@ def BOB_strain_phase_finite_t0(BOB):
             raise ValueError("Analytical strain phase integration failed.")
 
 def BOB_news_freq_finite_t0(BOB):
+    '''
+    Returns frequency of news
+    Args:
+        BOB: BOB object
+
+    Returns:
+        N: News (first time derivative of strain) frequency at time t
+    '''
     F_denom = 1 - np.tanh(BOB.t0_tp_tau)
     if F_denom == 0: raise ValueError("Singularity: t0 -> +infinity is not a valid limit.")
     F = (BOB.Omega_QNM**2 - BOB.Omega_0**2) / F_denom
@@ -164,11 +380,29 @@ def BOB_news_freq_finite_t0(BOB):
     return np.sqrt(Omega2)
 
 def BOB_news_phase_finite_t0_numerically(BOB):
+    '''
+    Returns phase of news and its frequency
+    Args:
+        BOB: BOB object
+
+    Returns:
+        N: News (first time derivative of strain) phase at time t
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_news_freq_finite_t0(BOB)
     Phase = cumulative_trapezoid(Omega, BOB.t, initial=0)
     return Phase + BOB.Phi_0, Omega
 
 def BOB_news_phase_finite_t0(BOB):
+    '''
+    Returns phase of news and its frequency
+    Args:
+        BOB: BOB object
+
+    Returns:
+        N: News (first time derivative of strain) phase at time t
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_news_freq_finite_t0(BOB)
     F_denom = 1 - np.tanh(BOB.t0_tp_tau)
     F = (BOB.Omega_QNM**2 - BOB.Omega_0**2) / F_denom
@@ -186,6 +420,14 @@ def BOB_news_phase_finite_t0(BOB):
     return Phi, Omega
 
 def BOB_psi4_freq_finite_t0(BOB):
+    '''
+    Returns frequency of the Weyl Scalar (psi_4)
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     k_denom = 1 - np.tanh(BOB.t0_tp_tau)
     if k_denom == 0: raise ValueError("Singularity: t0 -> +infinity is not a valid limit.")
     k = (BOB.Omega_QNM**4 - BOB.Omega_0**4) / k_denom
@@ -194,11 +436,28 @@ def BOB_psi4_freq_finite_t0(BOB):
     return X**0.25
 
 def BOB_psi4_phase_finite_t0_numerically(BOB):
+    '''
+    Returns both the phase and frequency of the Weyl Scalar (psi_4)
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Phi: Phase of the Weyl Scalar (psi_4)
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     Omega = BOB_psi4_freq_finite_t0(BOB)
     Phase = cumulative_trapezoid(Omega, BOB.t, initial=0)
     return Phase + BOB.Phi_0, Omega
 
 def BOB_psi4_phase_finite_t0(BOB):
+    '''
+    Returns both the phase and frequency of the Weyl Scalar (psi_4)
+    Args:
+        BOB: BOB object
+    Returns:
+        Phi: Phase of the Weyl Scalar (psi_4)
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     try:
         Omega = BOB_psi4_freq_finite_t0(BOB)
         k = (BOB.Omega_QNM**4 - BOB.Omega_0**4)/(1-np.tanh(BOB.t0_tp_tau))
@@ -220,11 +479,29 @@ def BOB_psi4_phase_finite_t0(BOB):
             raise ValueError("Analytical Psi4 (finite t0) integration failed.")
 
 def BOB_strain_freq(BOB):
+    '''
+    Returns the frequency of the BOB waveform strain
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
+    
     Omega_ratio = BOB.Omega_0/BOB.Omega_QNM
     tanh_t_tp_tau_m1 = np.tanh(BOB.t_tp_tau)-1
     return BOB.Omega_QNM*(Omega_ratio**(tanh_t_tp_tau_m1/(-2.)))
 
 def BOB_strain_phase(BOB):
+    '''
+    Returns both the phase and frequency of the BOB waveform strain
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Phi: Phase of strain (phi)/(mode number)
+        Omega: Strain frequency at time t (waveform frequency)/(mode number)
+    '''
     Omega = BOB_strain_freq(BOB)
     outer = BOB.tau/2.
     Omega_ratio = BOB.Omega_QNM/BOB.Omega_0
@@ -235,6 +512,14 @@ def BOB_strain_phase(BOB):
     return outer*inner + BOB.Phi_0, Omega
 
 def BOB_news_freq(BOB):
+    '''
+    Returns the frequency of the BOB waveform news
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Omega: News (first time derivative of strain) frequency at time t
+    '''
     Omega_minus = BOB.Omega_QNM**2 - BOB.Omega_0**2
     Omega_plus  = BOB.Omega_QNM**2 + BOB.Omega_0**2
     Omega2 = Omega_minus*np.tanh(BOB.t_tp_tau)/2. + Omega_plus/2.
@@ -242,6 +527,15 @@ def BOB_news_freq(BOB):
     return np.sqrt(Omega2)
 
 def BOB_news_phase(BOB):
+    '''
+    Returns both the phase and frequency of the BOB waveform news
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Phi: Phase of news (first time derivative of strain) at time t
+        Omega: News (first time derivative of strain) frequency at time t
+    '''
     if(BOB.Omega_0==0): raise ValueError("Omega_0 cannot be zero")
     Omega = BOB_news_freq(BOB)
     Omega_minus_Q = np.abs(Omega - BOB.Omega_QNM)
@@ -252,12 +546,29 @@ def BOB_news_phase(BOB):
     return outer*(BOB.Omega_QNM*inner1 - BOB.Omega_0*inner2) + BOB.Phi_0, Omega
 
 def BOB_psi4_freq(BOB):
+    '''
+    Returns the frequency of the BOB waveform Weyl Scalar (psi_4)
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     k = (BOB.Omega_QNM**4 - BOB.Omega_0**4)/2.
     X = BOB.Omega_0**4 + k*(np.tanh(BOB.t_tp_tau) + 1)
     if np.any(X < 0): raise ValueError("Imaginary frequency.")
     return X**0.25
 
-def BOB_psi4_phase(BOB):
+def BOB_psi4_phase(BOB):        
+    '''
+    Returns both the phase and frequency of the BOB waveform Weyl Scalar (psi_4)
+    Args:
+        BOB: BOB object
+
+    Returns:
+        Phi: Phase of the Weyl Scalar (psi_4)
+        Omega: Weyl Scalar (psi_4) frequency at time t
+    '''
     Omega = BOB_psi4_freq(BOB)
     Omega_minus_q0 = BOB.Omega_QNM - BOB.Omega_0
     Omega_plus_q0  = BOB.Omega_QNM + BOB.Omega_0
