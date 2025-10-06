@@ -1703,6 +1703,12 @@ class BOB:
         
         ts_psi4 = kuibit_ts(t_NR,y_psi4)
         ts_strain = kuibit_ts(t_NR,y_strain)
+
+        #We do not resample the data here, because when passing in raw NR data we leave more responsibility/freedom on the user.
+        if(ts_psi4.is_regularly_sampled() is False):
+            raise ValueError("NR data must be regularly sampled")
+        if(ts_strain.is_regularly_sampled() is False):
+            raise ValueError("NR data must be regularly sampled")
         
         self.mf = mf
         self.chif = chif
@@ -1744,16 +1750,17 @@ class BOB:
         self.news_Ap = Ap
         self.news_data = ts_news
 
-        print("requested (l,m) = (",self.l,",",self.m,")")
-        print("Omega_ISCO = ",self.Omega_ISCO)
-        print("Omega_QNM = ",self.Omega_QNM)
-        print("tau = ",self.tau)
-        print("strain_tp = ",self.strain_tp)
-        print("strain_Ap = ",self.strain_Ap)
-        print("news_tp = ",self.news_tp)
-        print("news_Ap = ",self.news_Ap)
-        print("psi4_tp = ",self.psi4_tp)
-        print("psi4_Ap = ",self.psi4_Ap)
+        if(verbose):
+            print("requested (l,m) = (",self.l,",",self.m,")")
+            print("Omega_ISCO = ",self.Omega_ISCO)
+            print("Omega_QNM = ",self.Omega_QNM)
+            print("tau = ",self.tau)
+            print("strain_tp = ",self.strain_tp)
+            print("strain_Ap = ",self.strain_Ap)
+            print("news_tp = ",self.news_tp)
+            print("news_Ap = ",self.news_Ap)
+            print("psi4_tp = ",self.psi4_tp)
+            print("psi4_Ap = ",self.psi4_Ap)
 
     def initialize_manually(self,mf,chif,l,m,**kwargs):
         raise ValueError("This function is not operational yet.")
