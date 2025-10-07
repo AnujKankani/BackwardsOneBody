@@ -1024,7 +1024,7 @@ class BOB:
         self.optimize_Omega0_and_then_Phi0 = old_optimize_Omega0_and_then_Phi0
         self.optimize_Omega0 = old_optimize_Omega0
         self.Phi_0 = 0
-        self.Omega_0 = self.Omega_ISCO
+        #self.Omega_0 = self.Omega_ISCO
         self.t = old_t
         return BOB_ts
     def construct_NR_mass_and_current_quadrupole(self,what_to_create):
