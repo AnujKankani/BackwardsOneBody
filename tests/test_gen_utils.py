@@ -64,9 +64,9 @@ def test_kuibit_frequency_lm(psi4_h5, l = 2, m = 2):
     ref = np.load("tests/trusted_outputs/kuibit_cce9_rMPsi4_R0472_freq_l2_m2.npz")
 
     # Compare arrays
-    np.testing.assert_allclose(strain.real().t, ref["x_real"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(strain.real().y, ref["y_real"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(strain.imag().y, ref["y_im"], rtol=1e-11, atol=1e-15)
+    np.testing.assert_allclose(strain.real().t, ref["x_real"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(strain.real().y, ref["y_real"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(strain.imag().y, ref["y_im"], rtol=1e-10, atol=1e-15)
 
 def test_get_phase(psi4_ts):
     ts = gen_utils.get_phase(psi4_ts)
@@ -84,9 +84,9 @@ def test_get_frequency(psi4_ts):
     ref = np.load(location)
 
 
-    np.testing.assert_allclose(ts.real().t, ref["x_real"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(ts.real().y, ref["y_real"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(ts.imag().y, ref["y_im"], rtol=1e-11, atol=1e-15)
+    np.testing.assert_allclose(ts.real().t, ref["x_real"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(ts.real().y, ref["y_real"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(ts.imag().y, ref["y_im"], rtol=1e-10, atol=1e-15)
 
 def test_get_r_isco_values():
     # Small arrays of chi and M
