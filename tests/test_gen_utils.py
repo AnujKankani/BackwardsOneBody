@@ -42,25 +42,26 @@ def kuibit_ts_load(location):
     #Returns a Dictionary of Timeseries, try ['BOB'] or ['SXS']
     return timeseries
 
-def test_kuibit(strain_h5, l = 2, m = 0):
+def test_kuibit(strain_h5, psi4_h5, l = 2, m = 0):
     strain = gen_utils.get_kuibit_lm(strain_h5,l,m)
-    strain_psi4 = gen_utils.get_kuibit_lm_psi4(strain_h5,l,m)
+    strain_psi4 = gen_utils.get_kuibit_lm_psi4(psi4_h5,l,m)
 
     # Load reference
     ref = np.load("tests/trusted_outputs/kuibit_cce9_rhOverM_R0472_l2_m0.npz")
-
+    ref2 = np.load("tests/trusted_outputs/kuibit_cce9_rMPsi4_R0472_l2_m0.npz")
+    
     # Compare arrays
     np.testing.assert_allclose(strain.real().t, ref["x_real"], rtol=1e-11, atol=1e-15)
     np.testing.assert_allclose(strain.real().y, ref["y_real"], rtol=1e-11, atol=1e-15)
     np.testing.assert_allclose(strain.imag().y, ref["y_im"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(strain_psi4.real().t, ref["x_real"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(strain_psi4.real().y, ref["y_real"], rtol=1e-11, atol=1e-15)
-    np.testing.assert_allclose(strain_psi4.imag().y, ref["y_im"], rtol=1e-11, atol=1e-15)
+    np.testing.assert_allclose(strain_psi4.real().t, ref2["x_real"], rtol=1e-11, atol=1e-15)
+    np.testing.assert_allclose(strain_psi4.real().y, ref2["y_real"], rtol=1e-11, atol=1e-15)
+    np.testing.assert_allclose(strain_psi4.imag().y, ref2["y_im"], rtol=1e-11, atol=1e-15)
 
 def test_kuibit_frequency_lm(psi4_h5, l = 2, m = 2):
     strain = gen_utils.get_kuibit_frequency_lm(psi4_h5,l,m)
     # Load reference
-    ref = np.load("tests/trusted_outputs/kuibit_cce9_rhOverM_R0472_freq_l2_m2.npz")
+    ref = np.load("tests/trusted_outputs/kuibit_cce9_rMPsi4_R0472_freq_l2_m2.npz")
 
     # Compare arrays
     np.testing.assert_allclose(strain.real().t, ref["x_real"], rtol=1e-11, atol=1e-15)
@@ -69,7 +70,7 @@ def test_kuibit_frequency_lm(psi4_h5, l = 2, m = 2):
 
 def test_get_phase(psi4_ts):
     ts = gen_utils.get_phase(psi4_ts)
-    location = "tests/trusted_outputs/kuibit_cce9_rhOverM_R0472_get_phase_l2_m2.npz"
+    location = "tests/trusted_outputs/kuibit_cce9_rMPsi4_R0472_get_phase_l2_m2.npz"
     ref = np.load(location)
 
 
@@ -79,7 +80,7 @@ def test_get_phase(psi4_ts):
 
 def test_get_frequency(psi4_ts):
     ts = gen_utils.get_frequency(psi4_ts)
-    location = "tests/trusted_outputs/kuibit_cce9_rhOverM_R0472_get_frequency_l2_m2.npz"
+    location = "tests/trusted_outputs/kuibit_cce9_rMPsi4_R0472_get_frequency_l2_m2.npz"
     ref = np.load(location)
 
 
