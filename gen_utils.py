@@ -320,62 +320,6 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
     if(return_best_phi0):
         return 1.-max_mismatch,best_phi0
     return 1.-max_mismatch   
-def phi_grid_mismatch(model,NR_data,t0,tf,m=2,resample_NR_to_model=True):  
-    '''
-    Scan over phase shifts to find the best overlap between model and reference.
-
-    Notes
-    -----
-    Deprecated helper retained for debugging; prefer ``time_grid_mismatch``.
-
-    Parameters
-    ----------
-    model : kuibit_ts
-        Model complex time series.
-    NR_data : kuibit_ts
-        Reference complex time series.
-    t0 : float
-        Start time relative to reference peak.
-    tf : float
-        End time relative to reference peak.
-    m : int, optional
-        Azimuthal index used for phase sign, by default 2.
-    resample_NR_to_model : bool, optional
-        If True, resample NR data onto model time grid, by default True.
-
-    Returns
-    -------
-    tuple[float, float, kuibit_ts]
-        ``(best_phi0, min_mismatch, best_model)``.
-    '''
-    #raise ValueError("Warning: This function is old and needs to be replaced.")
-    print("!!!!!!!!!!!!!!!!!!!!YOU SHOULD NOT USE THS FUNCTION!!!!!!!!!!!!!!!!!")
-    print("It is here as a convenience tool for debugging. Use time_grid_mismatch instead")
-    if (not(np.array_equal(model.t,NR_data.t))):
-        if(resample_NR_to_model):
-            print("resampling to equal times")
-            NR_data = NR_data.resampled(model.t)
-        else:
-            raise ValueError("Time arrays must be identical or set resample_NR_to_model to True")
-    
-    phase_model = get_phase(model)
-
-    phi0_range = np.arange(0,2*np.pi,0.01)
-
-    #now we change the model phase and find the phi0 that minimizes the mismatch
-    min_mismatch = 1e10
-    best_phi0 = 0
-    amp_model = model.abs().y
-    for phi0 in phi0_range:
-        # Create a copy of phase_model to avoid modifying the original
-        shifted_phase_model = phase_model.y + phi0
-        temp_ts = kuibit_ts(model.t,amp_model*np.exp(-1j*np.sign(m)*shifted_phase_model))
-        mismatch_val = mismatch(temp_ts,NR_data,t0,tf)
-        if(mismatch_val < min_mismatch):
-            min_mismatch = mismatch_val
-            best_phi0 = phi0
-    best_model = kuibit_ts(model.t,amp_model*np.exp(-1j*np.sign(m)*(phase_model.y + best_phi0)))
-    return best_phi0,min_mismatch,best_model
 def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
                            t_shift_range=np.arange(-10,10,0.1),return_best_t_and_phi0=False):
     '''

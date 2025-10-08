@@ -147,7 +147,7 @@ class BOB:
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data.abs())
             self.Ap = Ap
             self.tp = tp
-            self.Omega_0 = gen_utils.Omega_0_fit_psi4(self.mf,self.chif_with_sign)
+            self.Omega_0 = gen_utils.Omega_0_fit_news(self.mf,self.chif_with_sign)
         elif(val=="strain"):
             print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN!")
@@ -159,8 +159,13 @@ class BOB:
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
             self.Ap = Ap
             self.tp = tp
-            self.Omega_0 = gen_utils.Omega_0_fit_psi4(self.mf,self.chif_with_sign)
+            self.Omega_0 = gen_utils.Omega_0_fit_strain(self.mf,self.chif_with_sign)
         elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS!")
+            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS.")
+            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -177,6 +182,11 @@ class BOB:
                 self.Ap = Ap
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
         elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS!")
+            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS.")
+            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("news")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -193,6 +203,11 @@ class BOB:
                 self.Ap = Ap
                 self.tp = tp      
         elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS!")
+            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS.")
+            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("psi4")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -379,7 +394,12 @@ class BOB:
         All this does is print the valid choices for what_should_BOB_create.
         '''
         print("valid choices for what_should_BOB_create are: ")
-        print(" psi4\n news\n strain\n strain_using_psi4\n strain_using_news\n \n mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
+        print(" psi4\n news\n strain_using_psi4\n strain_using_news")
+        print("For 99% of use cases, you want to either build news or strain_using_news")
+        print("\n\n\nThere are a few extra testing options. THESE SHOULD NOT BE USED UNLESS YOU KNOW WHAT YOU ARE DOING.")
+        print("Most of the options below are BAD ways to build the waveform. They are only here for testing and comparison purposes.")
+        print("strain\n  mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
+    
     def get_correct_Phi_and_Omega(self):
         '''
         This function returns the correct Phi and Omega based on the value of what_should_BOB_create.
@@ -977,7 +997,6 @@ class BOB:
             
 
         '''
-        #at some point I need to rewrite this function completely
         self.construction_parameter_checks()
         #The construction process may change some of the parameters so we will store them and restore them at the end
         old_perform_phase_alignment = self.perform_phase_alignment
@@ -1006,26 +1025,31 @@ class BOB:
         else:
             pass
 
-        #now that the correct Omega0 and Phi0 have been set based on the optimization choices, we can calculate the amplitude and phase
-        self.fitted_Omega0 = self.Omega_0 #if no omega0 optimization takes place, then this should just return omega_isco
-        Phi,Omega = self.get_correct_Phi_and_Omega()
-        phase = np.abs(self.m)*Phi
-        #amp = self.BOB_amplitude_given_Ap(Omega)
-        amp = BOB_terms.BOB_amplitude(self)
-        #in the case we want to do a phase alignment at a finite time
-        if(self.perform_phase_alignment):
-            phase = self.phase_alignment(phase)
 
-        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
 
         if(self.__what_to_create=="strain_using_news"):
-            t,y = convert_to_strain_using_series.generate_strain_from_news_using_series(self)
+            t,y = convert_to_strain_using_series.generate_strain_from_news_using_series(self,N)
             BOB_ts = kuibit_ts(t,y)
-        if(self.__what_to_create=="strain_using_psi4"):
-            t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series(self)
+        elif(self.__what_to_create=="strain_using_psi4"):
+            t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series(self,N)
             BOB_ts = kuibit_ts(t,y)
+        else:
+            #now that the correct Omega0 and Phi0 have been set based on the optimization choices, we can calculate the amplitude and phase
+            self.fitted_Omega0 = self.Omega_0 #if no omega0 optimization takes place, then this should just return omega_isco
+            Phi,Omega = self.get_correct_Phi_and_Omega()
+            phase = np.abs(self.m)*Phi
+
+            #amp = self.BOB_amplitude_given_Ap(Omega)
+            amp = BOB_terms.BOB_amplitude(self)
+
+            BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
             
             
+        
+
+        #if(self.perform_phase_alignment):
+        #    BOB_ts = gen_utils.phase_alignment(BOB_ts,self.phase_alignment_time)
+
 
         #restore old settings
         self.perform_phase_alignment = old_perform_phase_alignment
@@ -1134,16 +1158,19 @@ class BOB:
         self.m = -self.m
         if(self.__what_to_create=="psi4"):
             self.data = self.psi4_mm_data
-            self.Ap = self.psi4_mm_data.abs_max()
-            self.tp = self.psi4_mm_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data)
+            self.Ap = Ap
+            self.tp = tp
         elif(self.__what_to_create=="news"):
             self.data = self.news_mm_data
-            self.Ap = self.news_mm_data.abs_max()
-            self.tp = self.news_mm_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data)
+            self.Ap = Ap
+            self.tp = tp
         elif(self.__what_to_create=="strain"):
             self.data = self.strain_mm_data
-            self.Ap = self.strain_mm_data.abs_max()
-            self.tp = self.strain_mm_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data)
+            self.Ap = Ap
+            self.tp = tp
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
@@ -1227,16 +1254,19 @@ class BOB:
         #restore (l,m) and (l,-m) as automatic data
         if(self.__what_to_create=="psi4"):
             self.data = self.psi4_data
-            self.Ap = self.psi4_data.abs_max()
-            self.tp = self.psi4_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data)
+            self.Ap = Ap
+            self.tp = tp
         elif(self.__what_to_create=="news"):
             self.data = self.news_data
-            self.Ap = self.news_data.abs_max()
-            self.tp = self.news_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data)
+            self.Ap = Ap
+            self.tp = tp
         elif(self.__what_to_create=="strain"):
             self.data = self.strain_data
-            self.Ap = self.strain_data.abs_max()
-            self.tp = self.strain_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data)
+            self.Ap = Ap
+            self.tp = tp
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
         #revert back to the timeseries for the (l,m) mode
@@ -1306,16 +1336,19 @@ class BOB:
         self.m = -self.m
         if(self.__what_to_create=="psi4"):
             self.data = self.psi4_mm_data
-            self.Ap = self.psi4_mm_data.abs_max()
-            self.tp = self.psi4_mm_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data)
+            self.Ap = Ap
+            self.tp = tp
         elif(self.__what_to_create=="news"):
             self.data = self.news_mm_data
-            self.Ap = self.news_mm_data.abs_max()
-            self.tp = self.news_mm_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data)
+            self.Ap = Ap
+            self.tp = tp
         elif(self.__what_to_create=="strain"):
             self.data = self.strain_mm_data
-            self.Ap = self.strain_mm_data.abs_max()
-            self.tp = self.strain_mm_data.time_at_maximum()
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data)
+            self.Ap = Ap
+            self.tp = tp
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
@@ -1444,6 +1477,11 @@ class BOB:
         else:
             BOB_ts = self.construct_BOB_finite_t0(N)
         
+        #calculate the mismatch (without a time grid search) and perform a phase alignment
+        mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.data,0,75,use_trapz = True,return_best_phi0 = True)
+        print("Time domain vacuum mismatch from peak to 75M after the peak (only searched over phase) is",mismatch)
+        BOB_ts = BOB_ts.phase_shifted(-best_phi0)
+
         if("using" in self.__what_to_create):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
                 self.NR_based_on_BOB_ts = self.strain_data.resampled(BOB_ts.t)
@@ -1453,7 +1491,7 @@ class BOB:
             if(BOB_ts.t[0]<self.data.t[0]):
                 raise ValueError("BOB.ts.t[0]"+str(BOB_ts.t[0])+" is less than self.data.t[0]"+str(self.data.t[0]))
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
-
+        
         return BOB_ts.t,BOB_ts.y
     def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.01,verbose=False,inertial_to_coprecessing_transformation=False): 
         '''
