@@ -6,6 +6,7 @@ from scipy.optimize import least_squares, curve_fit, brute, fmin, differential_e
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
 import qnm
+import convert_to_strain_using_series
 try:
     from BackwardsOneBody import BOB_terms
     from BackwardsOneBody import gen_utils
@@ -839,13 +840,13 @@ class BOB:
             amp: Amplitude of the waveform
         '''
         amp = self.Ap/np.cosh(self.t_tp_tau)
-        if(self.__what_to_create=="strain_using_news"):
-            amp = amp/(np.abs(self.m)*Omega)
-            #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
-        if(self.__what_to_create=="strain_using_psi4"):
-            amp = amp/((np.abs(self.m)*Omega)**2)
-        if(self.perform_final_amplitude_rescaling):
-            amp = self.rescale_amplitude(amp)
+        # if(self.__what_to_create=="strain_using_news"):
+        #     amp = amp/(np.abs(self.m)*Omega)
+        #     #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
+        # if(self.__what_to_create=="strain_using_psi4"):
+        #     amp = amp/((np.abs(self.m)*Omega)**2)
+        #if(self.perform_final_amplitude_rescaling):
+        #    amp = self.rescale_amplitude(amp)
         
         return amp 
     def rescale_amplitude(self,amp):
@@ -911,7 +912,7 @@ class BOB:
             raise ValueError("Both optimize_Omega0_and_Phi0 and optimize_Omega0_and_then_Phi0 cannot be True at the same time.")
         if(self.perform_phase_alignment is False and (self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0)):
             raise ValueError("perform_phase_alignment cannot be False at the same time as optimize_Phi0, optimize_Omega0_and_then_Phi0.")
-    def construct_BOB_finite_t0(self):
+    def construct_BOB_finite_t0(self,N):
         '''
         This function is used to construct the BOB for a finite t0 value.
         Attributes:
@@ -942,14 +943,21 @@ class BOB:
         Phi,Omega = self.get_correct_Phi_and_Omega()
         phase = np.abs(self.m)*Phi
 
-        amp = self.BOB_amplitude_given_Ap(Omega)
+        #amp = self.BOB_amplitude_given_Ap(Omega)
+        amp = BOB_terms.BOB_amplitude(self)
+        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
         
+        if(self.__what_to_create=="strain_using_news"):
+            t,y = convert_to_strain_using_series.generate_strain_from_news_using_series_finite_t0(self,N)
+            BOB_ts = kuibit_ts(t,y)
+        elif(self.__what_to_create=="strain_using_psi4"):
+            t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series_finite_t0(self,N)
+            BOB_ts = kuibit_ts(t,y)
         if(self.perform_phase_alignment):
             phase = self.phase_alignment(phase)
         
 
         
-        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
 
         self.perform_phase_alignment = old_perform_phase_alignment
         self.optimize_Phi0 = old_optimize_Phi0
@@ -957,7 +965,7 @@ class BOB:
         self.Omega_0 = self.Omega_ISCO
 
         return BOB_ts
-    def construct_BOB_minf_t0(self):
+    def construct_BOB_minf_t0(self,N):
         '''
         This function is used to construct the BOB taking t0 to be -infinity.
         Attributes:
@@ -999,12 +1007,22 @@ class BOB:
         self.fitted_Omega0 = self.Omega_0 #if no omega0 optimization takes place, then this should just return omega_isco
         Phi,Omega = self.get_correct_Phi_and_Omega()
         phase = np.abs(self.m)*Phi
-        amp = self.BOB_amplitude_given_Ap(Omega)
+        #amp = self.BOB_amplitude_given_Ap(Omega)
+        amp = BOB_terms.BOB_amplitude(self)
         #in the case we want to do a phase alignment at a finite time
         if(self.perform_phase_alignment):
             phase = self.phase_alignment(phase)
 
         BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
+
+        if(self.__what_to_create=="strain_using_news"):
+            t,y = convert_to_strain_using_series.generate_strain_from_news_using_series(self)
+            BOB_ts = kuibit_ts(t,y)
+        if(self.__what_to_create=="strain_using_psi4"):
+            t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series(self)
+            BOB_ts = kuibit_ts(t,y)
+            
+            
 
         #restore old settings
         self.perform_phase_alignment = old_perform_phase_alignment
@@ -1403,7 +1421,7 @@ class BOB:
         
         BOB_mass_wave = mass_wave
         return union_ts,BOB_mass_wave
-    def construct_BOB(self):
+    def construct_BOB(self,N=2):
         '''
         This function is used to construct the BOB timeseries.
         Attributes:
@@ -1419,9 +1437,9 @@ class BOB:
             BOB_ts.y(array): values of BOB
         '''
         if(self.minf_t0):
-            BOB_ts = self.construct_BOB_minf_t0()
+            BOB_ts = self.construct_BOB_minf_t0(N)
         else:
-            BOB_ts = self.construct_BOB_finite_t0()
+            BOB_ts = self.construct_BOB_finite_t0(N)
         
         if("using" in self.__what_to_create):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):

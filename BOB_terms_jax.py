@@ -40,7 +40,7 @@ def BOB_amplitude_jax(t, tau, Ap, t_p):
     Args:
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Ap (sympy.Symbol): Peak Waveform Amplitude
 
     Returns:
@@ -55,7 +55,7 @@ def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
     Args:
         t (sympy.Symbol): Time 
         t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         m (int): Mode number
@@ -75,7 +75,7 @@ def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
     Args:
         t (sympy.Symbol): Time 
         t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
@@ -109,7 +109,7 @@ def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
     Args:
         t (sympy.Symbol): Time 
         t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         m (int): Mode number
@@ -129,7 +129,7 @@ def BOB_strain_freq(t, Omega_0, Omega_QNM, tau, t_p,m):
     Args:
         t (sympy.Symbol): Time 
         t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         m (int): Mode number
@@ -170,7 +170,7 @@ def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
         t (sympy.Symbol): Time 
         t_0 (sympy.Symbol): Initial Condition time
         t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         m (int): Mode number
@@ -193,7 +193,7 @@ def BOB_strain_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
         t (sympy.Symbol): Time 
         t_0 (sympy.Symbol): Initial Condition time
         t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
         Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         m (int): Mode number
@@ -270,12 +270,12 @@ def get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0, omeg
     # Define the base function f₀(t) = A(t) / (i * ω(t))
     def f0_func(time):
         A = A_func(time, tau, Ap, t_p)
-        omega = omega_func(time, Omega_0, Omega_QNM, tau,t_0, t_p, m)
+        omega = omega_func(time, Omega_0, Omega_QNM, tau, t_0, t_p, m)
         return A / (1j * omega)
 
     # Define the operator D's pre-factor g(t) = 1 / (i * ω(t))
     def g_func(time):
-        omega = omega_func(time, Omega_0, Omega_QNM, tau,t_0, t_p, m)
+        omega = omega_func(time, Omega_0, Omega_QNM, tau, t_0, t_p, m)
         return 1.0 / (1j * omega)
 
     # List to hold the functions that compute [f₀, Df₀, D²f₀, ...]
@@ -303,7 +303,6 @@ def get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0, omeg
 def fast_truncated_sum(all_raw_terms):
     """
     Calculates the simple truncated sum from pre-computed raw terms.
-    This function is simple and "flat", making it highly optimizable by JAX.
     
     Args:
         all_raw_terms: 2D array of shape (N+1, n_times) of UNSIGNED terms.
@@ -322,6 +321,15 @@ def calculate_strain_from_news(t, Omega_0, Omega_QNM, tau, Ap, t_p,
                                  omega_func, A_func, m, N):
     # 1. Generate the raw, unsigned derivative terms
     all_raw_terms = get_series_terms_ad(t, Omega_0, Omega_QNM, tau, Ap, t_p,
+                                        omega_func, A_func, m, N)
+    sum = fast_truncated_sum(all_raw_terms)
+    return all_raw_terms,sum
+
+@partial(jit, static_argnames=('omega_func', 'A_func','N'))
+def calculate_strain_from_news_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0,
+                                 omega_func, A_func, m, N):
+    # 1. Generate the raw, unsigned derivative terms
+    all_raw_terms = get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0,
                                         omega_func, A_func, m, N)
     sum = fast_truncated_sum(all_raw_terms)
     return all_raw_terms,sum
@@ -347,14 +355,14 @@ def _build_symbolic_series(base_func, g_func, N_order):
         term_funcs.append(next_func)
     return term_funcs
 
-@partial(jit, static_argnames=('omega_func', 'A_func', 'N', 'M'))
+@partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
 def calculate_strain_from_psi4(t, Omega_0, Omega_QNM, tau, Ap, t_p,
-                                            omega_func, A_func, m, N, M):
+                                            omega_func, A_func, m, N):
     """
     Calculates strain h(t) from Psi4 using a single frequency model for both
     integration steps. This version is streamlined to remove code redundancy.
     """
-    
+    M = N
     # --- Define the single D operator pre-factor ONCE ---
     def g_func(time):
         omega = omega_func(time, Omega_0, Omega_QNM, tau, t_p, m)
@@ -377,6 +385,50 @@ def calculate_strain_from_psi4(t, Omega_0, Omega_QNM, tau, Ap, t_p,
         # The "amplitude" is the full sum from the previous stage
         A_news = news_sum_func(time)
         return A_news / (1j * omega_func(time, Omega_0, Omega_QNM, tau, t_p, m))
+
+    strain_series_term_funcs = _build_symbolic_series(f0_strain_func, g_func, M)
+
+    all_raw_terms_for_strain = jnp.stack(
+        [vmap(f)(t) for f in strain_series_term_funcs]
+    )
+
+    # --- Stage 4: Sum the final terms ---
+    strain_sum = fast_truncated_sum(all_raw_terms_for_strain)
+    
+    #return strain_sum
+
+    return all_raw_terms_for_strain,strain_sum
+
+@partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
+def calculate_strain_from_psi4_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p,
+                                            t_0,omega_func, A_func, m, N):
+    """
+    Calculates strain h(t) from Psi4 using a single frequency model for both
+    integration steps. This version is streamlined to remove code redundancy.
+    """
+    M = N
+    # --- Define the single D operator pre-factor ONCE ---
+    def g_func(time):
+        omega = omega_func(time, Omega_0, Omega_QNM, tau, t_0, t_p, m)
+        return 1.0 / (1j * omega)
+
+    # --- Stage 1: Build the symbolic function for the News sum ---
+    def f0_psi4_func(time):
+        A = A_func(time, tau, Ap, t_p)
+        return A / (1j * omega_func(time, Omega_0, Omega_QNM, tau, t_0, t_p, m))
+
+    news_series_term_funcs = _build_symbolic_series(f0_psi4_func, g_func, N)
+    
+    def news_sum_func(time):
+        terms = jnp.stack([f(time) for f in news_series_term_funcs])
+        signs = jnp.power(-1.0, jnp.arange(N + 1))
+        return jnp.sum(terms * signs)
+
+    # --- Stage 2: Build the symbolic function for the Strain sum ---
+    def f0_strain_func(time):
+        # The "amplitude" is the full sum from the previous stage
+        A_news = news_sum_func(time)
+        return A_news / (1j * omega_func(time, Omega_0, Omega_QNM, tau, t_0, t_p, m))
 
     strain_series_term_funcs = _build_symbolic_series(f0_strain_func, g_func, M)
 
