@@ -1763,7 +1763,7 @@ class BOB:
         
         sign = np.sign(self.chif[2])
         self.chif = np.linalg.norm(self.chif)
-        self.chif_with_sign(sign*self.chif)
+        self.chif_with_sign = sign*self.chif
         self.l = l
         self.m = m
         
