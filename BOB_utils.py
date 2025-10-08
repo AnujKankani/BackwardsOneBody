@@ -140,12 +140,14 @@ class BOB:
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data.abs())
             self.Ap = Ap
             self.tp = tp
+            self.Omega_0 = gen_utils.Omega_0_fit_psi4(self.mf,self.chif_with_sign)
         elif(val=="news" or val=="strain_using_news"):
             self.__what_to_create = val
             self.data = self.news_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data.abs())
             self.Ap = Ap
             self.tp = tp
+            self.Omega_0 = gen_utils.Omega_0_fit_psi4(self.mf,self.chif_with_sign)
         elif(val=="strain"):
             print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN!")
@@ -157,6 +159,7 @@ class BOB:
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
             self.Ap = Ap
             self.tp = tp
+            self.Omega_0 = gen_utils.Omega_0_fit_psi4(self.mf,self.chif_with_sign)
         elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
@@ -1764,33 +1767,7 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-    def initialize_manually(self,mf,chif,l,m,**kwargs):
-        raise ValueError("This function is not operational yet.")
-        '''
-        This function is used to initialize the BOB manually.
-        
-        args:
-            mf(float): final mass of the system
-            chif(array): final spin of the system
-            l(int): Mode number
-            m(int): Mode number
-            **kwargs: additional keyword arguments
-        '''
-        self.mf = mf
-        self.chif = chif
-        if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
-            raise ValueError("Final spin has non-zero x or y component for this data. This is not supported currently")
-        sign = np.sign(self.chif[2])
-        self.chif = np.linalg.norm(self.chif)
-        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
-        self.l = l
-        self.m = m
-        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
-        self.w_r = np.abs(w_r)
-        self.tau = np.abs(tau)
-        self.Omega_QNM = self.w_r/np.abs(self.m)
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+
     def get_psi4_data(self,**kwargs):
         '''
         This function is used to get the NR psi4 data.

@@ -997,6 +997,25 @@ def load_lower_lev_SXS(sim):
     else:
         raise ValueError("only one Level found")
     return sim_lower
+def Omega_0_fit_psi4(Mf,chif_with_sign):
+    #Fits obtained in Kankani and McWilliams (2025)
+    A = 1.42968337
+    B = 0.08424419
+    C = -1.22848524
+    return A*Mf + B*chif_with_sign + C
+def Omega_0_fit_news(Mf,chif_with_sign):
+    #Fits obtained in Kankani and McWilliams (2025)
+    A = 0.33568227
+    B = 0.03450997
+    C = -0.18763176
+    return A*Mf + B*chif_with_sign + C
+def Omega_0_fit_strain(Mf,chif_with_sign):
+    #Fits obtained in Kankani and McWilliams (2025)
+    A = 0.01663248
+    B = 0.01798275
+    C = 0.07882578
+    return A*Mf + B*chif_with_sign + C
+    
 
 
 
