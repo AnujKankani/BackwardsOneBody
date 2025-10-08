@@ -1,8 +1,14 @@
 import jax.numpy as jnp
 import numpy as np
-import BOB_terms_jax
-import BOB_terms
 from jax import config
+
+try:
+    from pyBOB import BOB_terms_jax
+    from pyBOB import BOB_terms
+except:
+    import BOB_terms_jax
+    import BOB_terms
+
 config.update("jax_enable_x64", True)
 
 def generate_strain_from_news_using_series(BOB,N=2):

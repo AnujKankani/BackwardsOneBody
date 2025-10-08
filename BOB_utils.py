@@ -8,8 +8,8 @@ import sxs
 import qnm
 import convert_to_strain_using_series
 try:
-    from BackwardsOneBody import BOB_terms
-    from BackwardsOneBody import gen_utils
+    from pyBOB import BOB_terms
+    from pyBOB import gen_utils
 except:
     import BOB_terms
     import gen_utils
@@ -1721,7 +1721,7 @@ class BOB:
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
     def initialize_with_NR_mode(self,t_NR,y_psi4,y_strain,mf,chif,l=2,m=2,w_r = -1,tau = -1,verbose=False):
-        raise ValueError("This function is not operational yet!")
+        #raise ValueError("This function is not operational yet!")
         '''
         This function is used to initialize the BOB with NR data. Currently this function only supports the input of one (s=-2,l,m) mode.
         Attributes:

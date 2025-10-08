@@ -14,7 +14,7 @@ from functools import partial
 from jax import jit,vmap
 import jax.numpy as jnp
 #uncomment if we want to use cubic spline integration
-import interpax
+#import interpax
 from jax import debug
 #jax.config.update("jax_log_compiles", True)
 
@@ -65,62 +65,62 @@ def mismatch_trapz(
     return mismatch
 
 #uncomment if we want to use cubic spline integration
-@partial(jit, static_argnames=('integration_points'))
-def mismatch_interpax(
-    h1_padded, t1_padded,      #model data  
-    h2_padded, t2_padded,      #nr data          
-    t_peak_nr,               
-    t0_relative, tf_relative,integration_points):
+# @partial(jit, static_argnames=('integration_points'))
+# def mismatch_interpax(
+#     h1_padded, t1_padded,      #model data  
+#     h2_padded, t2_padded,      #nr data          
+#     t_peak_nr,               
+#     t0_relative, tf_relative,integration_points):
 
 
-    t_start_abs = t_peak_nr + t0_relative
-    t_end_abs = t_peak_nr + tf_relative
+#     t_start_abs = t_peak_nr + t0_relative
+#     t_end_abs = t_peak_nr + tf_relative
 
-    t_integ = jnp.linspace(t_start_abs,t_end_abs,integration_points)
+#     t_integ = jnp.linspace(t_start_abs,t_end_abs,integration_points)
 
-    # Resample h2 onto t1's grid.
-    # left=0.0, right=0.0 ensures padded regions outside t2's domain become zero.
-    h1_common = jnp.interp(t_integ,t1_padded,h1_padded, left=0.0, right=0.0)
-    h2_common = jnp.interp(t_integ, t2_padded, h2_padded, left=0.0, right=0.0)
-    h1_integ = jnp.interp(t_integ, t1_padded, h1_padded.real, left=0.0, right=0.0) + \
-          1j * jnp.interp(t_integ, t1_padded, h1_padded.imag, left=0.0, right=0.0)
+#     # Resample h2 onto t1's grid.
+#     # left=0.0, right=0.0 ensures padded regions outside t2's domain become zero.
+#     h1_common = jnp.interp(t_integ,t1_padded,h1_padded, left=0.0, right=0.0)
+#     h2_common = jnp.interp(t_integ, t2_padded, h2_padded, left=0.0, right=0.0)
+#     h1_integ = jnp.interp(t_integ, t1_padded, h1_padded.real, left=0.0, right=0.0) + \
+#           1j * jnp.interp(t_integ, t1_padded, h1_padded.imag, left=0.0, right=0.0)
 
-    h2_integ = jnp.interp(t_integ, t2_padded, h2_padded.real, left=0.0, right=0.0) + \
-          1j * jnp.interp(t_integ, t2_padded, h2_padded.imag, left=0.0, right=0.0)
+#     h2_integ = jnp.interp(t_integ, t2_padded, h2_padded.real, left=0.0, right=0.0) + \
+#           1j * jnp.interp(t_integ, t2_padded, h2_padded.imag, left=0.0, right=0.0)
 
     
-    numerator_integrand = jnp.conj(h1_integ) * h2_integ
-    denom1_integrand = jnp.real(jnp.conj(h1_integ) * h1_integ)
-    denom2_integrand = jnp.real(jnp.conj(h2_integ) * h2_integ)
+#     numerator_integrand = jnp.conj(h1_integ) * h2_integ
+#     denom1_integrand = jnp.real(jnp.conj(h1_integ) * h1_integ)
+#     denom2_integrand = jnp.real(jnp.conj(h2_integ) * h2_integ)
     
-    numerator_integral = interpax.CubicSpline(
-        x = t_integ, 
-        y = numerator_integrand,
-        check=False
-    ).integrate(t_start_abs, t_end_abs)
+#     numerator_integral = interpax.CubicSpline(
+#         x = t_integ, 
+#         y = numerator_integrand,
+#         check=False
+#     ).integrate(t_start_abs, t_end_abs)
 
-    denom1_sq = interpax.CubicSpline(
-        x = t_integ, 
-        y = denom1_integrand,
-        check=False
-    ).integrate(t_start_abs, t_end_abs)
+#     denom1_sq = interpax.CubicSpline(
+#         x = t_integ, 
+#         y = denom1_integrand,
+#         check=False
+#     ).integrate(t_start_abs, t_end_abs)
     
-    denom2_sq = interpax.CubicSpline(
-        x = t_integ, 
-        y = denom2_integrand,
-        check=False
-    ).integrate(t_start_abs, t_end_abs)
+#     denom2_sq = interpax.CubicSpline(
+#         x = t_integ, 
+#         y = denom2_integrand,
+#         check=False
+#     ).integrate(t_start_abs, t_end_abs)
 
-    denominator1 = jnp.sqrt(jnp.real(denom1_sq))
-    denominator2 = jnp.sqrt(jnp.real(denom2_sq))
+#     denominator1 = jnp.sqrt(jnp.real(denom1_sq))
+#     denominator2 = jnp.sqrt(jnp.real(denom2_sq))
     
-    epsilon = 1e-20
-    #we take the absolute value of numerator_integral because that corresponds to the maximum overlap/ideal phase shift
-    maximized_overlap = jnp.abs(numerator_integral) / (denominator1 * denominator2 + epsilon)
-    #best_phi0 = -jnp.angle(numerator_integral)
+#     epsilon = 1e-20
+#     #we take the absolute value of numerator_integral because that corresponds to the maximum overlap/ideal phase shift
+#     maximized_overlap = jnp.abs(numerator_integral) / (denominator1 * denominator2 + epsilon)
+#     #best_phi0 = -jnp.angle(numerator_integral)
     
-    mismatch = 1.0 - maximized_overlap
-    return mismatch
+#     mismatch = 1.0 - maximized_overlap
+#     return mismatch
 
 @partial(jit, static_argnames=('t0', 'tf', 'coarse_window', 'coarse_t_num', 'fine_window', 'fine_t_num','integration_points'))
 def find_best_mismatch_padded(
