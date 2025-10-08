@@ -111,7 +111,6 @@ class BOB:
         #flag to see if a attempted fit failed
         self.fit_failed = False
 
-
     @property
     def what_should_BOB_create(self):
         '''
@@ -134,7 +133,7 @@ class BOB:
             ValueError: If the value is not one of the allowed values
         '''
         val = value.lower()
-        if(val=="psi4" or val=="strain_using_psi4" or val=="news_using_psi4"):
+        if(val=="psi4" or val=="strain_using_psi4"):
             self.__what_to_create = val
             self.data = self.psi4_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data.abs())
@@ -147,6 +146,11 @@ class BOB:
             self.Ap = Ap
             self.tp = tp
         elif(val=="strain"):
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN!")
+            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND CONVERTED TO STRAIN.")
+            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             self.__what_to_create = val
             self.data = self.strain_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
@@ -354,8 +358,6 @@ class BOB:
         self.minf_t0 = False
         self.__optimize_t0 = value
     
-    
-    
     def hello_world(self):
         '''
         '''
@@ -373,7 +375,7 @@ class BOB:
         All this does is print the valid choices for what_should_BOB_create.
         '''
         print("valid choices for what_should_BOB_create are: ")
-        print(" psi4\n news\n strain\n strain_using_psi4\n strain_using_news\n news_using_psi4\n mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
+        print(" psi4\n news\n strain\n strain_using_psi4\n strain_using_news\n \n mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
     def get_correct_Phi_and_Omega(self):
         '''
         This function returns the correct Phi and Omega based on the value of what_should_BOB_create.
@@ -388,7 +390,7 @@ class BOB:
         #Even in the cases of strain_using_news, we still want to use the news frequency in all of the Omega0 optimizations because the analytical news frequency term
         #is built assuming the BOB amplitude best describes the news. While in principle, the accuracy could be improved for strain_using_news (and all X_using_Y cases)
         #by optimizing Omega0 against the NR strain frequency, this would be unphysical.
-        #if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="news_using_psi4" or self.__what_to_create=="mass_quadrupole_with_psi4" or self.__what_to_create=="current_quadrupole_with_psi4"):
+        #if(self.__what_to_create=="psi4" or self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="mass_quadrupole_with_psi4" or self.__what_to_create=="current_quadrupole_with_psi4"):
         if('psi4' in self.__what_to_create):
             if(self.minf_t0 is True):
                 Phi,Omega = BOB_terms.BOB_psi4_phase(self)
@@ -641,8 +643,6 @@ class BOB:
         if("using" in self.__what_to_create):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
                 phase_ts = gen_utils.get_phase(self.strain_data.resampled(self.t))
-            if(self.__what_to_create=="news_using_psi4"):
-                phase_ts = gen_utils.get_phase(self.news_data.resampled(self.t))
         else:
             phase_ts = gen_utils.get_phase(self.data.resampled(self.t))
         
@@ -814,8 +814,6 @@ class BOB:
         #if we are creating strain by constructing BOB for news/psi4, we want to perform the phase alignment on the NR strain data since strain is the final output
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
             temp_ts = self.strain_data
-        elif(self.__what_to_create=="news_using_psi4"):
-            temp_ts = self.news_data
         else:
             temp_ts = self.data
         BOB_t_index = gen_utils.find_nearest_index(self.t,self.phase_alignment_time+self.tp)
@@ -841,7 +839,7 @@ class BOB:
             amp: Amplitude of the waveform
         '''
         amp = self.Ap/np.cosh(self.t_tp_tau)
-        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="news_using_psi4"):
+        if(self.__what_to_create=="strain_using_news"):
             amp = amp/(np.abs(self.m)*Omega)
             #we want to rescale by the maximum amplitude of the strain/news we are actually creating and perform a time alignment
         if(self.__what_to_create=="strain_using_psi4"):
@@ -866,11 +864,6 @@ class BOB:
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
             strain_amp_max = self.strain_data.abs_max()
             rescale_factor = strain_amp_max/np.max(amp)
-            #print("rescale factor is ",rescale_factor)
-            amp = amp*rescale_factor
-        elif(self.__what_to_create=="news_using_psi4"):
-            news_amp_max = self.news_data.abs_max()
-            rescale_factor = news_amp_max/np.max(amp)
             #print("rescale factor is ",rescale_factor)
             amp = amp*rescale_factor
         else:
@@ -898,10 +891,6 @@ class BOB:
         if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
             strain_time_peak = self.strain_data.time_at_maximum()
             delta_t = self.t[amp_peak_index] - strain_time_peak
-            self.t = self.t - delta_t
-        elif(self.__what_to_create=="news_using_psi4"):
-            news_time_peak = self.news_data.time_at_maximum()
-            delta_t = self.t[amp_peak_index] - news_time_peak
             self.t = self.t - delta_t
         else:
             #all other cases should have the amplitude set to the peak NR value by construction
@@ -1437,8 +1426,6 @@ class BOB:
         if("using" in self.__what_to_create):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
                 self.NR_based_on_BOB_ts = self.strain_data.resampled(BOB_ts.t)
-            elif(self.__what_to_create=="news_using_psi4"):
-                self.NR_based_on_BOB_ts = self.news_data.resampled(BOB_ts.t)
         else:
             if(BOB_ts.t[-1]>self.data.t[-1]):
                 raise ValueError("BOB.ts.t[-1]"+str(BOB_ts.t[-1])+" is greater than self.data.t[-1]"+str(self.data.t[-1]))
@@ -1545,7 +1532,6 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-            
     def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.01,verbose=False):
         '''
         This function is used to initialize the BOB with CCE data.
@@ -1675,7 +1661,6 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-
     def initialize_with_NR_mode(self,t_NR,y_psi4,y_strain,mf,chif,l=2,m=2,w_r = -1,tau = -1,verbose=False):
         raise ValueError("This function is not operational yet!")
         '''
@@ -1761,7 +1746,6 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-
     def initialize_manually(self,mf,chif,l,m,**kwargs):
         raise ValueError("This function is not operational yet.")
         '''
