@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import gen_utils
 import numpy as np
 import pytest
-import BOB_utils
+import pyBOB
 
 def BOB_params(initialize , location = "tests/trusted_outputs/BOB_BBH_2325_optimize_psi4.npz"):
     #Default to SXS BBH 2325 Params, Optimize Omega_0 = True if initialize and location are not given
