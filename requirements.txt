@@ -1,7 +1,7 @@
 sxs
-kuibit==1.5.0
-sympy==1.13.3
-qnmfits==2025.3.1
-lalsuite==7.25.1
-pytest==8.4.2
-jax==0.7.1
+kuibit
+sympy
+qnmfits
+lalsuite
+pytest
+jax
