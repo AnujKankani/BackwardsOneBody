@@ -46,7 +46,7 @@ def test_initialize_with_sxs_data():
 
     expected_params = BOB_params("SXS")
 
-    BOB = BOB_utils.BOB()
+    BOB = pyBOB.BOB()
     BOB.initialize_with_sxs_data("SXS:BBH:2325",l=2,m=2,download=False)
     
     BOB.what_should_BOB_create = "psi4"
