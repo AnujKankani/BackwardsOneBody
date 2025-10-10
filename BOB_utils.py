@@ -1612,7 +1612,10 @@ class BOB:
         else:
             abd = provide_own_abd
         print("resampling CCE data to dt = ",self.resample_dt)
-
+        try:
+            self.metadata = abd.metadata
+        except:
+            print("could not find metadata")
         if(perform_superrest_transformation):
             print("Performing superrest transformation")
             print("This may take ~20 minutes the first time")
@@ -1621,7 +1624,7 @@ class BOB:
             h22 = h.data[:,h.index(2,2)]
             h.t -= h.t[np.argmax(np.abs(h22))]
             abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
-        self.metadata = abd.metadata
+        
         #note, the final system may be in a different frame than the initial system if the superrest transformation is performed
         self.M_tot = self.metadata['reference_mass1'] + self.metadata['reference_mass2']
         self.mf = abd.bondi_rest_mass()[-1]
