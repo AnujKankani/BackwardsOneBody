@@ -1,12 +1,9 @@
-import sxs
-import qnm
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import gen_utils
 import numpy as np
-import pytest
-import pyBOB
+import BOB_utils
 
 def BOB_params(initialize , location = "tests/trusted_outputs/BOB_BBH_2325_optimize_psi4.npz"):
     #Default to SXS BBH 2325 Params, Optimize Omega_0 = True if initialize and location are not given
@@ -46,11 +43,11 @@ def test_initialize_with_sxs_data():
 
     expected_params = BOB_params("SXS")
 
-    BOB = pyBOB.BOB()
+    BOB = BOB_utils.BOB()
     BOB.initialize_with_sxs_data("SXS:BBH:2325",l=2,m=2,download=False)
     
     BOB.what_should_BOB_create = "psi4"
-    BOB.optimize_Omega0_and_Phi0 = True
+    BOB.optimize_Omega0 = True
     t_bob_psi4, y_bob_psi4 = BOB.construct_BOB()
     ts_psi4 = kuibit_ts(t_bob_psi4, y_bob_psi4)
 
@@ -58,13 +55,13 @@ def test_initialize_with_sxs_data():
            BOB.Omega_0, BOB.Phi_0, BOB.tau, BOB.Omega_ISCO])
     
     BOB.what_should_BOB_create = "news"
-    BOB.optimize_Omega0_and_Phi0 = True
+    BOB.optimize_Omega0 = True
     t_bob_news, y_bob_news = BOB.construct_BOB()
     ts_news = kuibit_ts(t_bob_news, y_bob_news)
 
     
     BOB.what_should_BOB_create = "strain"
-    BOB.optimize_Omega0_and_Phi0 = True
+    BOB.optimize_Omega0 = True
     t_bob_strain, y_bob_strain = BOB.construct_BOB()
     ts_strain = kuibit_ts(t_bob_strain, y_bob_strain)
 

@@ -17,14 +17,14 @@ def universal_safe_sxs_path_converter(path):
 
 
 sxs.utilities.sxs_path_to_system_path = universal_safe_sxs_path_converter
-print("✅ sxs.utilities.sxs_path_to_system_path has been patched.")
+print("sxs.utilities.sxs_path_to_system_path has been patched.")
 
 
 # Place cache in local repository
 local_cache_path = Path(__file__).parent / "sxs_cache"
 local_cache_path.mkdir(parents=True, exist_ok=True)
 sxs.write_config(cache_directory=str(local_cache_path.resolve()))
-print(f"✅ SXS cache configured at: {local_cache_path.resolve()}")
+print(f"SXS cache configured at: {local_cache_path.resolve()}")
 
 
 print("\nDownloading test simulations...")
@@ -44,5 +44,4 @@ for sim in simulations_to_download:
     except Exception as e:
         print(f"    ERROR: Could not load {sim}. Reason: {e}")
 
-print("\n--- ✅ Test data preparation complete! ---")
-print("You can now commit the 'tests/sxs_cache' directory.")
+print("Test data preparation complete!")
