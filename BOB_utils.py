@@ -1504,6 +1504,8 @@ class BOB:
             m(int): Mode number
             download(bool): Whether to download the data
         '''
+        if(m==0):
+            raise ValueError("m=0 case not implemented yet")
         print("loading SXS data: ",sxs_id)
         sim = sxs.load(sxs_id,download=download)
         ref_time = sim.metadata.reference_time
@@ -1604,12 +1606,15 @@ class BOB:
             inertial_to_coprecessing_transformation(bool): Whether to perform an inertial to coprecessing transformation
             provide_own_abd: Use a user passed in scri abd object (maybe useful if the user has specific pre-processing requirements)
         '''
+        if(m==0):
+            raise ValueError("m=0 case not implemented yet")
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
         print("loading CCE id",cce_id)
 
         if(provide_own_abd is None):
             abd = qnmfits.cce.load(cce_id)
         else:
+            print("We are using the user provided abd object")
             abd = provide_own_abd
         print("resampling CCE data to dt = ",self.resample_dt)
         try:
@@ -1624,9 +1629,11 @@ class BOB:
             h22 = h.data[:,h.index(2,2)]
             h.t -= h.t[np.argmax(np.abs(h22))]
             abd = qnmfits.utils.to_superrest_frame(abd, t0 = 300)
-        
         #note, the final system may be in a different frame than the initial system if the superrest transformation is performed
-        self.M_tot = self.metadata['reference_mass1'] + self.metadata['reference_mass2']
+        try:
+            self.M_tot = self.metadata['reference_mass1'] + self.metadata['reference_mass2']
+        except:
+            print("M_tot is not stored because metadata could not be found.")
         self.mf = abd.bondi_rest_mass()[-1]
         self.chif = abd.bondi_dimensionless_spin()[-1]
         if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
@@ -1741,6 +1748,8 @@ class BOB:
             l(int): Mode number
             m(int): Mode number
         '''
+        if(m==0):
+            raise ValueError("m=0 case not implemented yet")
         if(len(t_NR)!=len(y_psi4)):
             raise ValueError("t_NR and y_psi4 must have the same length")
         if(len(t_NR)!=len(y_strain)):
