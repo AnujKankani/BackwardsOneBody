@@ -1136,9 +1136,14 @@ class BOB:
             BOB_ts = self.construct_BOB_finite_t0(N)
         
         #calculate the mismatch (without a time grid search) and perform a phase alignment
-        mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.data,0,75,use_trapz = True,return_best_phi0 = True)
-        print("Time domain vacuum mismatch from peak to 75M after the peak (only searched over phase) is",mismatch)
-        BOB_ts = BOB_ts.phase_shifted(-best_phi0)
+        if("using" in self.__what_to_create):
+            mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.strain_data,0,75,use_trapz = True,return_best_phi0 = True)
+            print("Time domain vacuum mismatch from peak to 75M after the peak (only searched over phase) is",mismatch)
+            BOB_ts = BOB_ts.phase_shifted(-best_phi0)
+        else:
+            mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.data,0,75,use_trapz = True,return_best_phi0 = True)
+            print("Time domain vacuum mismatch from peak to 75M after the peak (only searched over phase) is",mismatch)
+            BOB_ts = BOB_ts.phase_shifted(-best_phi0)
 
         if("using" in self.__what_to_create):
             if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
