@@ -1,0 +1,11 @@
+sxs
+kuibit
+sympy
+qnmfits
+lalsuite
+pytest
+jax
+sphinx
+sphinx-rtd-theme
+myst-parser
+sphinx-autodoc-typehints
