@@ -26,12 +26,10 @@ class BOB:
         __end_after_tpeak (int): End time after tpeak
         t0 (int): Initial time
         tp (int): Time of congruence convergence 
-        phase_alignment_time (int): Time to perform phase alignment
         what_is_BOB_building (str): What BOB is building
         l (int): l mode
         m (int): m mode
         Phi_0 (float): Initial phase
-        perform_phase_alignment (bool): Whether to perform phase alignment
         resample_dt (float): Resampling time step
         t (numpy.ndarray): Time array
         strain_tp (float): Strain at time of congruence convergence
@@ -72,12 +70,10 @@ class BOB:
         self.t0 = -10
         self.tp = 0
         
-        self.phase_alignment_time = 10
         self.what_is_BOB_building="Nothing"
         self.l = 2
         self.m = 2
         self.Phi_0 = 0
-        self.perform_phase_alignment = True
         self.resample_dt = 0.1
         self.t = np.arange(self.__start_before_tpeak+self.tp,self.__end_after_tpeak+self.tp,self.resample_dt)
         self.strain_tp = None
@@ -87,9 +83,6 @@ class BOB:
         #optimization options
         #by default a least squares optimization is performed
         self.optimize_Omega0 = False
-        self.optimize_Omega0_and_Phi0 = False
-        self.optimize_Phi0 = False
-        self.optimize_Omega0_and_then_Phi0 = False
 
         self.NR_based_on_BOB_ts = None
         self.start_fit_before_tpeak = 0
@@ -273,24 +266,6 @@ class BOB:
         self.Omega_0 = w0/np.abs(self.m)
         self.t0 = self.tp+value
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-
-    @property
-    def set_phase_alignment_time(self):
-        '''
-        '''
-        return self.phase_alignment_time
-    @set_phase_alignment_time.setter
-    def set_phase_alignment_time(self,value):
-        '''
-        This function allows the user to set the phase alignment time. If the value is greater than the end time,
-        the phase alignment time is set to the end time - 5.
-        
-        args:
-            value (float): Phase alignment time
-        '''
-        if(value>self.__end_after_tpeak):
-            print("chosen phase alignment time is later than end time. Aligning at last time step - 5.")
-            self.phase_alignment_time = self.__end_after_tpeak - 5
 
     @property
     def set_start_before_tpeak(self):
@@ -576,31 +551,7 @@ class BOB:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             Omega = np.full_like(self.t,1e10)
         res = np.sum((Omega[start_index:end_index]-freq_data.y[start_data_index:end_data_index])**2)
-        return res
-    def fit_omega_and_phase(self,x,Omega_0,Phi_0):
-        '''
-        This function is used to fit the frequency and phase of the waveform to the data. 
-        Attributes:
-            t (np.ndarray): Time array
-            tp (float): Time of Peak Amplitude
-            tau (float): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        args:
-            x (float): Time
-            Omega_0 (float): Initial frequency
-            Phi_0 (float): Initial phase
-        
-        returns:
-            Phi (float): Phase of the waveform
-        '''
-        #this should never be called if X_using_Y
-        #paramter checks are done in construction functions
-        self.Phi_0 = Phi_0
-        self.Omega_0 = Omega_0
-        start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
-        end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-        Phi,Omega = self.get_correct_Phi_and_Omega()
-        Phi = Phi[start_index:end_index]
-        return Phi   
+        return res 
     def fit_Omega0(self):
         '''
         This function is used to fit the initial angular frequency of the QNM (Omega_0) by fitting the frequency 
@@ -648,86 +599,6 @@ class BOB:
             self.fit_failed = True
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
-    def fit_Phi0(self):
-        '''
-        This function is used to fit the initial phase of the waveform to the data. 
-        Attributes:
-            t (np.ndarray): Time array
-            y (np.ndarray): Frequency array
-            m (int): Mode number
-        
-        '''
-        #whenever we fit Phi0 it is important that everything is sampled on the same self.t timeseries, since that is what will be used to construct BOB
-
-        #This function can be called if using X_using_Y. But phi0 should be fit to X not Y since that is the end quantity we wnat
-        if(self.__end_after_tpeak<self.end_fit_after_tpeak):
-            self.end_fit_after_tpeak = self.__end_after_tpeak
-        
-        #Since we may only want to fit ove a limited sample, we create a temporary time array
-        #if we are using X_using_Y, we need to use the phase of X not Y for the ***NR*** data
-        if("using" in self.__what_to_create):
-            if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
-                phase_ts = gen_utils.get_phase(self.strain_data.resampled(self.t))
-        else:
-            phase_ts = gen_utils.get_phase(self.data.resampled(self.t))
-        
-        phase_ts.y = phase_ts.y/np.abs(self.m)
-
-        Phi,Omega = self.get_correct_Phi_and_Omega()
-
-        Phi = kuibit_ts(self.t,Phi)
-        
-        #since Phi_0 is just a constant, the lsq optimized value is just mean(NR_phase - BOB_phase)
-        #we only want to lsq fit over the fit times determined by the user
-        #but we want to keep the phase calculated over self.t, since that is what will be used to construct BOB
-
-        start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
-        end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-        self.Phi_0 = np.mean(phase_ts.y[start_index:end_index] - Phi.y[start_index:end_index])
-    def fit_Omega0_and_Phi0(self):
-        '''
-        This function is used to fit the initial angular frequency and phase of the QNM (Omega_0 and Phi_0) 
-        by fitting the phase of the data to the QNM phase.
-        Attributes:
-            t (np.ndarray): Time array
-            y (np.ndarray): Frequency array
-            tp (float): Time of Peak Amplitude
-            m (int): Mode number
-            minf_t0 (bool): Whether the initial time is -infinity
-        '''
-        if(self.perform_phase_alignment is False):
-            raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_Phi0")
-        if(self.minf_t0 is False):
-            raise ValueError("You are setup for a finite t0 right now. Omega0 and Phi0 fitting is only defined for t0 = infinity.")
-        if(self.tp+self.__end_after_tpeak<self.tp+self.end_fit_after_tpeak):
-            self.end_fit_after_tpeak = self.__end_after_tpeak
-        
-
-        phase_ts = gen_utils.get_phase(self.data)
-        phase_ts = phase_ts.resampled(self.t)
-        phase_ts.y = phase_ts.y/np.abs(self.m)
-        try:
-            start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
-            end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
-            Phi,Omega = self.get_correct_Phi_and_Omega()
-            popt,pcov = curve_fit(self.fit_omega_and_phase,self.t[start_index:end_index],phase_ts.y[start_index:end_index],p0 = [self.Omega_ISCO,phase_ts.y[start_index]],bounds=([0,-np.inf],[self.Omega_QNM,np.inf]))
-        except:
-            print("fit failed, setting Omega_0 = Omega_ISCO and Phi_0 = 0. Setting perform_phase_alignment=True")
-            self.perform_phase_alignment = True
-            popt = [self.Omega_ISCO,0]
-        self.Omega_0 = popt[0]
-        self.Phi_0 = popt[1]
-    def fit_Omega0_and_then_Phi0(self):
-        '''
-        This function is used to fit the initial angular frequency and phase of the QNM (Omega_0 and Phi_0) 
-        by fitting the phase of the data to the QNM phase. This will first fit for Omega_0 and then fit for Phi_0.
-        
-        '''
-        #This will first fit for Omega_0 and then fit for Phi_0
-        if(self.perform_phase_alignment is False):
-            raise ValueError("perform_phase_alignment must be True for fit_Omega0_and_then_Phi0")
-        self.fit_Omega0()
-        self.fit_Phi0()
     def fit_t0_and_Omega0(self):
         '''
         This function is used to fit the initial time of the waveform to the data. 
@@ -819,34 +690,6 @@ class BOB:
         freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
         t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
         return t_isco - self.tp
-    def phase_alignment(self,phase):
-        '''
-        This function is used to perform phase alignment on the waveform.
-        Attributes:
-            t (np.ndarray): Time array
-            tp (float): Time of Peak Amplitude
-            y (np.ndarray): Frequency array
-            m (int): Mode number
-            phase_alignment_time (float): Time of phase alignment
-
-        args:
-            phase: Phase of the waveform
-        
-        returns:
-            phase: Phase of the waveform after alignment
-        '''
-        
-        #if we are creating strain by constructing BOB for news/psi4, we want to perform the phase alignment on the NR strain data since strain is the final output
-        if(self.__what_to_create=="strain_using_news" or self.__what_to_create=="strain_using_psi4"):
-            temp_ts = self.strain_data
-        else:
-            temp_ts = self.data
-        BOB_t_index = gen_utils.find_nearest_index(self.t,self.phase_alignment_time+self.tp)
-        data_t_index = gen_utils.find_nearest_index(temp_ts.t,self.t[BOB_t_index])
-        data_phase = gen_utils.get_phase(temp_ts)
-        phase_difference = phase[BOB_t_index] - data_phase.y[data_t_index] 
-        phase  = phase - phase_difference
-        return phase
     def BOB_amplitude_given_Ap(self,Omega=0):
         '''
         This function is used to calculate the amplitude of the waveform given the amplitude at the time of congruence convergence.
@@ -920,22 +763,6 @@ class BOB:
         else:
             #all other cases should have the amplitude set to the peak NR value by construction
             pass
-    def construction_parameter_checks(self):
-        '''
-        This function only serves to confirm that the values we receive for the construction parameters are valid.
-        
-        
-        '''
-        #Perform parameter sanity checks
-        if("using" in self.__what_to_create):
-            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
-                raise ValueError("optimize_Omega0_and_Phi0, optimize_Omega0_and_then_Phi0 cannot be True at the same time when building strain using psi4/news or news using psi4.\n\
-                If you want to optimize Omega0 for psi4/news and do a phase alignment on the final strain waveform \n\
-                set optimize_Omega0 = True and optimize_Phi0 = True separately.")
-        if(self.optimize_Omega0_and_Phi0 is True and self.optimize_Omega0_and_then_Phi0 is True):
-            raise ValueError("Both optimize_Omega0_and_Phi0 and optimize_Omega0_and_then_Phi0 cannot be True at the same time.")
-        if(self.perform_phase_alignment is False and (self.optimize_Phi0 or self.optimize_Omega0_and_then_Phi0)):
-            raise ValueError("perform_phase_alignment cannot be False at the same time as optimize_Phi0, optimize_Omega0_and_then_Phi0.")
     def construct_BOB_finite_t0(self,N):
         '''
         This function is used to construct the BOB for a finite t0 value.
@@ -945,11 +772,8 @@ class BOB:
         
         '''
         #Perform parameter sanity checks
-        if(self.optimize_Omega0 or self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
+        if(self.optimize_Omega0):
             raise ValueError("Cannot optimize Omega0 for finite t0 values.")
-
-        old_perform_phase_alignment = self.perform_phase_alignment
-        old_optimize_Phi0 = self.optimize_Phi0
 
         if(self.__optimize_t0_and_Omega0):
             self.fit_t0_and_Omega0()
@@ -957,9 +781,6 @@ class BOB:
             self.fit_t0()
         else:
             pass
-        if(self.optimize_Phi0 is True):
-            self.fit_Phi0()
-            self.perform_phase_alignment = False
         
         phase = None
         self.fitted_t0 = self.t0
@@ -977,14 +798,9 @@ class BOB:
         elif(self.__what_to_create=="strain_using_psi4"):
             t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series_finite_t0(self,N)
             BOB_ts = kuibit_ts(t,y)
-        if(self.perform_phase_alignment):
-            phase = self.phase_alignment(phase)
-        
 
         
 
-        self.perform_phase_alignment = old_perform_phase_alignment
-        self.optimize_Phi0 = old_optimize_Phi0
         self.Phi_0 = 0
         self.Omega_0 = self.Omega_ISCO
 
@@ -998,36 +814,14 @@ class BOB:
             
 
         '''
-        self.construction_parameter_checks()
         #The construction process may change some of the parameters so we will store them and restore them at the end
-        old_perform_phase_alignment = self.perform_phase_alignment
         old_optimize_Omega0 = self.optimize_Omega0
-        old_optimize_Phi0 = self.optimize_Phi0
-        old_optimize_Omega0_and_Phi0 = self.optimize_Omega0_and_Phi0
-        old_optimize_Omega0_and_then_Phi0 = self.optimize_Omega0_and_then_Phi0
         old_t = self.t
 
-        if(self.optimize_Omega0_and_then_Phi0 is True):
-            self.fit_Omega0_and_then_Phi0()
-            self.perform_phase_alignment = False
-        #Omega0 should always be optimized before Phi0
-        #Note: this should identical to the case above for non X_using_Y cases.
-        elif(self.optimize_Omega0 is True):
+        if(self.optimize_Omega0 is True):
             self.fit_Omega0()
-            if(self.optimize_Phi0 is True):
-                self.fit_Phi0()
-                self.perform_phase_alignment = False
-        elif(self.optimize_Phi0 is True):
-            self.fit_Phi0()
-            self.perform_phase_alignment = False
-        elif(self.optimize_Omega0_and_Phi0 is True):
-            self.fit_Omega0_and_Phi0()
-            self.perform_phase_alignment = False
         else:
             pass
-
-
-
         if(self.__what_to_create=="strain_using_news"):
             t,y = convert_to_strain_using_series.generate_strain_from_news_using_series(self,N)
             BOB_ts = kuibit_ts(t,y)
@@ -1048,17 +842,10 @@ class BOB:
             
         
 
-        #if(self.perform_phase_alignment):
-        #    BOB_ts = gen_utils.phase_alignment(BOB_ts,self.phase_alignment_time)
-
-
         #restore old settings
-        self.perform_phase_alignment = old_perform_phase_alignment
-        self.optimize_Phi0 = old_optimize_Phi0
-        self.optimize_Omega0_and_Phi0 = old_optimize_Omega0_and_Phi0
-        self.optimize_Omega0_and_then_Phi0 = old_optimize_Omega0_and_then_Phi0
         self.optimize_Omega0 = old_optimize_Omega0
         self.Phi_0 = 0
+        #we keep the existing Omega_0
         #self.Omega_0 = self.Omega_ISCO
         self.t = old_t
         return BOB_ts
@@ -1123,24 +910,6 @@ class BOB:
         #Comstruct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
         #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
 
-        #perform_phase_alignment_first tells us whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
-
-        #Parameter check
-        if(perform_phase_alignment_first is False):
-            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
-                raise ValueError("Cannot perform phase alignment on the final mass wave and optimize Omega0 and Phi0 at the same time.\n \
-                If you want to optimize Omega0 for the (l,+/-m) modes and do a phase alignment on the final mass wave \n\
-                set optimize_Omega0 = True and optimize_Phi0 = True.")
-        
-        #save current settings if we want to perform phase_alignment on the final mass wave
-        #This and the parameter check above will disable all phase alignment options when constructing the (l,+/-m) modes
-        if(perform_phase_alignment_first is False):
-            old_perform_phase_alignment = self.perform_phase_alignment
-            self.perform_phase_alignment = False
-
-            old_optimize_Phi0 = self.optimize_Phi0
-            self.optimize_Phi0 = False
-        
         #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
         #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
 
@@ -1152,8 +921,6 @@ class BOB:
         #save settings to restore at the end
         old_ts = self.t
         old_m = self.m
-        old_perform_phase_alignment = self.perform_phase_alignment
-        old_optimize_Phi0 = self.optimize_Phi0
         
         #construct (l,-m) mode
         self.m = -self.m
@@ -1211,46 +978,11 @@ class BOB:
 
 
 
-        #restore the old settings and use the user choices to perform the appropriate phase alignment on the mass wave
-        #Note we purposely don't allow phase alignments on the (l,+/-m) modes and the mass wave since that is using NR data twice for what is one free parameter
-        if(perform_phase_alignment_first is False):
-            self.perform_phase_alignment = old_perform_phase_alignment
-            self.optimize_Phi0 = old_optimize_Phi0
 
         temp_ts = kuibit_ts(union_ts,current_wave)
         t_peak = temp_ts.time_at_maximum()
         BOB_phase = gen_utils.get_phase(temp_ts)
         NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_current))
-
-        #TODO: fix this
-        
-        # if(self.perform_phase_alignment):
-        #     if(self.optimize_Phi0):
-        #         #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
-        #         #the peak time is chosen to be the peak time of the mass wave
-        #         temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
-        #         temp_NR_phase = NR_phase.resampled(temp_ts)
-        #         temp_BOB_phase = BOB_phase.resampled(temp_ts)
-                
-        #         #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
-        #         self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
-        #         BOB_phase.y = BOB_phase.y + self.Phi_0
-        #         BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
-
-                
-        #     else:
-        #         raise ValueError("Phase alignment for quadrupole requires optimize_Phi0 to be True")
-        #         #temporary work around
-        #         # self.Phi_0 = 0
-        #         # old_data = self.data
-        #         # self.data = self.current_wave_data
-        #         # phase = self.phase_alignment(BOB_phase.y)
-        #         # self.data = old_data
-        #         # BOB_phase.y = phase
-        #         # BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
-            
-        # else:
-        #     BOB_current_wave = np.abs(current_wave)*np.exp(-1j*BOB_phase.y)
 
         #restore (l,m) and (l,-m) as automatic data
         if(self.__what_to_create=="psi4"):
@@ -1274,8 +1006,6 @@ class BOB:
         self.t = old_ts
         self.m = old_m
         self.t_tp_tau = (self.t - self.tp)/self.tau
-        self.perform_phase_alignment = old_perform_phase_alignment
-        self.optimize_Phi0 = old_optimize_Phi0
         self.Phi_0 = 0
         
         BOB_current_wave = current_wave
@@ -1302,24 +1032,6 @@ class BOB:
         #Comstruct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
         #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
 
-        #perform_phase_alignment_first tells us whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
-
-        #Parameter check
-        if(perform_phase_alignment_first is False):
-            if(self.optimize_Omega0_and_Phi0 or self.optimize_Omega0_and_then_Phi0):
-                raise ValueError("Cannot perform phase alignment on the final mass wave and optimize Omega0 and Phi0 at the same time.\n \
-                If you want to optimize Omega0 for the (l,+/-m) modes and do a phase alignment on the final mass wave \n\
-                set optimize_Omega0 = True and optimize_Phi0 = True.")
-        
-        #save current settings if we want to perform phase_alignment on the final mass wave
-        #This and the parameter check above will disable all phase alignment options when constructing the (l,+/-m) modes
-        if(perform_phase_alignment_first is False):
-            old_perform_phase_alignment = self.perform_phase_alignment
-            self.perform_phase_alignment = False
-
-            old_optimize_Phi0 = self.optimize_Phi0
-            self.optimize_Phi0 = False
-        
         #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
         #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
         if(lm_Omega0 is not None):
@@ -1330,8 +1042,7 @@ class BOB:
         #save settings to restore at the end
         old_ts = self.t
         old_m = self.m
-        old_perform_phase_alignment = self.perform_phase_alignment
-        old_optimize_Phi0 = self.optimize_Phi0
+
         
         #construct (l,-m) mode
         self.m = -self.m
@@ -1386,53 +1097,6 @@ class BOB:
 
         self.mass_quadrupole_data = kuibit_ts(union_ts,NR_mass)
 
-        #restore the old settings and use the user choices to perform the appropriate phase alignment on the mass wave
-        #Note we purposely don't allow phase alignments on the (l,+/-m) modes and the mass wave since that is using NR data twice for what is one free parameter
-        if(perform_phase_alignment_first is False):
-            self.perform_phase_alignment = old_perform_phase_alignment
-            self.optimize_Phi0 = old_optimize_Phi0
-
-        #TODO: fix this
-
-        # temp_ts = kuibit_ts(union_ts,mass_wave)
-        # t_peak = temp_ts.time_at_maximum()
-        # BOB_phase = gen_utils.get_phase(temp_ts)
-        # NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_mass))
-
-        # if(self.perform_phase_alignment):
-        #     if(self.optimize_Phi0):
-        #         #this will set self.Phi_0 to a least squares optimized value compared to the NR mass wave
-        #         #the peak time is chosen to be the peak time of the mass wave
-        #         #temp_ts = np.linspace(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,int(self.end_fit_after_tpeak-self.start_fit_before_tpeak)*10 + 1)
-        #         if(NR_phase.t[-1]<t_peak+self.end_fit_after_tpeak):
-        #             print("NR_phase.t[0],NR_phase.t[-1] = ",NR_phase.t[0],NR_phase.t[-1])
-        #             print("t_peak + self.end_fit_after_tpeak = ",t_peak + self.end_fit_after_tpeak)
-        #             raise ValueError("NR mass wave ends before the end of the fit region")
-        #         else:
-        #             temp_ts = np.arange(t_peak + self.start_fit_before_tpeak,t_peak + self.end_fit_after_tpeak,self.resample_dt)
-        #         temp_NR_phase = NR_phase.resampled(temp_ts)
-        #         temp_BOB_phase = BOB_phase.resampled(temp_ts)
-                
-        #         #since Phi_0 is just a constant the lsq optimized value is just mean(NR_phase - BOB_phase)
-        #         self.Phi_0 = np.mean(temp_NR_phase.y - temp_BOB_phase.y)
-        #         BOB_phase.y = BOB_phase.y + self.Phi_0
-        #         BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
-                
-        #     else:
-        #         raise ValueError("Mass quadrupole construction requires optimize_Phi0 = True")
-                    
-        #         # #temporary work around
-        #         # self.Phi_0 = 0
-        #         # old_data = self.data
-        #         # self.data = self.mass_wave_data
-        #         # phase = self.phase_alignment(BOB_phase.y)
-        #         # self.data = old_data
-        #         # BOB_phase.y = phase
-        #         # BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*BOB_phase.y)
-            
-        # else:
-        #     BOB_mass_wave = np.abs(mass_wave)*np.exp(-1j*np.sign(self.m)*BOB_phase.y)
-
         #restore (l,m) and (l,-m) as automatic data
         if(self.__what_to_create=="psi4"):
             self.data = self.psi4_data
@@ -1452,8 +1116,6 @@ class BOB:
         self.t = old_ts
         self.m = old_m
         self.t_tp_tau = (self.t - self.tp)/self.tau
-        self.perform_phase_alignment = old_perform_phase_alignment
-        self.optimize_Phi0 = old_optimize_Phi0
         self.Phi_0 = 0
         
         BOB_mass_wave = mass_wave
@@ -1819,7 +1481,6 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-
     def get_psi4_data(self,**kwargs):
         '''
         This function is used to get the NR psi4 data.
