@@ -6,14 +6,9 @@ from scipy.optimize import least_squares, curve_fit, brute, fmin, differential_e
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
 import qnm
-try:
-    from pyBOB import BOB_terms
-    from pyBOB import gen_utils
-    from pyBOB import convert_to_strain_using_series
-except:
-    import BOB_terms
-    import gen_utils
-    import convert_to_strain_using_series
+from gwBOB import BOB_terms
+from gwBOB import gen_utils
+from gwBOB import convert_to_strain_using_series
 
 class BOB:
     '''
