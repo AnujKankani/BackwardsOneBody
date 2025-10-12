@@ -8,7 +8,7 @@ import sxs
 import scri
 import pytest
 
-file_prefix = "."
+file_prefix = "./tests"
 @pytest.fixture(scope="session")
 def BOB_cce():
     wf_paths = {}
