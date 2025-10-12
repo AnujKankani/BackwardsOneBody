@@ -1,14 +1,15 @@
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-import gen_utils
+from gwBOB import gen_utils
 import numpy as np
-import BOB_utils
+from gwBOB import BOB_utils
 import sxs
 import scri
 import pytest
 
-file_prefix = "./tests"
+#file_prefix = "./tests"
+file_prefix = "."
 @pytest.fixture(scope="session")
 def BOB_cce():
     wf_paths = {}

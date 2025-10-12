@@ -5,8 +5,8 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-import BOB_utils 
-import gen_utils
+from gwBOB import BOB_utils 
+from gwBOB import gen_utils
 home = os.path.expanduser("~")
 prefix = os.path.join(os.getcwd(), "trusted_outputs")
 
