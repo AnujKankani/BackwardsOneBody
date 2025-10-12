@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import BOB_utils 
 import gen_utils
 home = os.path.expanduser("~")
-prefix = os.path.join(os.getcwd(), "tests/trusted_outputs")
+prefix = os.path.join(os.getcwd(), "trusted_outputs")
 
 os.makedirs(prefix, exist_ok=True)
 
@@ -122,5 +122,5 @@ def generate_trusted_values_cce():
     
 
 if __name__ == "__main__":
-    #generate_trusted_values_sxs()
+    generate_trusted_values_sxs()
     generate_trusted_values_cce()

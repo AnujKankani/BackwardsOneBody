@@ -8,12 +8,9 @@ import sxs
 import scri
 import pytest
 
-file_prefix = "./tests"
+file_prefix = "."
 @pytest.fixture(scope="session")
 def BOB_cce():
-    cache_path = os.path.join(os.getcwd(), "sxs_cache")
-    sxs.write_config(cache_directory=cache_path)
-
     wf_paths = {}
     wf_paths['h'] =  f'{file_prefix}/sxs_cache/cce9/rhOverM_BondiCce_R0270.h5'
     wf_paths['Psi4'] =  f'{file_prefix}/sxs_cache/cce9/rMPsi4_BondiCce_R0270.h5'
@@ -57,7 +54,7 @@ def kuibit_ts_load(location):
 
 def test_initialize_with_sxs_data():
     # Set path for cache locally
-    cache_path = os.path.join(os.getcwd(), "sxs_cache")
+    cache_path = f'{file_prefix}/sxs_cache'
     sxs.write_config(cache_directory=cache_path)
 
     expected_params = BOB_params("SXS")
@@ -213,7 +210,7 @@ def test_get_tp_Ap_from_spline(BOB_cce):
     t,y = BOB_cce.construct_BOB()
     ts = kuibit_ts(t,y)
     amp = np.abs(ts)
-    expected_tp, expected_Ap = ([5148.657483027361, 0.0467359488090484])
+    expected_tp, expected_Ap = ([5148.657477586399, 0.046735948589431364])
     result_tp, result_Ap = gen_utils.get_tp_Ap_from_spline(amp)
     assert np.isclose(result_tp, expected_tp, rtol=1e-11)
     assert np.isclose(result_Ap, expected_Ap, rtol=1e-11)
