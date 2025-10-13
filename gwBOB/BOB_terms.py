@@ -3,7 +3,7 @@ from scipy.special import expi as Ei_np
 from scipy.integrate import cumulative_trapezoid
 import sympy as sp
 from sympy import Ei as Ei_sp
-#hi
+#hello
 def define_BOB_symbols():
     t, t0, tp, tau = sp.symbols('t t0 tp tau', real=True)
     Omega0, Omega_QNM, Ap, Phi_0 = sp.symbols('Omega0 Omega_QNM Ap Phi_0', positive=True)
