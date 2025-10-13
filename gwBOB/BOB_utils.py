@@ -20,16 +20,16 @@ class BOB:
         __start_before_tpeak (int): Start time before tpeak
         __end_after_tpeak (int): End time after tpeak
         t0 (int): Initial time
-        tp (int): Time of congruence convergence 
+        tp (int): Time of peak amplitude 
         what_is_BOB_building (str): What BOB is building
         l (int): l mode
         m (int): m mode
         Phi_0 (float): Initial phase
         resample_dt (float): Resampling time step
         t (numpy.ndarray): Time array
-        strain_tp (float): Strain at time of congruence convergence
-        news_tp (float): News at time of congruence convergence
-        psi4_tp (float): Weyl Scalar at time of congruence convergence
+        strain_tp (float): Strain at time of peak amplitude
+        news_tp (float): News at time of peak amplitude
+        psi4_tp (float): Weyl Scalar at time of peak amplitude
         optimize_Omega0 (bool): Whether to optimize Omega0
         optimize_Omega0_and_Phi0 (bool): Whether to optimize Omega0 and Phi0
         optimize_Phi0 (bool): Whether to optimize Phi0
@@ -114,6 +114,7 @@ class BOB:
         "strain" or "news" or "psi4" or "mass_quadrupole" or "current_quadrupole" or "mass_quadrupole_with_strain" 
         or "current_quadrupole_with_strain" or "mass_quadrupole_with_news" or "current_quadrupole_with_news" 
         or "mass_quadrupole_with_psi4" or "current_quadrupole_with_psi4".
+
         Attributes:
             tp (float): Time of Peak Amplitude
             Ap (float): Peak Waveform Amplitude
@@ -230,6 +231,7 @@ class BOB:
         indicates whether to set the frequency using the strain data. If the "value" is a
         float, the initial time is set to the value and the frequency is set using the
         data specified by "what_should_BOB_create".
+
         Attributes:
             t (np.ndarray): Time array
             y (np.ndarray): Data array
@@ -273,6 +275,7 @@ class BOB:
         '''
         This function allows the user to set the start time before the peak. The start time is set to the value
         specified by the user.
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -296,6 +299,7 @@ class BOB:
         '''
         This function allows the user to set the end time after the peak. The end time is set to the value
         specified by the user.
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -410,6 +414,7 @@ class BOB:
     def fit_omega(self,x,Omega_0):
         '''
         This function is used to fit the frequency of the waveform to the data. 
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -438,6 +443,7 @@ class BOB:
     def fit_t0_and_omega(self,x,t0,Omega_0):
         '''
         This function is used to fit the initial time and frequency of the waveform to the data. 
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -472,6 +478,7 @@ class BOB:
     def residual_t0_and_omega(self,p,t_freq,y_freq):
         '''
         This function is used to calculate the residuals of the input data with respect to the BOB waveform. 
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -513,6 +520,7 @@ class BOB:
     def fit_t0_only(self,t00,freq_data):
         '''
         This function is used to fit the initial time of the waveform to the data. 
+
         Attributes:
             t (np.ndarray): Time array
             y (np.ndarray): Frequency array
@@ -551,6 +559,7 @@ class BOB:
         '''
         This function is used to fit the initial angular frequency of the QNM (Omega_0) by fitting the frequency 
         of the data to the QNM frequency. Only works for t0 = -infinity.
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -597,6 +606,7 @@ class BOB:
     def fit_t0_and_Omega0(self):
         '''
         This function is used to fit the initial time of the waveform to the data. 
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -641,6 +651,7 @@ class BOB:
     def fit_t0(self):
         '''
         This function is used to fit the initial time of the waveform to the data. 
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -670,6 +681,7 @@ class BOB:
     def get_t_isco(self):
         '''
         This function is used to get the time of the ISCO of the waveform.
+        
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -687,7 +699,8 @@ class BOB:
         return t_isco - self.tp
     def BOB_amplitude_given_Ap(self,Omega=0):
         '''
-        This function is used to calculate the amplitude of the waveform given the amplitude at the time of congruence convergence.
+        This function is used to calculate the amplitude of the waveform given the amplitude at the time of peak amplitude.
+
         Attributes:
             t (np.ndarray): Time array
             tp (float): Time of Peak Amplitude
@@ -736,6 +749,7 @@ class BOB:
     def realign_amplitude(self,amp):
         '''
         This function is used to realign the amplitude of the waveform.
+
         Attributes:
             t (np.ndarray): Time array
             
@@ -761,6 +775,7 @@ class BOB:
     def construct_BOB_finite_t0(self,N):
         '''
         This function is used to construct the BOB for a finite t0 value.
+
         Attributes:
             t0 (float): Initial Condition time
             
@@ -803,6 +818,7 @@ class BOB:
     def construct_BOB_minf_t0(self,N):
         '''
         This function is used to construct the BOB taking t0 to be -infinity.
+
         Attributes:
             t (np.ndarray): Time array
             
@@ -847,6 +863,7 @@ class BOB:
     def construct_NR_mass_and_current_quadrupole(self,what_to_create):
         '''
         This function is used to construct the mass and current quadrupole waves from the NR data.
+
         Attributes:
             t (np.ndarray): Time array
             y (np.ndarray): Strain data
@@ -885,6 +902,7 @@ class BOB:
         '''
         This function is used to construct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  
         by building the (l,+/-m) modes for BOB first.
+
         Attributes:
             t (np.ndarray): Time array
             y (np.ndarray): Strain data
@@ -1009,6 +1027,7 @@ class BOB:
         '''
         This function is used to construct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  
         by building the (l,+/-m) modes for BOB first.
+
         Attributes:
             t (np.ndarray): Time array
             y (np.ndarray): Strain data
@@ -1118,6 +1137,7 @@ class BOB:
     def construct_BOB(self,N=2):
         '''
         This function is used to construct the BOB timeseries.
+
         Attributes:
             t (np.ndarray): Time array
             y (np.ndarray): Strain data
@@ -1397,6 +1417,7 @@ class BOB:
         #raise ValueError("This function is not operational yet!")
         '''
         This function is used to initialize the BOB with NR data. Currently this function only supports the input of one (s=-2,l,m) mode.
+
         Attributes:
             tau(float): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
             Ap(float): Amplitude at time of peak amplitude

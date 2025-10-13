@@ -11,7 +11,7 @@ from numpy import trapz
 from scipy.interpolate import CubicSpline
 import sxs
 
-
+n10to10=np.arange(-10,10,0.1)
 
 #some useful functions
 def find_nearest_index(array, value):
@@ -324,7 +324,7 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
         return 1.-max_mismatch,best_phi0
     return 1.-max_mismatch   
 def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
-                           t_shift_range=np.arange(-10,10,0.1),return_best_t_and_phi0=False):
+                           t_shift_range=n10to10,return_best_t_and_phi0=False):
     '''
     Search over time shifts to minimize mismatch between model and reference.
 
@@ -412,7 +412,7 @@ def estimate_parameters(BOB,
                         include_2Omega0_as_parameters=False,
                         perform_phase_alignment_first=False,
                         start_with_wide_search = False,
-                        t_shift_range=np.arange(-10,10,0.1)):
+                        t_shift_range=n10to10):
     '''
     Estimate BOB parameters by minimizing mismatch against NR data.
 

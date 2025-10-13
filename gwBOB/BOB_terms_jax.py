@@ -52,6 +52,7 @@ def BOB_amplitude_jax(t, tau, Ap, t_p):
 def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
     '''
     Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+
     Args:
         t (sympy.Symbol): Time 
         t_p (sympy.Symbol): Time of peak amplitude
@@ -72,6 +73,7 @@ def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
 def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
     '''
     Returns phase of news and its frequency
+
     Args:
         t (sympy.Symbol): Time 
         t_p (sympy.Symbol): Time of peak amplitude
@@ -166,6 +168,7 @@ def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
     Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+    
     Args:
         t (sympy.Symbol): Time 
         t_0 (sympy.Symbol): Initial Condition time
