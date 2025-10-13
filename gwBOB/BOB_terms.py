@@ -3,7 +3,9 @@ from scipy.special import expi as Ei_np
 from scipy.integrate import cumulative_trapezoid
 import sympy as sp
 from sympy import Ei as Ei_sp
-
+"""
+hello
+"""
 def define_BOB_symbols():
     t, t0, tp, tau = sp.symbols('t t0 tp tau', real=True)
     Omega0, Omega_QNM, Ap, Phi_0 = sp.symbols('Omega0 Omega_QNM Ap Phi_0', positive=True)
@@ -50,6 +52,7 @@ def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
 def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
     '''
     Eq. 10 in https://arxiv.org/abs/1810.00040; returns both Phi and Omega_lm
+
     Args:
         t (sympy.Symbol): Time 
         t0 (sympy.Symbol): Initial Condition time
@@ -81,6 +84,7 @@ def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     '''
     Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+
     Args:
         t (sympy.Symbol): Time 
         t0 (sympy.Symbol): Initial Condition time
@@ -101,6 +105,7 @@ def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
 def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
     '''
     Returns phase of news and its frequency
+
     Args:
         t (sympy.Symbol): Time 
         t0 (sympy.Symbol): Initial Condition time
@@ -188,6 +193,7 @@ def BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau):
 def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
     '''
     Eq. 10 in https://arxiv.org/abs/1810.00040; returns both Phi and Omega_lm
+
     Args:
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
@@ -211,6 +217,7 @@ def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
 def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
     '''
     Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+
     Args:
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
@@ -230,6 +237,7 @@ def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
 def BOB_news_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
     '''
     Returns phase of news and its frequency
+
     Args:
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
@@ -337,6 +345,7 @@ def BOB_strain_phase_finite_t0_numerically(BOB):
 def BOB_strain_phase_finite_t0(BOB):
     '''
     Returns both the phase and frequency of the BOB waveform strain
+
     Args:
         BOB: BOB object
 
@@ -366,6 +375,7 @@ def BOB_strain_phase_finite_t0(BOB):
 def BOB_news_freq_finite_t0(BOB):
     '''
     Returns frequency of news
+
     Args:
         BOB: BOB object
 
@@ -382,6 +392,7 @@ def BOB_news_freq_finite_t0(BOB):
 def BOB_news_phase_finite_t0_numerically(BOB):
     '''
     Returns phase of news and its frequency
+
     Args:
         BOB: BOB object
 
@@ -396,6 +407,7 @@ def BOB_news_phase_finite_t0_numerically(BOB):
 def BOB_news_phase_finite_t0(BOB):
     '''
     Returns phase of news and its frequency
+
     Args:
         BOB: BOB object
 
@@ -422,6 +434,7 @@ def BOB_news_phase_finite_t0(BOB):
 def BOB_psi4_freq_finite_t0(BOB):
     '''
     Returns frequency of the Weyl Scalar (psi_4)
+
     Args:
         BOB: BOB object
 
@@ -438,6 +451,7 @@ def BOB_psi4_freq_finite_t0(BOB):
 def BOB_psi4_phase_finite_t0_numerically(BOB):
     '''
     Returns both the phase and frequency of the Weyl Scalar (psi_4)
+
     Args:
         BOB: BOB object
 
@@ -452,6 +466,7 @@ def BOB_psi4_phase_finite_t0_numerically(BOB):
 def BOB_psi4_phase_finite_t0(BOB):
     '''
     Returns both the phase and frequency of the Weyl Scalar (psi_4)
+
     Args:
         BOB: BOB object
     Returns:
@@ -481,6 +496,7 @@ def BOB_psi4_phase_finite_t0(BOB):
 def BOB_strain_freq(BOB):
     '''
     Returns the frequency of the BOB waveform strain
+
     Args:
         BOB: BOB object
 
@@ -495,6 +511,7 @@ def BOB_strain_freq(BOB):
 def BOB_strain_phase(BOB):
     '''
     Returns both the phase and frequency of the BOB waveform strain
+
     Args:
         BOB: BOB object
 
@@ -514,6 +531,7 @@ def BOB_strain_phase(BOB):
 def BOB_news_freq(BOB):
     '''
     Returns the frequency of the BOB waveform news
+
     Args:
         BOB: BOB object
 
@@ -529,6 +547,7 @@ def BOB_news_freq(BOB):
 def BOB_news_phase(BOB):
     '''
     Returns both the phase and frequency of the BOB waveform news
+
     Args:
         BOB: BOB object
 
@@ -548,6 +567,7 @@ def BOB_news_phase(BOB):
 def BOB_psi4_freq(BOB):
     '''
     Returns the frequency of the BOB waveform Weyl Scalar (psi_4)
+
     Args:
         BOB: BOB object
 
@@ -562,6 +582,7 @@ def BOB_psi4_freq(BOB):
 def BOB_psi4_phase(BOB):        
     '''
     Returns both the phase and frequency of the BOB waveform Weyl Scalar (psi_4)
+    
     Args:
         BOB: BOB object
 
