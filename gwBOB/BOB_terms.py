@@ -7,7 +7,7 @@ from sympy import Ei as Ei_sp
 hello
 """
 def define_BOB_symbols():
-     t0, tp, tau = sp.symbols('t t0 tp tau', real=True)
+    t, t0, tp, tau = sp.symbols('t t0 tp tau', real=True)
     Omega0, Omega_QNM, Ap, Phi_0 = sp.symbols('Omega0 Omega_QNM Ap Phi_0', positive=True)
     return t, t0, tp, tau, Omega0, Omega_QNM, Ap, Phi_0
 
