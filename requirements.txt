@@ -2,7 +2,6 @@ sxs
 kuibit
 sympy
 qnmfits
-lalsuite
 pytest
 jax
 sphinx

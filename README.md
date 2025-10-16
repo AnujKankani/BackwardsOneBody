@@ -1,5 +1,7 @@
 (Code in Development)
 ---
+Please see more detailed documentation here (https://backwardsonebody.readthedocs.io/en/latest/index.html)!
+
 
 ## What is the Backwards One Body Model?
 
@@ -34,7 +36,7 @@ The BOB model provides a powerful, physically motivated, and computationally eff
 - [`sxs`](https://github.com/sxs-collaboration/sxs)
 - [`qnmfits`](https://github.com/sxs-collaboration/qnmfits) 
 - [`jax`] (install the GPU compatible version if possible)
-- [`scri`]
+- [`scri`] (https://github.com/moble/scri)
 - [`sympy`]
 - [`numpy`] >2.0 (there is a kuibit incompatibility warning, numpy >2.0 does not cause issues.)
 - [`scipy`]
