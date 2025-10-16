@@ -35,33 +35,36 @@ def convert_BOB_to_JAXBOB(BOB):
 
 def BOB_amplitude_jax(t, tau, Ap, t_p):
     '''
+    BOB amplitude evolution
+
     Eq.5 in https://arxiv.org/abs/1810.00040
 
     Args:
-        t (sympy.Symbol): Time 
-        tp (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Ap (sympy.Symbol): Peak Waveform Amplitude
+        t : Time 
+        tp : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak Waveform Amplitude
 
     Returns:
-        A: Waveform amplitude at time t
+        A(t) : Waveform amplitude at time t
     '''
     tt = (t - t_p) / tau
     return Ap / jnp.cosh(tt)
 
 def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
     '''
-    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+    Waveform frequency for the news when the BOB amplitude models the news (taking t_0 = -inf)
+
     Args:
-        t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        t : Time 
+        t_p : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
         m (int): Mode number
 
     Returns:
-        omega: News (first time derivative of strain) frequency at time t (Omega*m)
+        omega - News waveform frequency
     '''
     tt = (t - t_p) / tau
     Omega_minus = Omega_QNM**2 - Omega_0**2
@@ -71,19 +74,21 @@ def BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m):
 
 def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
     '''
-    Returns phase of news and its frequency
+    Waveform phase for the news when the BOB amplitude models the news (taking t_0 = -inf)
+
     Args:
-        t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
-        Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
+        t : Time 
+        t_p : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        Phi_0 : Initial Condition Phase (phi)/(mode number)
         m (int): Mode number
 
     Returns:
-        phase: News (first time derivative of strain) phase at time t (Phi*m)
-        omega: News (first time derivative of strain) frequency at time t (Omega*m)
+        phi - News waveform phase
+
+        omega - News waveform frequency
     '''
     omega = BOB_news_freq_jax(t, Omega_0, Omega_QNM, tau, t_p, m) #news_freq_jax returns little omega
     Omega = omega/m
@@ -106,16 +111,18 @@ def BOB_news_phase_jax(t, Omega_0, Omega_QNM, tau, t_p, Phi_0, m=2):
     return phase,omega
 def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
     '''
+    Waveform frequency for psi4 when assuming the BOB amplitude best models psi4 (taking t_0 = -inf)
+
     Args:
-        t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        t : Time 
+        t_p : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
         m (int): Mode number
 
     Returns:
-        omega: Weyl Scalar (psi_4) frequency at time t (Omega*m)
+        omega - Psi4 waveform frequency
     '''
     tt = (t - t_p) / tau
     k = (Omega_QNM**4 - Omega_0**4) / 2.0
@@ -124,18 +131,18 @@ def BOB_psi4_freq_jax(t, Omega_0, Omega_QNM, tau, t_p,m):
 
 def BOB_strain_freq(t, Omega_0, Omega_QNM, tau, t_p,m):
     '''
-    Eq.7 in https://arxiv.org/abs/1810.00040; returns only Omega_lm
+    Waveform frequency for strain when assuming the BOB amplitude best models the strain (taking t_0 = -inf)
 
     Args:
-        t (sympy.Symbol): Time 
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        t : Time 
+        t_p : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
         m (int): Mode number
 
     Returns:
-        omega: Strain frequency at time t (waveform frequency) (Omega*m)
+        omega - Strain waveform frequency
     '''
     tt = (t - t_p) / tau
     Omega_ratio = Omega_0/Omega_QNM
@@ -144,17 +151,19 @@ def BOB_strain_freq(t, Omega_0, Omega_QNM, tau, t_p,m):
 
 def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
+    Waveform frequency for psi4 when assuming the BOB amplitude best models psi4 (for finite t_0)
+
     Args:
-        t (sympy.Symbol): Time 
-        t_0 (sympy.Symbol): Initial Condition time
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        t : Time 
+        t_0 : Initial Condition time
+        t_p : Time of peak amplitude
+        tau : Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
         m (int): Mode number
 
     Returns:
-        omega: Weyl Scalar (psi_4) frequency at time t (Omega*m)
+        omega - Psi4 waveform frequency
     '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
@@ -165,18 +174,19 @@ def BOB_psi4_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 
 def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
-    Eq. 6 in https://arxiv.org/abs/1810.00040; returns frequency of news
+    Waveform frequency for the news when assuming the BOB amplitude best models the news (for finite t_0)
+
     Args:
-        t (sympy.Symbol): Time 
-        t_0 (sympy.Symbol): Initial Condition time
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        t : Time 
+        t_0 : Initial Condition time
+        t_p : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
         m (int): Mode number
 
     Returns:
-        omega: News (first time derivative of strain) frequency at time t (Omega*m)
+        omega - News waveform frequency
     '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
@@ -187,19 +197,19 @@ def BOB_news_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 
 def BOB_strain_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
     '''
-    Eq.7 in https://arxiv.org/abs/1810.00040; returns only Omega_lm
-
+    Waveform frequency for the strain when assuming the BOB amplitude best models the strain (for finite t_0)
+    
     Args:
-        t (sympy.Symbol): Time 
-        t_0 (sympy.Symbol): Initial Condition time
-        t_p (sympy.Symbol): Time of peak amplitude
-        tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginary QNM freq)
-        Omega_0 (sympy.Symbol): Initial Condition Frequency
-        Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
+        t : Time 
+        t_0 : Initial Condition time
+        t_p : Time of peak amplitude
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
         m (int): Mode number
 
     Returns:
-        omega: Strain frequency at time t (waveform frequency) (Omega*m)   
+        omega - Strain waveform frequency  
     '''
     tt = (t - t_p) / tau
     t0p = (t_0-t_p) / tau
@@ -210,8 +220,7 @@ def BOB_strain_freq_finite_t0(t, Omega_0, Omega_QNM, tau, t_0, t_p,m):
 
 def complex_scalar_derivative(g):
     """
-    Returns a function that computes the derivative of a complex scalar function g(t).
-    Uses jax.jvp for a direct and efficient implementation.
+    Compute the derivative of a complex scalar function g(t).
     """
     def deriv_g(t):
         # The Jacobian-vector product of g(t) with tangent vector 1.0 gives g'(t).
@@ -222,7 +231,19 @@ def complex_scalar_derivative(g):
 def get_series_terms_ad(t, Omega_0, Omega_QNM, tau, Ap, t_p, omega_func, A_func, m, N):
     """
     Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
-    using JAX's automatic differentiation.
+    using JAX's automatic differentiation for t_0 = -inf scenarios
+
+    Args:
+        t : Time 
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak waveform amplitude 
+        t_p : Time of peak amplitude
+        omega_func: frequency function
+        A_func: amplitude function  
+        m : Mode number
+        N : number of terms in the series
 
     Returns:
         A 2D array of shape (N+1, len(t)) containing the raw terms.
@@ -262,7 +283,21 @@ def get_series_terms_ad(t, Omega_0, Omega_QNM, tau, Ap, t_p, omega_func, A_func,
 def get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0, omega_func, A_func, m, N):
     """
     Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
-    using JAX's automatic differentiation.
+    using JAX's automatic differentiation for finite t0 scenarios.
+
+    Args:
+        t : Time 
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak waveform amplitude 
+        t_p : Time of peak amplitude
+        omega_func: frequency function
+        A_func: amplitude function  
+        m : Mode number
+        N : number of terms in the series
+    
+
 
     Returns:
         A 2D array of shape (N+1, len(t)) containing the raw terms.
@@ -302,10 +337,13 @@ def get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0, omeg
 @partial(jit)
 def fast_truncated_sum(all_raw_terms):
     """
-    Calculates the simple truncated sum from pre-computed raw terms.
+    Calculates the series sum, including the alternating signs.
     
     Args:
         all_raw_terms: 2D array of shape (N+1, n_times) of UNSIGNED terms.
+
+    Returns:
+        Sum of all_raw_terms with alternating signs
     """
     N_plus_1 = all_raw_terms.shape[0]
     
@@ -319,6 +357,28 @@ def fast_truncated_sum(all_raw_terms):
 @partial(jit, static_argnames=('omega_func', 'A_func','N'))
 def calculate_strain_from_news(t, Omega_0, Omega_QNM, tau, Ap, t_p, 
                                  omega_func, A_func, m, N):
+    '''
+    Calculate the strain from the news using the series aapproximation
+    Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
+    using JAX's automatic differentiation for scenarios with t_0 = -inf
+
+    Args:
+        t : Time 
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak waveform amplitude 
+        t_p : Time of peak amplitude
+        omega_func: frequency function
+        A_func: amplitude function  
+        m : Mode number
+        N : number of terms in the series
+
+    Returns:
+        list of raw series terms (excluding alternating signs)
+
+        series sum
+    '''
     # 1. Generate the raw, unsigned derivative terms
     all_raw_terms = get_series_terms_ad(t, Omega_0, Omega_QNM, tau, Ap, t_p,
                                         omega_func, A_func, m, N)
@@ -328,6 +388,28 @@ def calculate_strain_from_news(t, Omega_0, Omega_QNM, tau, Ap, t_p,
 @partial(jit, static_argnames=('omega_func', 'A_func','N'))
 def calculate_strain_from_news_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0,
                                  omega_func, A_func, m, N):
+    '''
+    Calculate the strain from the news using the series aapproximation
+    Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
+    using JAX's automatic differentiation for scenarios invoving finite t_0 values.
+
+    Args:
+        t : Time 
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak waveform amplitude 
+        t_p : Time of peak amplitude
+        omega_func: frequency function
+        A_func: amplitude function  
+        m : Mode number
+        N : number of terms in the series
+
+    Returns:
+        list of raw series terms (excluding alternating signs)
+        
+        series sum
+    '''
     # 1. Generate the raw, unsigned derivative terms
     all_raw_terms = get_series_terms_ad_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p, t_0,
                                         omega_func, A_func, m, N)
@@ -358,10 +440,28 @@ def _build_symbolic_series(base_func, g_func, N_order):
 @partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
 def calculate_strain_from_psi4(t, Omega_0, Omega_QNM, tau, Ap, t_p,
                                             omega_func, A_func, m, N):
-    """
-    Calculates strain h(t) from Psi4 using a single frequency model for both
-    integration steps. This version is streamlined to remove code redundancy.
-    """
+    '''
+    Calculate the strain from psi4 using the series aapproximation
+    Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
+    using JAX's automatic differentiation for scenarios with t_0 = -inf.
+
+    Args:
+        t : Time 
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak waveform amplitude 
+        t_p : Time of peak amplitude
+        omega_func: frequency function
+        A_func: amplitude function  
+        m : Mode number
+        N : number of terms in both the inner and outer series
+
+    Returns:
+        list of raw series terms (excluding alternating signs)
+        
+        series sum
+    '''
     M = N
     # --- Define the single D operator pre-factor ONCE ---
     def g_func(time):
@@ -402,10 +502,28 @@ def calculate_strain_from_psi4(t, Omega_0, Omega_QNM, tau, Ap, t_p,
 @partial(jit, static_argnames=('omega_func', 'A_func', 'N'))
 def calculate_strain_from_psi4_finite_t0(t, Omega_0, Omega_QNM, tau, Ap, t_p,
                                             t_0,omega_func, A_func, m, N):
-    """
-    Calculates strain h(t) from Psi4 using a single frequency model for both
-    integration steps. This version is streamlined to remove code redundancy.
-    """
+    '''
+    Calculate the strain from psi4 using the series aapproximation
+    Generates the raw, unsigned series terms [f₀, Df₀, D²f₀, ..., Dⁿf₀]
+    using JAX's automatic differentiation for scenarios with finite t_0.
+
+    Args:
+        t : Time 
+        Omega_0 : Initial Condition Frequency
+        Omega_QNM : Real part of Quasinormal mode (QNM) frequency/(mode number)
+        tau : Damping time; inverse of the imaginary part of the QNM frequency
+        Ap : Peak waveform amplitude 
+        t_p : Time of peak amplitude
+        omega_func: frequency function
+        A_func: amplitude function  
+        m : Mode number
+        N : number of terms in both the inner and outer series
+
+    Returns:
+        list of raw series terms (excluding alternating signs)
+        
+        series sum
+    '''
     M = N
     # --- Define the single D operator pre-factor ONCE ---
     def g_func(time):

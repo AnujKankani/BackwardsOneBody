@@ -1,17 +1,8 @@
 Welcome to gwBOB
 =================
 
-Backwards-One-Body Gravitational Waveform Package
--------------------------------------------------
-
-**gwBOB** is a Python package for generating and analyzing gravitational waveforms
-using the Backwards-One-Body model.
-
-This documentation will help you:
-
-- Install and get started!
-- Explore the API for each module!
-- Learn with examples!
+A Backwards-One-Body Gravitational Waveform Package
+-------------------------------------------------------------------------
 
 Features of gwBOB
 -----------------
@@ -61,27 +52,13 @@ Quickstart
    :caption: Quickstart
 
    quickstart
+   faq
 
 API Reference
 -------------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Modules
+   :caption: API
 
-   gwBOB.BOB_utils
-   gwBOB.gen_utils
-   gwBOB.BOB_terms
-   gwBOB.BOB_terms_jax
-   gwBOB.ascii_funcs
-   gwBOB.convert_to_strain_using_series
-   gwBOB.mismatch_utils
-   
-
-Additional Pages
-----------------
-
-.. toctree::
-   :maxdepth: 2
-
-   faq
+   apireference

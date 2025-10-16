@@ -1,4 +1,4 @@
-# pyright: reportUnreachable=false
+#pyright: reportUnreachable=false
 #JAX implemented mismatch search
 
 #Notes:
@@ -20,6 +20,23 @@ from jax import debug
 
 @partial(jit)
 def time_shift(h_complex, t, t_shift):
+    """
+    JAX compatible time shift function. Shifts the time series by a given amount.
+
+    Parameters
+    ----------
+    h_complex : complex array
+        The complex-valued time series to be shifted.
+    t : array
+        The time array.
+    t_shift : float
+        The amount to shift the time series by.
+
+    Returns
+    -------
+    h_shifted : complex array
+        The shifted time series.
+    """
     shifted_time_grid = t - t_shift
     h_shifted_real = jnp.interp(shifted_time_grid, t, h_complex.real)
     h_shifted_imag = jnp.interp(shifted_time_grid, t, h_complex.imag)
@@ -33,6 +50,33 @@ def mismatch_trapz(
     t0_relative, tf_relative,
     integration_points
 ):
+    """
+    JAX compatible mismatch function. Calculates the mismatch between two time series using the trapz integration method.
+
+    Parameters
+    ----------
+    h1_padded : complex array
+        The complex-valued time series of the model data.
+    t1_padded : array
+        The time array of the model data.
+    h2_padded : complex array
+        The complex-valued time series of the NR data.
+    t2_padded : array
+        The time array of the NR data.
+    t_peak_nr : float
+        The peak time of the NR data.
+    t0_relative : float
+        The relative start time of the integration window.
+    tf_relative : float
+        The relative end time of the integration window.
+    integration_points : int
+        The number of integration points.
+
+    Returns
+    -------
+    mismatch : float
+        The mismatch between the two time series.
+    """
     
     t_start_abs = t_peak_nr + t0_relative
     t_end_abs = t_peak_nr + tf_relative
@@ -129,7 +173,36 @@ def find_best_mismatch_padded(
     nr_peak_time_batch,
     t0, tf, coarse_window, coarse_t_num, fine_window, fine_t_num, integration_points
 ):
-
+    '''
+    JAX compatible mismatch search function. Finds the best time shift between two time series using the trapz integration method.
+    
+    Parameters
+    ----------
+    padded_t_model : array
+        The time array of the model data.
+    padded_h_model : complex array
+        The complex-valued time series of the model data.
+    padded_t_nr : array
+        The time array of the NR data.
+    padded_h_nr : complex array
+        The complex-valued time series of the NR data.
+    nr_peak_time_batch : array
+        The peak time of the NR data.
+    t0 : float
+        The relative start time of the integration window.
+    tf : float
+        The relative end time of the integration window.
+    coarse_window : float
+        The coarse window size.
+    coarse_t_num : int
+        The number of coarse integration points.
+    fine_window : float
+        The fine window size.
+    fine_t_num : int
+        The number of fine integration points.
+    integration_points : int
+        The number of integration points.
+    '''
     
     def find_best_for_one_waveform(t_m, h_m, t_n, h_n, nr_peak):
 

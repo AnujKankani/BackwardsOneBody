@@ -35,11 +35,11 @@ def find_nearest_index(array, value):
     return idx
 def get_kuibit_lm(w,l,m):
     '''
-    Extract the ``(l, m)`` mode from a ``scri.WaveformModes`` and return a kuibit ``TimeSeries``.
+    Extract the ``(l, m)`` mode from a ``sxs.WaveformModes`` and return a kuibit ``TimeSeries``.
 
     Parameters
     ----------
-    w : scri.WaveformModes
+    w : sxs.WaveformModes
         Waveform containing spherical-harmonic modes.
     l : int
         Spherical-harmonic index ``l``.
@@ -57,7 +57,7 @@ def get_kuibit_lm(w,l,m):
     return kuibit_ts(time,w_temp)
 def get_kuibit_lm_psi4(w,l,m):
     '''
-    Extract the ``(l, m)`` mode from a ``scri.WaveformModes`` psi4 object into a kuibit ``TimeSeries``.
+    Extract the ``(l, m)`` mode from a ``sxs.WaveformModes`` psi4 object into a kuibit ``TimeSeries``.
 
     Notes
     -----
@@ -65,7 +65,7 @@ def get_kuibit_lm_psi4(w,l,m):
 
     Parameters
     ----------
-    w : scri.WaveformModes
+    w : sxs.WaveformModes
         Psi4 waveform containing spherical-harmonic modes.
     l : int
         Spherical-harmonic index ``l``.
@@ -113,12 +113,12 @@ def get_phase(ts):
 
     Parameters
     ----------
-    ts : kuibit_ts
+    ts : Kuibit TimeSeries
         Complex-valued time series.
 
     Returns
     -------
-    kuibit_ts
+    Kuibit TimeSeries
         TimeSeries of unwrapped phase. Sign may be flipped to be positive near merger.
     '''
     y = np.unwrap(np.angle(ts.y))
@@ -133,12 +133,12 @@ def get_frequency(ts):
 
     Parameters
     ----------
-    ts : kuibit_ts
+    ts : Kuibit TimeSeries
         Complex-valued time series.
 
     Returns
     -------
-    kuibit_ts
+    Kuibit TimeSeries
         TimeSeries of angular frequency. Sign is chosen positive near peak amplitude.
     '''
     tp = ts.time_at_maximum()
@@ -236,7 +236,7 @@ def get_tp_Ap_from_spline(amp):
 
     Parameters
     ----------
-    amp : kuibit_ts
+    amp : Kuibit TimeSeries
         TimeSeries of amplitude (e.g., ``|h|`` or ``|psi4|``).
 
     Returns
@@ -262,9 +262,9 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
 
     Parameters
     ----------
-    model_data : kuibit_ts
+    model_data : Kuibit TimeSeries
         Model complex time series.
-    NR_data : kuibit_ts
+    NR_data : Kuibit TimeSeries
         Reference complex time series.
     t0 : float
         Start time relative to the reference peak time.
@@ -324,15 +324,15 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
         return 1.-max_mismatch,best_phi0
     return 1.-max_mismatch   
 def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
-                           t_shift_range=np.arange(-10,10,0.1),return_best_t_and_phi0=False):
+                           t_shift_range=None,return_best_t_and_phi0=False):
     '''
     Search over time shifts to minimize mismatch between model and reference.
 
     Parameters
     ----------
-    model : kuibit_ts
+    model : Kuibit TimeSeries
         Model complex time series.
-    NR_data : kuibit_ts
+    NR_data : Kuibit TimeSeries
         Reference complex time series.
     t0 : float
         Start time relative to reference peak.
@@ -350,6 +350,8 @@ def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
     float or tuple
         Minimum mismatch, and optionally best ``t_shift`` and ``phi0``.
     '''
+    if(t_shift_range is None):
+        t_shift_range = np.arange(-10,10,0.1)
     min_mismatch = np.inf
     def mismatch_search(t_shift_range,min_mismatch):
         '''
@@ -412,7 +414,7 @@ def estimate_parameters(BOB,
                         include_2Omega0_as_parameters=False,
                         perform_phase_alignment_first=False,
                         start_with_wide_search = False,
-                        t_shift_range=np.arange(-10,10,0.1)):
+                        t_shift_range=None):
     '''
     Estimate BOB parameters by minimizing mismatch against NR data.
 
@@ -454,6 +456,8 @@ def estimate_parameters(BOB,
     scipy.optimize.OptimizeResult
         Optimizer result containing best-fit parameters.
     '''
+    if(t_shift_range is None):
+        t_shift_range = np.arange(-10,10,0.1)
     if(force_Omega0_optimization and include_Omega0_as_parameter):
         raise ValueError("force_Omega0_optimization and include_Omega0_as_parameter cannot both be True")
     if(make_current_naturally is True and make_mass_naturally is True):
@@ -581,53 +585,7 @@ def estimate_parameters(BOB,
     BOB.chif_with_sign = old_chif_with_sign
     BOB.Omega_0 = old_Omega0
     return out
-def estimate_parameters_grid(BOB,mf_guess,chif_guess):
-    '''
-    Legacy grid-search estimator for BOB parameters.
 
-    Parameters
-    ----------
-    BOB : object
-        BOB instance.
-    mf_guess : float
-        Central value for remnant mass grid.
-    chif_guess : float
-        Central value for signed spin grid.
-
-    Returns
-    -------
-    list[float, float]
-        Best ``[mf, chif]`` found (deprecated function).
-    '''
-    raise ValueError("Warning: This function needs to be replaced.")
-    m_range = np.arange(mf_guess-1e-3,mf_guess+1e-3,1e-4)
-    chif_range = np.arange(chif_guess-1e-3,chif_guess+1e-3,1e-4)
-    min_mismatch = 1e10
-    best_mf = 0
-    best_chif = 0
-    A = 0.33568227
-    B = 0.03450997
-    C = -0.18763176  
-    for m in m_range:
-        for chif in chif_range:
-            BOB.mf = m
-            BOB.chif_with_sign = chif
-            BOB.chif = np.abs(chif)
-            BOB.Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C 
-            w_r,tau = get_qnm(BOB.chif,BOB.mf,BOB.l,BOB.m,sign=np.sign(BOB.chif_with_sign))
-            BOB.Omega_QNM = w_r/np.abs(BOB.m)
-            BOB.Phi_0 = 0
-            BOB.tau = tau
-            BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
-            t,y = BOB.construct_BOB()
-            BOB_ts = kuibit_ts(t,y)
-            NR_ts = BOB.news_data
-            mismatch = time_grid_mismatch(BOB_ts,NR_ts,0,75)
-            if mismatch < min_mismatch:
-                min_mismatch = mismatch
-                best_mf = m
-                best_chif = chif
-    return [best_mf,best_chif]
 def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     '''
     Compare a model against NR by fitting QNM sums over a moving end-time window.
@@ -945,19 +903,64 @@ def load_lower_lev_SXS(sim):
         raise ValueError("only one Level found")
     return sim_lower
 def Omega_0_fit_psi4(Mf,chif_with_sign):
-    #Fits obtained in Kankani and McWilliams (2025)
+    '''
+    Omega0 for psi4 using the fit from Kankani and McWilliams (2025)
+    
+    Parameters
+    ----------
+    Mf : float
+        Remnant mass.
+    chif_with_sign : float
+        Remnant spin. (negative values indicate a final spin pointing opposite to the initial orbital angular momentum)
+
+    Returns
+    -------
+    float
+        Omega_0 fit.
+    
+    '''
     A = 1.42968337
     B = 0.08424419
     C = -1.22848524
     return A*Mf + B*chif_with_sign + C
 def Omega_0_fit_news(Mf,chif_with_sign):
-    #Fits obtained in Kankani and McWilliams (2025)
+    '''
+    Omega0 for news using the fit from Kankani and McWilliams (2025)
+
+    Parameters
+    ----------
+    Mf : float
+        Remnant mass.
+    chif_with_sign : float
+        Remnant spin. (negative values indicate a final spin pointing opposite to the initial orbital angular momentum)
+
+    Returns
+    -------
+    float
+        Omega_0 fit.
+    
+    '''
     A = 0.33568227
     B = 0.03450997
     C = -0.18763176
     return A*Mf + B*chif_with_sign + C
 def Omega_0_fit_strain(Mf,chif_with_sign):
-    #Fits obtained in Kankani and McWilliams (2025)
+    '''
+    Omega0 for strain using the fit from Kankani and McWilliams (2025)
+
+    Parameters
+    ----------
+    Mf : float
+        Remnant mass.
+    chif_with_sign : float
+        Remnant spin. (negative values indicate a final spin pointing opposite to the initial orbital angular momentum)
+
+    Returns
+    -------
+    float
+        Omega_0 fit.
+    
+    '''
     A = 0.01663248
     B = 0.01798275
     C = 0.07882578
