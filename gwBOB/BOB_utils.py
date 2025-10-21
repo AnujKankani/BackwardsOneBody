@@ -1040,7 +1040,7 @@ class BOB:
 
         self.chif = np.linalg.norm(self.chif)
         self.chif_with_sign = self.chif*sign
-        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.chif_with_sign,self.mf))
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
@@ -1159,7 +1159,7 @@ class BOB:
         sign = np.sign(self.chif[2])
         self.chif = np.linalg.norm(self.chif)
         self.chif_with_sign = self.chif*sign
-        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.chif_with_sign,self.mf))
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
@@ -1295,7 +1295,7 @@ class BOB:
         self.l = l
         self.m = m
         
-        self.Omega_ISCO = gen_utils.get_Omega_isco(self.chif,self.mf)
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.chif_with_sign,self.mf))
         self.Omega_0 = self.Omega_ISCO
         
         if(w_r<0 or tau<0):

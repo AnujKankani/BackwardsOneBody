@@ -1,4 +1,4 @@
-gwBOB API Reference
+API Reference
 ===================
 
 .. toctree::

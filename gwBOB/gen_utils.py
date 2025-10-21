@@ -146,14 +146,14 @@ def get_frequency(ts):
     if(freq.y[find_nearest_index(freq.t,tp)]<0):
         freq.y = -freq.y
     return kuibit_ts(ts.t,freq.y)
-def get_r_isco(chi,M):
+def get_r_isco(chi_with_sign,M):
     '''
-    Compute the prograde ISCO radius for a Kerr black hole.
-
+    Compute the prograde ISCO radius for a Kerr black hole. For negative chi_with_sign values, we return the retrograde value
+    
     Parameters
     ----------
-    chi : float
-        Dimensionless spin of the remnant.
+    chi_with_sign : float
+        Dimensionless spin of the remnant. Negative value indicates a spin pointed opposite the direction of the initial anular momentum of the binary.
     M : float
         Mass of the remnant (in geometric units).
 
@@ -164,21 +164,27 @@ def get_r_isco(chi,M):
     '''
     #Bardeen Press Teukolskly eq 2.21
     #defined for prograde orbits
+    if(chi_with_sign>=0):
+        sign = 1.0
+    else:
+        sign = -1.0
+    chi = np.abs(chi_with_sign)
     a = chi*M
     a_M = a/M
 
     z1 = 1 + (((1-a_M**2)**(1./3.)) * ((1+a_M)**(1./3.) + (1-a_M)**(1./3.))) #good
     z2 = (3*(a_M**2) + z1**2)**0.5 #good
-    r_isco = M * (3 + z2 - ((3-z1)*(3+z1+2*z2))**0.5) #good
+    r_isco = M * (3 + z2 - (sign)*((3-z1)*(3+z1+2*z2))**0.5) #good
     return r_isco
-def get_Omega_isco(chi,M):
+def get_Omega_isco(chi_with_sign,M):
     '''
     Compute the orbital angular velocity at the ISCO for a Kerr black hole.
+    For negative chi_with_sign values, we return the retrograde value
 
     Parameters
     ----------
-    chi : float
-        Dimensionless spin of the remnant.
+    chi_with_sign : float
+        Dimensionless spin of the remnant. Negative value indicates a spin pointed opposite the direction of the initial anular momentum of the binary.
     M : float
         Mass of the remnant (in geometric units).
 
@@ -189,10 +195,16 @@ def get_Omega_isco(chi,M):
     '''
     #Bardeen Press Teukolskly eq 2.16
     #defined for prograde orbits
-    r_isco = get_r_isco(chi,M)
+    if(chi_with_sign>=0):
+        sign = 1.0
+    else:
+        sign = -1.0
+    chi = np.abs(chi_with_sign)
+    r_isco = get_r_isco(chi_with_sign,M)
     a = chi*M
-    Omega = np.sqrt(M)/(r_isco**1.5 + a*np.sqrt(M)) # = dphi/dt
+    Omega = sign*np.sqrt(M)/(r_isco**1.5 + sign*a*np.sqrt(M)) # = dphi/dt
     return Omega
+
 def get_qnm(chif,Mf,l,m,n=0,sign=1):
     '''
     Get the fundamental quasinormal mode frequency components for a Kerr black hole.

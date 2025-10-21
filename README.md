@@ -36,7 +36,7 @@ The BOB model provides a powerful, physically motivated, and computationally eff
 - [`sxs`](https://github.com/sxs-collaboration/sxs)
 - [`qnmfits`](https://github.com/sxs-collaboration/qnmfits) 
 - [`jax`] (install the GPU compatible version if possible)
-- [`scri`] (https://github.com/moble/scri)
+- [`scri`](https://github.com/moble/scri)
 - [`sympy`]
 - [`numpy`] >2.0 (there is a kuibit incompatibility warning, numpy >2.0 does not cause issues.)
 - [`scipy`]
@@ -45,3 +45,28 @@ The BOB model provides a powerful, physically motivated, and computationally eff
 
 ### Install via pip
 
+tbd
+
+
+### Citing this Code
+
+If you use this code please cite
+
+@article{mcwilliams2019analytical,
+  title={Analytical black-hole binary merger waveforms},
+  author={McWilliams, Sean T},
+  journal={Physical review letters},
+  volume={122},
+  number={19},
+  pages={191102},
+  year={2019},
+  publisher={APS}
+}
+
+BOB paper to be added.
+
+JOSS paper to be added.
+
+### Contributing
+
+Contributions are always welcome! If you find an issue, or have any questions on how to use the code, please raise an [issue](https://github.com/AnujKankani/BackwardsOneBody/issues) on this repo. If you want to contribute directly to the code, please fork the code and create a pull request!

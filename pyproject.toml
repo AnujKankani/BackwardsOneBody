@@ -1,3 +1,44 @@
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "gwBOB"
+version = "0.1.0"
+description = "A Backwards-One-Body Gravitational Waveform Package"
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+  { name = "Anuj Kankani", email = "anuj.kankani@mail.wvu.edu" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.12"
+
+dependencies = [
+  "sxs",
+  "kuibit",
+  "sympy",
+  "qnmfits",
+  "jax",
+]
+
+[project.optional-dependencies]
+docs = [
+  "sphinx",
+  "sphinx-rtd-theme",
+  "myst-parser",
+  "sphinx-autodoc-typehints",
+  "sphinx-copybutton",
+  "sphinx-design",
+]
+tests = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/AnujKankani/BackwardsOneBody"
+Documentation = "https://backwardsonebody.readthedocs.io"
+Repository = "https://github.com/AnujKankani/BackwardsOneBody"
+
+[tool.setuptools.packages.find]
+where = ["gwBOB"]
+include = ["gwBOB*"]
+
+

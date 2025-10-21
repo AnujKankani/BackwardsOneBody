@@ -1,11 +1,19 @@
-Welcome to gwBOB
-=================
+.. raw:: html
 
-A Backwards-One-Body Gravitational Waveform Package
--------------------------------------------------------------------------
+   <div style="text-align: center;">
+     <h2 style="font-size: 36px;">Welcome to the gwBOB Documentation</h2>
+     <p style="font-size: 24px;">A Backwards-One-Body Gravitational Waveform Package</p>
+   </div>
+
+.. image:: images/BOB_logo_v2.png
+   :align: center
+
+.. raw:: html
+
+   <br><br><br>
 
 Features of gwBOB
------------------
+---------------------
 
 - Generate any flavor of BOB (psi4, news, strain, mass and current quadrupoles) using various initial conditions!
 - Easy calling of SXS and CCE waveforms as well as user provided NR waveforms!
@@ -53,12 +61,4 @@ Quickstart
 
    quickstart
    faq
-
-API Reference
--------------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: API
-
    apireference
