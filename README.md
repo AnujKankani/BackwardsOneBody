@@ -1,29 +1,53 @@
-(Code in Development)
----
-Please see more detailed documentation here (https://backwardsonebody.readthedocs.io/en/latest/index.html)!
+
+<p align="center">
+  <img src="docs/source/images/BOB_logo_v2.png" alt="gwBOB Logo" width="300">
+</p>
+
+<h1 align="center">gwBOB</h1>
+<h3 align="center">The Backwards-One-Body Gravitational Waveform Package</h3>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://github.com/AnujKankani/BackwardsOneBody/actions/workflows/pytest.yml">
+    <img src="https://github.com/AnujKankani/BackwardsOneBody/actions/workflows/pytest.yml/badge.svg" alt="Build Status">
+  </a>
+  <a href="https://backwardsonebody.readthedocs.io/en/latest/?badge=latest">
+    <img src="https://readthedocs.org/projects/backwardsonebody/badge/?version=latest" alt="Documentation Status">
+  </a>
+  <a href="https://www.python.org/downloads/release/python-3120/">
+    <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python Version">
+  </a>
+  <a href="https://github.com/AnujKankani/BackwardsOneBody">
+    <img src="https://img.shields.io/badge/status-active-success.svg" alt="Project Status">
+  </a>
+</p>
+
+
+Please see more detailed documentation [here](https://backwardsonebody.readthedocs.io/en/latest/index.html)!
 
 
 ## What is the Backwards One Body Model?
 
-The **Backwards One Body (BOB) model** is a fully analytical approach to modeling gravitational waveforms from black hole binary mergers, as described in [arXiv:1810.00040](https://arxiv.org/abs/1810.00040). The BOB model is based on the physical insight that, during the late stages of binary evolution, the spacetime dynamics of the binary system closely resemble a linear perturbation of the final, stationary black hole remnant.
-
-**Key features of the BOB model:**
-- **Analytical accuracy:** Uses a physically motivated, closed form expression for the amplitude and frequency evolution.
-- **Minimally Calibrated** Requires minimal calibration to numerical relativity (NR)
-- **Minimal assumptions:** Assumes only that nonlinear effects remain small throughout the coalescence.
-- **Physical foundation:** Relies on the tendency of the binary spacetime to behave like a perturbation of the merger remnant, reducing the need for phenomenological parameters.
-- **Wide applicability:** Demonstrated to agree with state-of-the-art numerical relativity simulations across the quasi-circular and non-precessing parameter space.    
-
-The BOB model provides a powerful, physically motivated, and computationally efficient tool for gravitational wave data analysis and theoretical studies.
+The **Backwards One Body (BOB) model** is an analytical and physically motivated approach to modeling gravitational waveforms from black hole binary mergers, as described in [arXiv:1810.00040](https://arxiv.org/abs/1810.00040). The BOB model is based on the physical insight that, during the late stages of binary evolution, the spacetime dynamics of the binary system closely resemble a linear perturbation of the final, stationary black hole remnant.
 
 ---
 
 ## Features
+- **Analytical accuracy:**  Closed form expressions for the amplitude and frequency evolution.
+- **Minimally Calibrated:** Requires minimal calibration to numerical relativity (NR)
+- **Test all BOB flavors** Easily generate and switch between different "flavors" of BOB depending on your research problem.
+- **Easy initialization** Easy initialization using SXS, CCE, or raw NR data. 
+- **Beyond Kerr waveforms** Compare NR data to BOB waveforms generated with custom QNMs.
+- **Easy comparisons:** Easy comparisons to waveforms from the public SXS and CCE catalog, as well as raw NR data.
+- **Well Documented and Actively Developed**
 
-- **Multiple waveform types:** Generate Psi4, News, and Strain waveforms
-- **Flexible assumptions:** Choose between various initial conditions
-- **Easy comparisons:** Easy comparisons to waveforms from the public SXS and CCE catalog, as well as raw NR data
-- **Extensible and under active development**
+<p align="center">
+  <b>Generate plots like these with just a few lines of code!</b>
+</p>
+<p align="center">
+  <img src="docs/source/images/BOB_news_0305.png">
+</p>
+
 
 ---
 
@@ -38,20 +62,22 @@ The BOB model provides a powerful, physically motivated, and computationally eff
 - [`jax`] (install the GPU compatible version if possible)
 - [`scri`](https://github.com/moble/scri)
 - [`sympy`]
-- [`numpy`] >2.0 (there is a kuibit incompatibility warning, numpy >2.0 does not cause issues.)
+- [`numpy`]
 - [`scipy`]
 - [`matplotlib`]
 
 
 ### Install via pip
 
-tbd
+```bash
+pip install gwBOB
+```
 
 
 ### Citing this Code
 
 If you use this code please cite
-
+```text
 @article{mcwilliams2019analytical,
   title={Analytical black-hole binary merger waveforms},
   author={McWilliams, Sean T},
@@ -62,6 +88,7 @@ If you use this code please cite
   year={2019},
   publisher={APS}
 }
+```
 
 BOB paper to be added.
 
