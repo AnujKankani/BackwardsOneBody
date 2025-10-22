@@ -24,7 +24,6 @@
 
 ## Getting Started
 Please see more detailed documentation [here](https://backwardsonebody.readthedocs.io/en/latest/index.html)!\
-And check out the tutorial notebooks in this repo!
 
 
 ## What is the Backwards One Body Model?
