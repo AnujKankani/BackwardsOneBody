@@ -43,7 +43,7 @@ The **Backwards One Body (BOB) model** is an analytical and physically motivated
 - **Well Documented and Actively Developed**
 
 <p align="center">
-  <b>Generate plots like these with just a few lines of code!<b>
+  <b>Generate plots like these with just a few lines of code!</b>
 </p>
 <p align="center">
   <img src="docs/source/images/BOB_news_0305.png">
@@ -56,12 +56,12 @@ The **Backwards One Body (BOB) model** is an analytical and physically motivated
 - [`kuibit`](https://github.com/SRombetto/kuibit)
 - [`sxs`](https://github.com/sxs-collaboration/sxs)
 - [`qnmfits`](https://github.com/sxs-collaboration/qnmfits) 
-- [`jax`] (install the GPU compatible version if possible)
 - [`scri`](https://github.com/moble/scri)
-- [`sympy`]
-- [`numpy`]
-- [`scipy`]
-- [`matplotlib`]
+- `jax` (install the GPU compatible version if possible)
+- `sympy`
+- `numpy`
+- `scipy`
+- `matplotlib`
 
 
 ## Install via pip
