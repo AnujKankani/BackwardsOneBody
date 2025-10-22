@@ -22,8 +22,9 @@
   </a>
 </p>
 
-
-Please see more detailed documentation [here](https://backwardsonebody.readthedocs.io/en/latest/index.html)!
+## Getting Started
+Please see more detailed documentation [here](https://backwardsonebody.readthedocs.io/en/latest/index.html)!\
+And check out the tutorial notebooks in this repo!
 
 
 ## What is the Backwards One Body Model?
@@ -42,18 +43,14 @@ The **Backwards One Body (BOB) model** is an analytical and physically motivated
 - **Well Documented and Actively Developed**
 
 <p align="center">
-  <b>Generate plots like these with just a few lines of code!</b>
+  <b>Generate plots like these with just a few lines of code!<b>
 </p>
 <p align="center">
   <img src="docs/source/images/BOB_news_0305.png">
 </p>
 
 
----
-
-## Installation
-
-### Requirements
+## Requirements
 
 - (Windows users should use [WSL](https://docs.microsoft.com/en-us/windows/wsl/))
 - [`kuibit`](https://github.com/SRombetto/kuibit)
@@ -67,14 +64,14 @@ The **Backwards One Body (BOB) model** is an analytical and physically motivated
 - [`matplotlib`]
 
 
-### Install via pip
+## Install via pip
 
 ```bash
 pip install gwBOB
 ```
 
 
-### Citing this Code
+## Citing this Code
 
 If you use this code please cite
 ```text
@@ -94,6 +91,6 @@ BOB paper to be added.
 
 JOSS paper to be added.
 
-### Contributing
+## Contributing
 
 Contributions are always welcome! If you find an issue, or have any questions on how to use the code, please raise an [issue](https://github.com/AnujKankani/BackwardsOneBody/issues) on this repo. If you want to contribute directly to the code, please fork the code and create a pull request!
