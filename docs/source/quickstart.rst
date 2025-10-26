@@ -1,9 +1,15 @@
 Getting Started
 =================
 
-While detailed jupyter tutorial notebooks can be found on the github, here we work through a simple example, that goes through several features of BOB.
+Here we work through a simple example, that goes through several features of BOB.
 
-Let's start by initializing BOB.
+First we install BOB.
+
+.. code-block:: bash
+
+   pip install gwBOB
+
+Now we can use the code. Let's start by initializing BOB.
 
 .. code-block:: python
     
@@ -15,18 +21,23 @@ Let's start by initializing BOB.
     #BOB.initialize_with_cce_data(1,perform_superrest_transformation=True) #This will load the first simulation in the public EXT-CCE database and perform a superrest transformation
     BOB.what_should_BOB_create="psi4"
 
-These are the main three commands every BOB code will start with. BOB_utils contains the main BOB class. BOB has three main initialization options. We can initialize using a SXS simulation, a EXT-CCE waveform (from the public catalog), or raw NR data.
-Please see the tutorial notebooks for more help on each case. Here we use SXS:BBH:0305 as an example. 
+These are the main three commands every BOB code will start with. BOB_utils contains the main BOB class. BOB has three main initialization options. We can initialize using the SXS catalog, the public EXT-CCE catalog, or raw NR data.
+Here we use SXS:BBH:0305 as an example. 
 
 The last line tells us what gravitational wave quantity we want to create. The main three options are "psi4", "news", "strain_using_news". While there are more options, those should be used with care. Particularly, there is an option called "strain", that will create the strain assuming that the fundamental BOB amplitude (A_p*sech(t-t_p)/tau).
-This will NOT yield good results, and is only present for completeness. Please see the caveat section below or (paper in prep.) for more details. 
+This will NOT yield good results, and is only present for testing and comparison. Please see (paper in prep.) for more details. 
+
+
+Now that we have declared we want to create psi4, we can construct BOB using just one line of code.
 
 .. code-block:: python
 
     t_psi4,y_psi4 = BOB.construct_BOB()
-    psi4_NR = BOB.NR_based_on_BOB_ts
+    psi4_NR = BOB.NR_based_on_BOB_ts #This returns a kuibit timeseries. The time and data arrays can be accessed as psi4_NR.t and psi4_NR.y
+    #psi4_NR = BOB.psi4_data #returns the resampled full NR data. Similar for news and strain
+    #psi4_44_t,psi4_44_y = BOB.get_psi4_data(l=4,m=4). In case we ever need NR data for other modes. This will not work with raw NR data initialization
 
-Now that we have declared we want to create psi4, the first line will construct BOB. By default we use the flavor of BOB used in (paper in prep.) which takes :math:`t_0 = -\infty` and :math:`\Omega_0 \approx 0.155`. 
+By default we use the flavor of BOB used in (paper in prep.) which takes :math:`t_0 = -\infty` and :math:`\Omega_0 \approx 0.155`. 
 For convenience, this package acts as a wrapper around some utilities of the SXS and scri packages so the user doesn't have to deal with them separately.
 We store a lot of the SXS data during the initialization so the user does not have to continously reload the data to test different things. 
 BOB.NR_based_on_BOB_ts returns the SXS psi4 data (because we set BOB.what_should_BOB_create="psi4") resampled to the same time series as BOB for easy plotting.

@@ -22,6 +22,16 @@ Potential Pitfalls
      This has several tradeoffs. First, the initialization process takes a little bit longer, as we store psi4, news, and strain data. However, once the initialization process is done, it is trivial to switch between different waveform quantities. 
      While switching from flavors that use t0 = -inf to finite t0 values should be seamless, switching from flavors that use t0 = -inf to finite t0 values requires the BOB.minf_t0 to be set to False. Furthermore, after each construction of BOB, parameters such as optimize_Omega0 retain their values, so the user should make sure to change these as appropriate.
 
+- Windows users
+
+  - Windows users are recommended to use WSL (https://learn.microsoft.com/en-us/windows/wsl/install).
+
+- Superrest transformations
+
+  - This code performs the superrest transformation for CCE data (using the qnmfits & scri packages). This can be memory intensive, windows users using WSL should be aware of this as the default memory allocated to WSL is likely not enough. (See something like https://learn.microsoft.com/en-us/answers/questions/1296124/how-to-increase-memory-and-cpu-limits-for-wsl2-win to increase the allocated memory for WSL)
+
+- gwBOB not found
+  - v1.0.0 contains a file directory issue. Please make sure you have v1.0.1 or greater installed.
 
 Eccentric/Precessing/Higher modes
 -------------------------------------
