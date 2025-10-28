@@ -27,8 +27,8 @@ affiliations:
    index: 1
  - name: Center for Gravitational Waves and Cosmology, West Virginia University, Morgantown, WV 26505, USA
    index: 2
-date: 21 October 2025
-bibliography: paper.bib
+date: 28 October 2025
+bibliography: joss/paper.bib
 
 
 # Summary
