@@ -15,7 +15,7 @@
     <img src="https://readthedocs.org/projects/backwardsonebody/badge/?version=latest" alt="Documentation Status">
   </a>
   <a href="https://www.python.org/downloads/release/python-3120/">
-    <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python Version">
+    <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python Version">
   </a>
   <a href="https://github.com/AnujKankani/BackwardsOneBody">
     <img src="https://img.shields.io/badge/status-active-success.svg" alt="Project Status">
@@ -23,7 +23,7 @@
 </p>
 
 ## Getting Started
-Please see more detailed documentation [here](https://backwardsonebody.readthedocs.io/en/latest/index.html)!\
+Please see more detailed documentation [here](https://backwardsonebody.readthedocs.io/en/latest/index.html)!
 
 
 ## What is the Backwards One Body Model?
