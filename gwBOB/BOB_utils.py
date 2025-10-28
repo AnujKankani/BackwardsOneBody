@@ -1,7 +1,6 @@
 # pyright: reportUnreachable=false
 #construct all BOB related quantities here
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.optimize import least_squares, curve_fit, brute, fmin, differential_evolution
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import sxs
@@ -9,6 +8,7 @@ import qnm
 from gwBOB import BOB_terms
 from gwBOB import gen_utils
 from gwBOB import convert_to_strain_using_series
+from gwBOB import ascii_funcs
 
 class BOB:
     '''
@@ -330,14 +330,10 @@ class BOB:
     def hello_world(self):
         '''
         '''
-        import ascii_funcs
         ascii_funcs.welcome_to_BOB()
-        #ascii_funcs.print_sean_face()
     def meet_the_creator(self):
         '''
         '''
-        import ascii_funcs
-        #ascii_funcs.welcome_to_BOB()
         ascii_funcs.print_sean_face()
     def valid_choices(self):
         '''
