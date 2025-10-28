@@ -1,4 +1,3 @@
-# gwBOB
 ---
 title: 'gwBOB: A Python Package for Analytical Merger-Ringdown Gravitational Waveforms'
 tags:
@@ -29,7 +28,7 @@ affiliations:
    index: 2
 date: 28 October 2025
 bibliography: joss/paper.bib
-
+---
 
 # Summary
 
