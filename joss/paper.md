@@ -40,17 +40,25 @@ The detection of gravitational waves (GW) has given us a new method to study the
 
 While NR simulations produce the most accurate waveforms, the significant computational expense of these simulations makes it impossible to generate enough waveforms to be used in detection pipelines. Instead, researchers must use semi-analytical waveform models, either calibrated to or directly interpolating NR simulations [@SEOBNR,@SEOBNRv5,@TEOB1,@TEOB2,@surr1,@surr2]. The non-linear nature of the merger results in this portion of the waveform being heavily reliant on NR information in all waveform models. As the sensitivity of current and future GW detectors increases, the limited coverage of NR catalogs across a higher dimensional parameter space may become a significant source of systematic error for these models. 
 
-The Backwards-One-Body (BOB) model provides an analytical and physically motivated approach to merger-ringdown modeling that is minimally reliant on NR information. As [@kankani2025] shows, BOB can model the gravitational wave news, the first time derivative of the gravitational wave strain, to accuracy comparable to state of the art waveform models, all of which are heavily reliant on NR simulations.
+The Backwards-One-Body (BOB) model provides an analytical and physically motivated approach to merger-ringdown modeling that is minimally reliant on NR information. As [@kankani2025] shows, BOB can model the gravitational wave news, the first time derivative of the gravitational wave strain, to accuracy comparable to state of the art waveform models, all of which are heavily reliant on NR simulations. This package focuses on constructing BOB for the (s = -2, l = 2, m = 2) gravitational wave mode for quasi-circular and non-precessing configurations, but can be used for higher modes and precessing cases as well.
+
+![Comparison of BOB and a NR waveform [@sxs_cat1] for the imaginary part of the (2, 2) mode of the News for a system with parameters similar to GW150914 [@gw150914]](BOB_news_0305.png)
 
 # Statement of Need
 
 `gwBOB` provides researchers with a robust and user-friendly implementation of BOB, eliminating the need for researchers to build custom implementations of BOB. The package allows researchers to easily configure and switch between different flavors of BOB, enabling them to choose the version best suited for their specific research problem. Its interface simplifies initialization by supporting both public NR catalogs [@sxs_cat1,@sxs_cat2,@sxs_cat3] and user provided NR data. For validation, the package includes built in utilities to streamline comparisons against NR and other semi-analytical waveform models. Furthermore, ``gwBOB`` includes additional routines for model comparison, such as one for inferring the remnant black hole's final mass and spin by minimizing the mismatch between a BOB waveform and a target waveform. This capability is particularly useful for quantitative comparisons with models constructed from a sum of quasinormal modes. By integrating utilities for initializing, configuring and validating the model, ``gwBOB`` provides the first complete open-source framework for incorporating any flavor of BOB into research workflows, dramatically reducing the complexity and time required for researchers to utilize the model.
 
+# Related Work
+``gwBOB`` is the first publicly available package that allows users to rapidly construct a variety of BOB flavors and validate them against NR waveforms. As part of the [nrpy](https://github.com/nrpy/nrpy) [@nrpy] code, a full inspiral-merger-ringdown model, using SEOBNRv5 [@SEOBNRv5] for the inspiral and a specific flavor of BOB for the merger-ringdown, is available. This package was extensively used in [@kankani2025] to extensively study BOB and provide comparisons to NR waveforms and semi-analytical waveform models. 
+
 # Documentation
 
-``gwBOB`` is distributed through PyPI and hosted on [GitHub](https://github.com/AnujKankani/BackwardsOneBody). Detailed documentation can be found at https://backwardsonebody.readthedocs.io/en/latest/.
+``gwBOB`` is distributed through PyPI and hosted on [GitHub](https://github.com/AnujKankani/BackwardsOneBody). Documentation is hosted on [readthedocs](https://backwardsonebody.readthedocs.io/en/latest/).
 
 # Acknowledgements
 
 AK and STM were supported in part by NSF CAREER grant PHY-1945130 and NASA grants 22-LPS22-0022 and 24-2024EPSCoR-0010. This research was made possible by the NASA West Virginia Space Grant Consortium, Grant \# 80NSSC20M0055.  The authors acknowledge the computational resources provided by the WVU Research Computing Thorny Flat HPC cluster, which is funded in part by NSF OAC-1726534.
+
+# References
+
 
