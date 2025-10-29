@@ -60,5 +60,7 @@ Quickstart
    :caption: Quickstart
 
    quickstart
+   utilities
    faq
    apireference
+   
