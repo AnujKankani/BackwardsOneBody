@@ -86,6 +86,18 @@ If you use this code please cite
 }
 ```
 
+```text
+@misc{kankani2025bobwaveformbuilderoptimizing,
+      title={BOB the (Waveform) Builder: Optimizing Analytical Black-Hole Binary Merger Waveforms}, 
+      author={Anuj Kankani and Sean T. McWilliams},
+      year={2025},
+      eprint={2510.25012},
+      archivePrefix={arXiv},
+      primaryClass={gr-qc},
+      url={https://arxiv.org/abs/2510.25012}, 
+}
+```
+
 BOB paper to be added.
 
 JOSS paper to be added.
