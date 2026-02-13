@@ -212,7 +212,7 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     Parameters
     ----------
     chif : float
-        Dimensionless final spin magnitude (|chi|).
+        Dimensionless final spin magnitude (chi).
     Mf : float
         Final black-hole mass (geometric units).
     l : int
