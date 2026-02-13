@@ -56,6 +56,7 @@ The Backwards-One-Body (BOB) model provides an analytical and physically motivat
 
 # Research Impact Statement
 This package has been used for the comprehensive analysis of BOB done in [@kankani2025]. In addition, this package is being actively used by multiple researchers to generate BOB waveforms for various research problems.
+
 # Documentation
 ``gwBOB`` is distributed through PyPI and hosted on [GitHub](https://github.com/AnujKankani/BackwardsOneBody). Documentation is hosted on [readthedocs](https://backwardsonebody.readthedocs.io/en/latest/).
 
