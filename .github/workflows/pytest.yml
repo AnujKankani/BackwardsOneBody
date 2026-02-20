@@ -27,6 +27,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
+          #key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
           # By default, cache key is based on pyproject.toml hash.
           # If commit message contains [reset cache], the key changes → fresh cache
           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
@@ -38,10 +39,7 @@ jobs:
           pip install -e ".[tests]"
 
       - name: Test with pytest
-        env:
-          SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
-          SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
         run: |
-          pytest tests/
+          pytest
       
       
