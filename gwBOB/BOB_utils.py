@@ -63,6 +63,7 @@ class BOB:
         self.tp = 0
         
         self.what_is_BOB_building="Nothing"
+        self.__what_to_create = "Nothing"
         self.l = 2
         self.m = 2
         self.Phi_0 = 0
@@ -619,7 +620,7 @@ class BOB:
             float: Time of ISCO of the waveform
         '''
         freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
-        t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
+        t_isco = freq_data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
         return t_isco - self.tp
 
     def construct_BOB_finite_t0(self,N):
@@ -1123,6 +1124,8 @@ class BOB:
             raise ValueError("m=0 case not implemented yet")
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
         print("loading CCE id",cce_id)
+
+        self.resample_dt = resample_dt
 
         if(provide_own_abd is None):
             abd = qnmfits.cce.load(cce_id)
