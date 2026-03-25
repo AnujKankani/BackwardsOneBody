@@ -63,6 +63,7 @@ class BOB:
         self.tp = 0
         
         self.what_is_BOB_building="Nothing"
+        self.__what_to_create = "Nothing"
         self.l = 2
         self.m = 2
         self.Phi_0 = 0
@@ -619,7 +620,7 @@ class BOB:
             float: Time of ISCO of the waveform
         '''
         freq_data = gen_utils.get_frequency(self.data).cropped(init=self.tp-100,end=self.tp+50)
-        t_isco = self.data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
+        t_isco = freq_data.t[gen_utils.find_nearest_index(freq_data.y,self.Omega_ISCO*np.abs(self.m))]
         return t_isco - self.tp
 
     def construct_BOB_finite_t0(self,N):
@@ -1002,7 +1003,7 @@ class BOB:
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
         
         return BOB_ts.t,BOB_ts.y
-    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.01,verbose=False,inertial_to_coprecessing_transformation=False): 
+    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.1,verbose=False,inertial_to_coprecessing_transformation=False): 
         '''
         This function is used to initialize the BOB with SXS data.
 
@@ -1105,7 +1106,7 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.01,verbose=False):
+    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.1,verbose=False):
         '''
         This function is used to initialize the BOB with CCE data.
 
@@ -1123,6 +1124,8 @@ class BOB:
             raise ValueError("m=0 case not implemented yet")
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
         print("loading CCE id",cce_id)
+
+        self.resample_dt = resample_dt
 
         if(provide_own_abd is None):
             abd = qnmfits.cce.load(cce_id)
