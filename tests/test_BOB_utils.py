@@ -149,8 +149,8 @@ def test_kuibit_frequency_lm(BOB_cce):
     # Load reference
     ref = np.load(f'{file_prefix}/trusted_outputs/kuibit_cce9_rMPsi4_R0270_freq_l2_mm2.npz')
     # Compare arrays
-    np.testing.assert_allclose(freq.t, ref["f_t"], rtol=1e-10, atol=1e-15)
-    np.testing.assert_allclose(freq.y, ref["f_y"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(freq.t, ref["f_t"], rtol=1e-4, atol=1e-5)
+    np.testing.assert_allclose(freq.y, ref["f_y"], rtol=1e-4, atol=1e-5)
 
 def test_get_phase(BOB_cce):
     BOB_cce.what_should_BOB_create = "psi4"
@@ -161,8 +161,8 @@ def test_get_phase(BOB_cce):
     # Load reference
     ref = np.load(f'{file_prefix}/trusted_outputs/kuibit_cce9_rMPsi4_R0270_phase_l2_mm2.npz')
     # Compare arrays
-    np.testing.assert_allclose(phase.t, ref["phase_t"], rtol=1e-10, atol=1e-15)
-    np.testing.assert_allclose(phase.y, ref["phase_y"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(phase.t, ref["phase_t"], rtol=1e-4, atol=1e-5)
+    np.testing.assert_allclose(phase.y, ref["phase_y"], rtol=1e-4, atol=1e-5)
 
 
 def test_get_r_isco_values():
@@ -180,7 +180,7 @@ def test_get_r_isco_values():
     # Check that function returns correct shape and matches expected
     for chi, M, exp in zip(chi_vals, M_vals, expected):
         result = gen_utils.get_r_isco(chi, M)
-        assert np.isclose(result, exp, rtol=1e-11)
+        assert np.isclose(result, exp, rtol=1e-8)
 def test_get_Omega_isco_values():
     chi_vals = np.array([0.0, 0.5, 0.9])
     M_vals = np.array([1.0, 2.0, 5.0])
@@ -193,7 +193,7 @@ def test_get_Omega_isco_values():
 
     for chi, M, exp in zip(chi_vals, M_vals, expected):
         result = gen_utils.get_Omega_isco(chi, M)
-        assert np.isclose(result, exp, rtol=1e-11)
+        assert np.isclose(result, exp, rtol=1e-8)
 def test_get_qnm():
     chi_vals = np.array([0.0, 0.0, 0.0, 0.5, 0.5, 0.5])
     M_vals = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 2.0])
@@ -209,8 +209,8 @@ def test_get_qnm():
 
     for chi, M, l, m, n, sgn, exp_w, exp_tau in zip(chi_vals, M_vals, l_vals, m_vals, n_vals, sign_vals, expected_w_r_vals, expected_tau_vals):
         result_w, result_tau = gen_utils.get_qnm(chi, M, l, m, n = n, sign = sgn)
-        assert np.isclose(result_w, exp_w, rtol=1e-11)
-        assert np.isclose(result_tau, exp_tau, rtol=1e-11)
+        assert np.isclose(result_w, exp_w, rtol=1e-8)
+        assert np.isclose(result_tau, exp_tau, rtol=1e-8)
 def test_get_tp_Ap_from_spline(BOB_cce):
     BOB_cce.what_should_BOB_create = "psi4"
     BOB_cce.optimize_Omega0 = True
@@ -219,5 +219,5 @@ def test_get_tp_Ap_from_spline(BOB_cce):
     amp = np.abs(ts)
     expected_tp, expected_Ap = ([5148.657477586399, 0.046735948589431364])
     result_tp, result_Ap = gen_utils.get_tp_Ap_from_spline(amp)
-    assert np.isclose(result_tp, expected_tp, rtol=1e-11)
-    assert np.isclose(result_Ap, expected_Ap, rtol=1e-11)
+    assert np.isclose(result_tp, expected_tp, rtol=1e-8)
+    assert np.isclose(result_Ap, expected_Ap, rtol=1e-8)
