@@ -8,8 +8,8 @@ import sxs
 import scri
 import pytest
 
-file_prefix = "./tests" #github
-#file_prefix = "." #local
+file_prefix = "./tests" #pre yml change
+#file_prefix = "." 
 @pytest.fixture(scope="session")
 def BOB_cce():
     wf_paths = {}
@@ -55,8 +55,8 @@ def kuibit_ts_load(location):
 
 def test_initialize_with_sxs_data():
     # Set path for cache locally
-    cache_path = f'{file_prefix}/sxs_cache'
-    sxs.write_config(cache_directory=cache_path)
+    old_download = sxs.read_config("download")
+    sxs.write_config(download=False)
 
     expected_params = BOB_params("SXS")
 
@@ -93,6 +93,8 @@ def test_initialize_with_sxs_data():
                    gen_utils.mismatch(ts_strain, strain_exp, t0 = 0, tf = 100)])
     mismatches_exp = ([0.0,0.0,0.0])
 
+    #reset user config settings
+    sxs.write_config(download=old_download)
     for exp, res in zip(expected_params, result_params):
         #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
         #TODO: separate Omega_0 check from other values. The other values should have a much stricter tolerance

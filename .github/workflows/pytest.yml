@@ -38,7 +38,10 @@ jobs:
           pip install -e ".[tests]"
 
       - name: Test with pytest
+        env:
+          SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
+          SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
         run: |
-          pytest
+          pytest tests/
       
       

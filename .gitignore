@@ -1,4 +1,6 @@
 *.pyc
 __pycache__/
 docs/build/
+build/
+gwBOB.egg-info/
 
