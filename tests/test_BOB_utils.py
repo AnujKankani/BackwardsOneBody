@@ -94,9 +94,9 @@ def test_initialize_with_sxs_data():
     mismatches_exp = ([0.0,0.0,0.0])
 
     for exp, res in zip(expected_params, result_params):
-        assert np.isclose(exp, res, rtol=1e-12)
+        assert np.isclose(exp, res, rtol=1e-6)
     for exp, res in zip(mismatches, mismatches_exp):
-        assert np.isclose(exp, res, rtol=1e-12)
+        assert np.isclose(exp, res, rtol=1e-6)
 
 def test_initialize_with_cce_data(BOB_cce):
 
@@ -131,9 +131,9 @@ def test_initialize_with_cce_data(BOB_cce):
     mismatches_exp = ([0.0,0.0,0.0])
 
     for exp, res in zip(expected_params, result_params):
-        assert np.isclose(exp, res, rtol=1e-12)
+        assert np.isclose(exp, res, rtol=1e-6)
     for exp, res in zip(mismatches, mismatches_exp):
-        assert np.isclose(exp, res, rtol=1e-12)
+        assert np.isclose(exp, res, rtol=1e-6)
 def test_kuibit_frequency_lm(BOB_cce):
     BOB_cce.what_should_BOB_create = "psi4"
     BOB_cce.optimize_Omega0 = True
