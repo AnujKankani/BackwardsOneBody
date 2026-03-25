@@ -1003,7 +1003,7 @@ class BOB:
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
         
         return BOB_ts.t,BOB_ts.y
-    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.01,verbose=False,inertial_to_coprecessing_transformation=False): 
+    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.1,verbose=False,inertial_to_coprecessing_transformation=False): 
         '''
         This function is used to initialize the BOB with SXS data.
 
@@ -1106,7 +1106,7 @@ class BOB:
             print("news_Ap = ",self.news_Ap)
             print("psi4_tp = ",self.psi4_tp)
             print("psi4_Ap = ",self.psi4_Ap)
-    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.01,verbose=False):
+    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.1,verbose=False):
         '''
         This function is used to initialize the BOB with CCE data.
 
