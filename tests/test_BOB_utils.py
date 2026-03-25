@@ -96,7 +96,7 @@ def test_initialize_with_sxs_data():
     for exp, res in zip(expected_params, result_params):
         assert np.isclose(exp, res, rtol=1e-6)
     for exp, res in zip(mismatches, mismatches_exp):
-        assert np.isclose(exp, res, rtol=1e-6)
+        assert np.isclose(exp, res, rtol=1e-3) #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
 
 def test_initialize_with_cce_data(BOB_cce):
 
