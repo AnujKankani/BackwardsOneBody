@@ -1,6 +1,9 @@
+import logging
 import numpy as np
 from kuibit.timeseries import TimeSeries as kuibit_ts
 import qnm
+
+logger = logging.getLogger(__name__)
 from quaternion.calculus import spline_definite_integral as sdi
 import matplotlib.pyplot as plt
 import scri
@@ -568,15 +571,14 @@ def estimate_parameters(BOB,
                 raise ValueError("Invalid options for make_current_naturally and make_mass_naturally")
             BOB_ts = kuibit_ts(t,y)
             if(BOB.fit_failed):
-                print("fit failed for ",x)
+                logger.warning("fit failed for %s", x)
                 mismatch = np.inf
             else:
                 #print("fit worked for ",x)
                 mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf,t_shift_range=t_shift_range)
         except Exception as e:
             mismatch = np.inf
-            print(e)
-            print("Search failed for ",x)
+            logger.warning("Search failed for %s: %s", x, e)
         return mismatch
     #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
     if(include_2Omega0_as_parameters):
@@ -911,7 +913,7 @@ def load_lower_lev_SXS(sim):
         If only one level exists or the lower level cannot be found.
     '''
     location = sim.location
-    print(location,sim.lev_numbers)
+    logger.debug("location: %s, lev_numbers: %s", location, sim.lev_numbers)
     if(len(sim.lev_numbers)>1):
        try:        
            sim_lower = sxs.load(location[:-1]+str(sim.lev_numbers[-2]))

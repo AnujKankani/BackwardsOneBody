@@ -1,5 +1,6 @@
 # pyright: reportUnreachable=false
 #construct all BOB related quantities here
+import logging
 import numpy as np
 from scipy.optimize import least_squares, curve_fit, brute, fmin, differential_evolution
 from kuibit.timeseries import TimeSeries as kuibit_ts
@@ -9,6 +10,8 @@ from gwBOB import BOB_terms
 from gwBOB import gen_utils
 from gwBOB import convert_to_strain_using_series
 from gwBOB import ascii_funcs
+
+logger = logging.getLogger(__name__)
 
 class BOB:
     '''
@@ -148,11 +151,7 @@ class BOB:
             self.tp = tp
             self.Omega_0 = gen_utils.Omega_0_fit_news(self.mf,self.chif_with_sign)
         elif(val=="strain"):
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN!")
-            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND CONVERTED TO STRAIN.")
-            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN! BOB SHOULD BE BUILT FOR PSI4/NEWS AND CONVERTED TO STRAIN. THIS IS HERE FOR TESTING/COMPLETENESS!")
             self.__what_to_create = val
             self.data = self.strain_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
@@ -160,11 +159,7 @@ class BOB:
             self.tp = tp
             self.Omega_0 = gen_utils.Omega_0_fit_strain(self.mf,self.chif_with_sign)
         elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS!")
-            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS.")
-            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -181,11 +176,7 @@ class BOB:
                 self.Ap = Ap
                 self.tp = self.current_quadrupole_data.time_at_maximum()      
         elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS!")
-            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS.")
-            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("news")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -202,11 +193,7 @@ class BOB:
                 self.Ap = Ap
                 self.tp = tp      
         elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS!")
-            print("BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS.")
-            print("THIS IS HERE FOR TESTING/COMPLETENESS!")
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("psi4")
             self.mass_quadrupole_data = NR_mass
             self.current_quadrupole_data = NR_current
@@ -490,7 +477,7 @@ class BOB:
             #some Omegas we search over may be invalid depending on the frequency we choose, so in those cases we just want to send back a bad residual
             #I think this is why the t0 and omega0 best fits are not working.
             Omega = np.full_like(self.t,1e3)
-        print(np.sum((np.array(Omega[start_index:end_index],dtype=np.float64)-np.array(freq.y[start_data_index:end_data_index],dtype=np.float64))**2))
+        logger.debug("residual: %s", np.sum((np.array(Omega[start_index:end_index],dtype=np.float64)-np.array(freq.y[start_data_index:end_data_index],dtype=np.float64))**2))
         return np.sum((np.array(Omega[start_index:end_index],dtype=np.float64)-np.array(freq.y[start_data_index:end_data_index],dtype=np.float64))**2)
     def fit_t0_only(self,t00,freq_data):
         '''
@@ -543,7 +530,7 @@ class BOB:
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
         if(self.__end_after_tpeak<self.end_fit_after_tpeak):
-            print("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
+            logger.warning("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
             self.end_fit_after_tpeak = self.__end_after_tpeak
         if(self.use_strain_for_Omega0_optimization):
             freq_ts = gen_utils.get_frequency(self.strain_data)
@@ -561,8 +548,7 @@ class BOB:
             Omega = BOB_terms.BOB_news_freq(self)
 
         except Exception as e:
-            print("fit failed, setting Omega_0 = Omega_ISCO")
-            print(e)
+            logger.warning("fit failed, setting Omega_0 = Omega_ISCO: %s", e)
             self.fit_failed = True
             popt = [self.Omega_ISCO]
         self.Omega_0 = popt[0]
@@ -1039,7 +1025,7 @@ class BOB:
         ref_time = sim.metadata.reference_time
 
         self.resample_dt = resample_dt
-        print("Resampling data to dt = ",self.resample_dt)
+        logger.info("Resampling data to dt = %s", self.resample_dt)
 
         self.sxs_id = sxs_id
         self.mf = sim.metadata.remnant_mass
@@ -1049,7 +1035,7 @@ class BOB:
         
         sign = np.sign(self.chif[2])
         if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
-           print("Warning: Final spin has non-zero x or y component for "+sxs_id+". Precessing cases have not beent tested yet. Proceed at your own risk!")
+           logger.warning("Warning: Final spin has non-zero x or y component for %s. Precessing cases have not been tested yet. Proceed at your own risk!", sxs_id)
 
         self.chif = np.linalg.norm(self.chif)
         self.chif_with_sign = self.chif*sign
@@ -1067,7 +1053,7 @@ class BOB:
         h = sim.h
         h = h.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
         if(inertial_to_coprecessing_transformation):
-            print("Converting from inertial to coprecessing frame!")
+            logger.info("Converting from inertial to coprecessing frame!")
             h = h.to_coprecessing_frame().copy()
 
         hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
@@ -1082,7 +1068,7 @@ class BOB:
         psi4 = sim.psi4
         psi4 = psi4.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
         if(inertial_to_coprecessing_transformation):
-            print("Converting from inertial to coprecessing frame!")
+            logger.info("Converting from inertial to coprecessing frame!")
             psi4 = psi4.to_coprecessing_frame().copy()
         psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m).cropped(init=ref_time+100)
         psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m).cropped(init=ref_time+100)
@@ -1146,13 +1132,13 @@ class BOB:
         if(provide_own_abd is None):
             abd = qnmfits.cce.load(cce_id)
         else:
-            print("We are using the user provided abd object")
+            logger.info("We are using the user provided abd object")
             abd = provide_own_abd
-        print("resampling CCE data to dt = ",self.resample_dt)
+        logger.info("resampling CCE data to dt = %s", self.resample_dt)
         try:
             self.metadata = abd.metadata
         except:
-            print("could not find metadata")
+            logger.warning("could not find metadata")
         if(perform_superrest_transformation):
             print("Performing superrest transformation")
             print("This may take ~20 minutes the first time")
@@ -1165,11 +1151,11 @@ class BOB:
         try:
             self.M_tot = self.metadata['reference_mass1'] + self.metadata['reference_mass2']
         except:
-            print("M_tot is not stored because metadata could not be found.")
+            logger.warning("M_tot is not stored because metadata could not be found.")
         self.mf = abd.bondi_rest_mass()[-1]
         self.chif = abd.bondi_dimensionless_spin()[-1]
         if(np.abs(self.chif[0])>0.01 or np.abs(self.chif[1])>0.01):
-            print("Warning: This may be a precessing case, which this code has not been tested for yet. Procceed at your own risk!")
+            logger.warning("Warning: This may be a precessing case, which this code has not been tested for yet. Proceed at your own risk!")
         
         sign = np.sign(self.chif[2])
         self.chif = np.linalg.norm(self.chif)
@@ -1189,8 +1175,8 @@ class BOB:
         
         if(inertial_to_coprecessing_transformation):
             if(perform_superrest_transformation):
-                print("Warning, you have performed a superrest transformation and an inertial to coprecessing transformation. This may not be what you want!")    
-            print("converting to coprecessing frame!")
+                logger.warning("Warning, you have performed a superrest transformation and an inertial to coprecessing transformation. This may not be what you want!")
+            logger.info("converting to coprecessing frame!")
             h = h.to_coprecessing_frame()
 
         self.strain_scri_wm = h.copy()
@@ -1210,8 +1196,8 @@ class BOB:
         psi4 = abd.psi4.interpolate(np.arange(abd.h.t[0],abd.h.t[-1],self.resample_dt))
         if(inertial_to_coprecessing_transformation):
             if(perform_superrest_transformation):
-                print("Warning, you have performed a superrest transformation and an inertial to coprecessing transformation. This may not be what you want!")
-            print("converting to coprecessing frame!")
+                logger.warning("Warning, you have performed a superrest transformation and an inertial to coprecessing transformation. This may not be what you want!")
+            logger.info("converting to coprecessing frame!")
             psi4 = psi4.to_coprecessing_frame()
         
         psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m)
@@ -1287,7 +1273,7 @@ class BOB:
             raise ValueError("t_NR and y_strain must have the same length")
 
         if(l!=abs(m)):
-            print("Warning! l != abs(m). This is not supported currently. Proceed at your own risk!")
+            logger.warning("Warning! l != abs(m). This is not supported currently. Proceed at your own risk!")
         
         ts_psi4 = kuibit_ts(t_NR,y_psi4)
         ts_strain = kuibit_ts(t_NR,y_strain)
@@ -1314,12 +1300,12 @@ class BOB:
         self.Omega_0 = self.Omega_ISCO
         
         if(w_r<0 or tau<0):
-            print("Calculating Kerr QNM parameters from provided Mf and chif")
+            logger.info("Calculating Kerr QNM parameters from provided Mf and chif")
             w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
             self.w_r = np.abs(w_r)
             self.tau = np.abs(tau)
         else:
-            print("Using user provided w_r and tau!")
+            logger.info("Using user provided w_r and tau!")
             self.w_r = np.abs(w_r)
             self.tau = np.abs(tau)
         
