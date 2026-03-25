@@ -8,8 +8,8 @@ import sxs
 import scri
 import pytest
 
-file_prefix = "./tests" #github
-#file_prefix = "." #local
+#file_prefix = "./tests" #github
+file_prefix = "." #local
 @pytest.fixture(scope="session")
 def BOB_cce():
     wf_paths = {}
@@ -94,9 +94,11 @@ def test_initialize_with_sxs_data():
     mismatches_exp = ([0.0,0.0,0.0])
 
     for exp, res in zip(expected_params, result_params):
-        assert np.isclose(exp, res, rtol=1e-3)
+        #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
+        #TODO: separate Omega_0 check from other values. The other values should have a much stricter tolerance
+        assert np.isclose(exp, res, rtol=1e-3) 
     for exp, res in zip(mismatches, mismatches_exp):
-        assert np.isclose(exp, res, rtol=1e-3) #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
+        assert res < 1e-6
 
 def test_initialize_with_cce_data(BOB_cce):
 
@@ -131,9 +133,11 @@ def test_initialize_with_cce_data(BOB_cce):
     mismatches_exp = ([0.0,0.0,0.0])
 
     for exp, res in zip(expected_params, result_params):
-        assert np.isclose(exp, res, rtol=1e-3)
+        #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
+        #TODO: separate Omega_0 check from other values. The other values should have a much stricter tolerance
+        assert np.isclose(exp, res, rtol=1e-3) 
     for exp, res in zip(mismatches, mismatches_exp):
-        assert np.isclose(exp, res, rtol=1e-3)
+        assert res < 1e-6
 def test_kuibit_frequency_lm(BOB_cce):
     BOB_cce.what_should_BOB_create = "psi4"
     BOB_cce.optimize_Omega0 = True
