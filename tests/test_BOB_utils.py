@@ -8,8 +8,8 @@ import sxs
 import scri
 import pytest
 
-file_prefix = "./tests" #pre yml change
-#file_prefix = "." 
+file_prefix = "./tests" #github
+#file_prefix = "." #local
 @pytest.fixture(scope="session")
 def BOB_cce():
     wf_paths = {}
@@ -55,8 +55,8 @@ def kuibit_ts_load(location):
 
 def test_initialize_with_sxs_data():
     # Set path for cache locally
-    old_download = sxs.read_config("download")
-    sxs.write_config(download=False)
+    cache_path = f'{file_prefix}/sxs_cache'
+    sxs.write_config(cache_directory=cache_path)
 
     expected_params = BOB_params("SXS")
 
@@ -93,14 +93,10 @@ def test_initialize_with_sxs_data():
                    gen_utils.mismatch(ts_strain, strain_exp, t0 = 0, tf = 100)])
     mismatches_exp = ([0.0,0.0,0.0])
 
-    #reset user config settings
-    sxs.write_config(download=old_download)
     for exp, res in zip(expected_params, result_params):
-        #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
-        #TODO: separate Omega_0 check from other values. The other values should have a much stricter tolerance
-        assert np.isclose(exp, res, rtol=1e-3) 
+        assert np.isclose(exp, res, rtol=1e-6)
     for exp, res in zip(mismatches, mismatches_exp):
-        assert res < 1e-6
+        assert np.isclose(exp, res, rtol=1e-6)
 
 def test_initialize_with_cce_data(BOB_cce):
 
@@ -135,11 +131,9 @@ def test_initialize_with_cce_data(BOB_cce):
     mismatches_exp = ([0.0,0.0,0.0])
 
     for exp, res in zip(expected_params, result_params):
-        #this is quite low because Omega_0 is being optimized, which can lead to small differences in each evaluation
-        #TODO: separate Omega_0 check from other values. The other values should have a much stricter tolerance
-        assert np.isclose(exp, res, rtol=1e-3) 
+        assert np.isclose(exp, res, rtol=1e-6)
     for exp, res in zip(mismatches, mismatches_exp):
-        assert res < 1e-6
+        assert np.isclose(exp, res, rtol=1e-6)
 def test_kuibit_frequency_lm(BOB_cce):
     BOB_cce.what_should_BOB_create = "psi4"
     BOB_cce.optimize_Omega0 = True
