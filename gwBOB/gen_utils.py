@@ -298,7 +298,13 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
     if (not(np.array_equal(model_data.t,NR_data.t))):
         if(resample_NR_to_model):
             #print("resampling to equal times")
+            safe_tmin = max(NR_data.t[0], model_data.t[0])
+            safe_tmax = min(NR_data.t[-1], model_data.t[-1])
+            model_data = model_data.cropped(init=safe_tmin,end=safe_tmax)
+            if(safe_tmax-safe_tmin<(tf-t0)):
+                raise ValueError("Time arrays are not long enough to compare over the interval [t0,tf]")
             NR_data = NR_data.resampled(model_data.t)
+            
         else:
             raise ValueError("Time arrays must be identical or set resample_NR_to_model to True")
     
