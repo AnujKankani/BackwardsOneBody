@@ -54,7 +54,7 @@ class BOB:
         Initializes the BOB object with default values. By default a least squares optimization is performed. 
 
         '''
-        qnm.download_data()
+        self._qnm_data_ready = False
         #some default values
         self.minf_t0 = True
         self.__start_before_tpeak = -75
@@ -99,6 +99,21 @@ class BOB:
         #flag to see if a attempted fit failed
         self.fit_failed = False
 
+    def _ensure_qnm_data_ready(self):
+        '''
+        Lazily downloads qnm data the first time BOB needs it.
+        '''
+        if self._qnm_data_ready:
+            return
+        try:
+            qnm.download_data()
+            self._qnm_data_ready = True
+        except Exception as exc:
+            raise RuntimeError(
+                "Unable to initialize qnm data. "
+                "Please check your network/filesystem access and retry."
+            ) from exc
+
     @property
     def what_should_BOB_create(self):
         '''
@@ -117,6 +132,7 @@ class BOB:
             ValueError: If the value is not one of the allowed values
         '''
         val = value.lower()
+        self._ensure_qnm_data_ready()
         if(val=="psi4" or val=="strain_using_psi4"):
             self.__what_to_create = val
             self.data = self.psi4_data
