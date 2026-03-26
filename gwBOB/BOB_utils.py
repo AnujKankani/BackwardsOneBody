@@ -234,7 +234,7 @@ class BOB:
         if(self.__what_to_create == "Nothing"):
             raise ValueError("Please specify BOB.what_should_BOB_create first.")
         if(isinstance(value,tuple)):
-            print("Setting Omega_0 according to the strain data!")
+            logger.info("Setting Omega_0 according to the strain data!")
             set_freq_using_strain_data = value[1]
             value = value[0]
         else:
@@ -290,7 +290,7 @@ class BOB:
         self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         if(value<self.end_fit_after_tpeak):
-            print("setting end_fit_after_tpeak to ",value)
+            logger.info("setting end_fit_after_tpeak to %s", value)
             self.end_fit_after_tpeak = value
         if(value<self.start_fit_before_tpeak):
             raise ValueError("You have a ridiculous end time. Choose something sensible")
@@ -559,7 +559,7 @@ class BOB:
         '''
         raise ValueError("fit_t0_and_Omega0 is not working right now. TODO: fix")
         if('psi4' in self.__what_to_create):
-            print("fitting t0 and Omega0 for psi4 frequencies usually does not work... the waveform may be bad")
+            logger.warning("fitting t0 and Omega0 for psi4 frequencies usually does not work... the waveform may be bad")
         freq_data = gen_utils.get_frequency(self.data)
         tp = np.where(self.data.t==self.tp)[0][0]
         freq_peak = freq_data.y[tp]/np.abs(self.m)
@@ -574,7 +574,7 @@ class BOB:
             self.t0 = res.x[0]
             self.t0_tp_tau = (self.t0 - self.tp)/self.tau
             self.Omega_0 = res.x[1]
-            print("t0 = ",self.t0-self.tp," and omega_0 = ",self.Omega_0)
+            logger.debug("t0 = %s and omega_0 = %s", self.t0-self.tp, self.Omega_0)
 
             popt,pcov = curve_fit(self.fit_t0_and_omega,self.data.t[start_index:end_index],freq_data.y[start_index:end_index],p0=[res.x[0],res.x[1]],bounds=([self.tp-100,1e-10],[self.tp,freq_peak]))
             self.t0 = popt[0]
@@ -585,7 +585,7 @@ class BOB:
             self.fitted_t0 = self.t0
             self.fitted_Omega0 = self.Omega_0
         except:
-            print("fit failed, setting t0 = -np.inf and Omega_0 = Omega_ISCO")
+            logger.warning("fit failed, setting t0 = -np.inf and Omega_0 = Omega_ISCO")
             self.t0 = -np.inf
             self.t0_tp_tau = (self.t0 - self.tp)/self.tau
             self.Omega_0 = self.Omega_ISCO
@@ -987,11 +987,11 @@ class BOB:
         #calculate the mismatch (without a time grid search) and perform a phase alignment
         if("using" in self.__what_to_create):
             mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.strain_data,0,75,use_trapz = True,return_best_phi0 = True)
-            print("Time domain vacuum mismatch from peak to 75M after the peak (only searched over phase) is",mismatch)
+            logger.info("Mismatch from peak to 75M after peak (phase-optimised): %.2e", mismatch)
             BOB_ts = BOB_ts.phase_shifted(-best_phi0)
         else:
             mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.data,0,75,use_trapz = True,return_best_phi0 = True)
-            print("Time domain vacuum mismatch from peak to 75M after the peak (only searched over phase) is",mismatch)
+            logger.info("Mismatch from peak to 75M after peak (phase-optimised): %.2e", mismatch)
             BOB_ts = BOB_ts.phase_shifted(-best_phi0)
 
         if("using" in self.__what_to_create):
@@ -1020,7 +1020,7 @@ class BOB:
         '''
         if(m==0):
             raise ValueError("m=0 case not implemented yet")
-        print("loading SXS data: ",sxs_id)
+        logger.info("Loading SXS data: %s", sxs_id)
         sim = sxs.load(sxs_id,download=download)
         ref_time = sim.metadata.reference_time
 
@@ -1094,20 +1094,20 @@ class BOB:
         self.psi4_mm_data = psi4mm
 
         if(verbose):
-            print("Mtot = ",self.M_tot)
-            print("Mf = ",self.mf)
-            print("chif = ",self.chif_with_sign)
-            print("requested (l,m) = (",self.l,",",self.m,")")
-            print("Omega_ISCO = ",self.Omega_ISCO)
-            print("Omega_QNM = ",self.Omega_QNM)
-            print("tau = ",self.tau)
-            print("h_L2_norm_tp = ",self.h_L2_norm_tp)
-            print("strain_tp = ",self.strain_tp)
-            print("strain_Ap = ",self.strain_Ap)
-            print("news_tp = ",self.news_tp)
-            print("news_Ap = ",self.news_Ap)
-            print("psi4_tp = ",self.psi4_tp)
-            print("psi4_Ap = ",self.psi4_Ap)
+            logger.debug("Mtot = %s", self.M_tot)
+            logger.debug("Mf = %s", self.mf)
+            logger.debug("chif = %s", self.chif_with_sign)
+            logger.debug("requested (l,m) = (%s, %s)", self.l, self.m)
+            logger.debug("Omega_ISCO = %s", self.Omega_ISCO)
+            logger.debug("Omega_QNM = %s", self.Omega_QNM)
+            logger.debug("tau = %s", self.tau)
+            logger.debug("h_L2_norm_tp = %s", self.h_L2_norm_tp)
+            logger.debug("strain_tp = %s", self.strain_tp)
+            logger.debug("strain_Ap = %s", self.strain_Ap)
+            logger.debug("news_tp = %s", self.news_tp)
+            logger.debug("news_Ap = %s", self.news_Ap)
+            logger.debug("psi4_tp = %s", self.psi4_tp)
+            logger.debug("psi4_Ap = %s", self.psi4_Ap)
     def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.1,verbose=False):
         '''
         This function is used to initialize the BOB with CCE data.
@@ -1125,7 +1125,7 @@ class BOB:
         if(m==0):
             raise ValueError("m=0 case not implemented yet")
         import qnmfits #adding here so this code can be used without WSL for non-cce purposes
-        print("loading CCE id",cce_id)
+        logger.info("Loading CCE data: %s", cce_id)
 
         self.resample_dt = resample_dt
 
@@ -1140,8 +1140,8 @@ class BOB:
         except:
             logger.warning("could not find metadata")
         if(perform_superrest_transformation):
-            print("Performing superrest transformation")
-            print("This may take ~20 minutes the first time")
+            logger.info("Performing superrest transformation")
+            logger.info("This may take ~20 minutes the first time")
             # We can extract individual spherical-harmonic modes like this:
             h = abd.h
             h22 = h.data[:,h.index(2,2)]
@@ -1228,27 +1228,26 @@ class BOB:
         self.psi4_mm_data = psi4mm
 
         if(verbose):
-            print("Mtot = ",self.M_tot)
+            logger.debug("Mtot = %s", self.M_tot)
             if(perform_superrest_transformation):
-                print("Bondi Mf = ",self.mf)
+                logger.debug("Bondi Mf = %s", self.mf)
             else:
-                print("Mf = ",self.mf)
+                logger.debug("Mf = %s", self.mf)
             if(perform_superrest_transformation):
-                print("Bondi chif = ",self.chif_with_sign)
+                logger.debug("Bondi chif = %s", self.chif_with_sign)
             else:
-                print("chif = ",self.chif_with_sign)
-                
-            print("requested (l,m) = (",self.l,",",self.m,")")
-            print("Omega_ISCO = ",self.Omega_ISCO)
-            print("Omega_QNM = ",self.Omega_QNM)
-            print("tau = ",self.tau)
-            print("h_L2_norm_tp = ",self.h_L2_norm_tp)
-            print("strain_tp = ",self.strain_tp)
-            print("strain_Ap = ",self.strain_Ap)
-            print("news_tp = ",self.news_tp)
-            print("news_Ap = ",self.news_Ap)
-            print("psi4_tp = ",self.psi4_tp)
-            print("psi4_Ap = ",self.psi4_Ap)
+                logger.debug("chif = %s", self.chif_with_sign)
+            logger.debug("requested (l,m) = (%s, %s)", self.l, self.m)
+            logger.debug("Omega_ISCO = %s", self.Omega_ISCO)
+            logger.debug("Omega_QNM = %s", self.Omega_QNM)
+            logger.debug("tau = %s", self.tau)
+            logger.debug("h_L2_norm_tp = %s", self.h_L2_norm_tp)
+            logger.debug("strain_tp = %s", self.strain_tp)
+            logger.debug("strain_Ap = %s", self.strain_Ap)
+            logger.debug("news_tp = %s", self.news_tp)
+            logger.debug("news_Ap = %s", self.news_Ap)
+            logger.debug("psi4_tp = %s", self.psi4_tp)
+            logger.debug("psi4_Ap = %s", self.psi4_Ap)
     def initialize_with_NR_mode(self,t_NR,y_psi4,y_strain,mf,chif,l=2,m=2,w_r = -1,tau = -1,verbose=False):
         '''
         This function is used to initialize the BOB with NR data. Currently this function only supports the input of one (s=-2,l,m) mode.
@@ -1326,16 +1325,16 @@ class BOB:
         self.news_data = ts_news
 
         if(verbose):
-            print("requested (l,m) = (",self.l,",",self.m,")")
-            print("Omega_ISCO = ",self.Omega_ISCO)
-            print("Omega_QNM = ",self.Omega_QNM)
-            print("tau = ",self.tau)
-            print("strain_tp = ",self.strain_tp)
-            print("strain_Ap = ",self.strain_Ap)
-            print("news_tp = ",self.news_tp)
-            print("news_Ap = ",self.news_Ap)
-            print("psi4_tp = ",self.psi4_tp)
-            print("psi4_Ap = ",self.psi4_Ap)
+            logger.debug("requested (l,m) = (%s, %s)", self.l, self.m)
+            logger.debug("Omega_ISCO = %s", self.Omega_ISCO)
+            logger.debug("Omega_QNM = %s", self.Omega_QNM)
+            logger.debug("tau = %s", self.tau)
+            logger.debug("strain_tp = %s", self.strain_tp)
+            logger.debug("strain_Ap = %s", self.strain_Ap)
+            logger.debug("news_tp = %s", self.news_tp)
+            logger.debug("news_Ap = %s", self.news_Ap)
+            logger.debug("psi4_tp = %s", self.psi4_tp)
+            logger.debug("psi4_Ap = %s", self.psi4_Ap)
     def get_psi4_data(self,**kwargs):
         '''
         This function is used to get the NR psi4 data.

@@ -1,6 +1,35 @@
 FAQ
 =================
 
+Output & Logging
+-------------------
+
+- Enabling gwBOB output
+
+   - By default gwBOB produces no console output. This prevents it from interfering with other packages (sxs, kuibit, scipy, etc.) that may also print to the terminal. To see loading progress and the waveform mismatch, call ``enable_output()`` once at the top of your script or notebook:
+
+     .. code-block:: python
+
+         import gwBOB
+         gwBOB.enable_output()            # show progress and mismatch
+         gwBOB.enable_output(verbose=True) # also show internal diagnostics
+
+- I'm not seeing any output even after calling ``enable_output()``
+
+   - Make sure you call ``enable_output()`` **before** constructing BOB. If you call it after ``construct_BOB()`` has already run, the messages from that call will have been discarded. Also check that you have imported ``gwBOB`` (not just ``gwBOB.BOB_utils``) — the function lives on the top-level package.
+
+- Redirecting gwBOB output to a file
+
+   - The standard Python ``logging`` module handles this. Add a ``FileHandler`` to the gwBOB logger after calling ``enable_output()``:
+
+     .. code-block:: python
+
+         import logging, gwBOB
+         gwBOB.enable_output()
+         fh = logging.FileHandler("gwBOB_run.log")
+         fh.setFormatter(logging.Formatter("%(message)s"))
+         logging.getLogger("gwBOB").addHandler(fh)
+
 Code Conventions
 -------------------
 
