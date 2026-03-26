@@ -9,6 +9,19 @@ First we install BOB.
 
    pip install gwBOB
 
+Before we do anything else, let's turn on gwBOB's output so we can see progress messages as we go.
+
+.. code-block:: python
+
+    import gwBOB
+    gwBOB.enable_output()
+
+gwBOB is silent by default so it never interferes with other packages. For more detailed messages, pass ``verbose=True``:
+
+.. code-block:: python
+
+    gwBOB.enable_output(verbose=True)
+
 Now we can use the code. Let's start by initializing BOB.
 
 .. code-block:: python
