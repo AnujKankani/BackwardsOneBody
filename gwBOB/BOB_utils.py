@@ -17,6 +17,41 @@ from gwBOB._state import (
 
 logger = logging.getLogger(__name__)
 
+
+# Warning text emitted by the `what_should_BOB_create` setter for testing-only modes.
+_STRAIN_WARNING = (
+    "WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN! "
+    "BOB SHOULD BE BUILT FOR PSI4/NEWS AND CONVERTED TO STRAIN. "
+    "THIS IS HERE FOR TESTING/COMPLETENESS!"
+)
+_QUADRUPOLE_WARNING = (
+    "WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! "
+    "BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. "
+    "THIS IS HERE FOR TESTING/COMPLETENESS!"
+)
+
+# Dispatch table for "simple" modes. Tuple is:
+#   (canonical_name, DataStore attribute name, Omega_0 fit fn, optional warning)
+_SIMPLE_MODES = {
+    "psi4":              ("psi4",              "psi4_data",   gen_utils.Omega_0_fit_psi4,   None),
+    "strain_using_psi4": ("strain_using_psi4", "psi4_data",   gen_utils.Omega_0_fit_psi4,   None),
+    "news":              ("news",              "news_data",   gen_utils.Omega_0_fit_news,   None),
+    "strain_using_news": ("strain_using_news", "news_data",   gen_utils.Omega_0_fit_news,   None),
+    "strain":            ("strain",            "strain_data", gen_utils.Omega_0_fit_strain, _STRAIN_WARNING),
+}
+
+# Dispatch table for quadrupole modes. Tuple is:
+#   (canonical_name, base_mode for construct_NR_mass_and_current_quadrupole, "mass" | "current")
+_QUADRUPOLE_MODES = {
+    "mass_quadrupole_with_strain":    ("mass_quadrupole_with_strain",    "strain", "mass"),
+    "current_quadrupole_with_strain": ("current_quadrupole_with_strain", "strain", "current"),
+    "mass_quadrupole_with_news":      ("mass_quadrupole_with_news",      "news",   "mass"),
+    "current_quadrupole_with_news":   ("current_quadrupole_with_news",   "news",   "current"),
+    "mass_quadrupole_with_psi4":      ("mass_quadrupole_with_psi4",      "psi4",   "mass"),
+    "current_quadrupole_with_psi4":   ("current_quadrupole_with_psi4",   "psi4",   "current"),
+}
+
+
 class BOB:
     '''
     A class to construct BOB waveforms. This class is designed to be the one-stop-shop for constructing 
@@ -106,9 +141,11 @@ class BOB:
         '''
         return self._wf_config.what_to_create
     @what_should_BOB_create.setter
-    def what_should_BOB_create(self,value):
+    def what_should_BOB_create(self, value):
         '''
-        This function allows the user to set what BOB should create. Allowed options are "psi4","news","strain_using_news". Additional options exist, but should be used with care.
+        This function allows the user to set what BOB should create. Allowed options are
+        "psi4", "news", "strain_using_news". Additional options exist, but should be used
+        with care.
 
         args:
             value (str): What BOB should create
@@ -118,84 +155,75 @@ class BOB:
         '''
         val = value.lower()
         self._ensure_qnm_data_ready()
-        if(val=="psi4" or val=="strain_using_psi4"):
-            self._wf_config.what_to_create = val
-            self._runtime.data = self._data.psi4_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.psi4_data.abs())
-            self._runtime.Ap = Ap
-            self._runtime.tp = tp
-            self._remnant.Omega_0 = gen_utils.Omega_0_fit_psi4(self._remnant.mf,self._remnant.chif_with_sign)
-        elif(val=="news" or val=="strain_using_news"):
-            self._wf_config.what_to_create = val
-            self._runtime.data = self._data.news_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.news_data.abs())
-            self._runtime.Ap = Ap
-            self._runtime.tp = tp
-            self._remnant.Omega_0 = gen_utils.Omega_0_fit_news(self._remnant.mf,self._remnant.chif_with_sign)
-        elif(val=="strain"):
-            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN! BOB SHOULD BE BUILT FOR PSI4/NEWS AND CONVERTED TO STRAIN. THIS IS HERE FOR TESTING/COMPLETENESS!")
-            self._wf_config.what_to_create = val
-            self._runtime.data = self._data.strain_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.strain_data.abs())
-            self._runtime.Ap = Ap
-            self._runtime.tp = tp
-            self._remnant.Omega_0 = gen_utils.Omega_0_fit_strain(self._remnant.mf,self._remnant.chif_with_sign)
-        elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
-            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
-            NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
-            self._data.mass_quadrupole_data = NR_mass
-            self._data.current_quadrupole_data = NR_current
-            if('mass' in val):
-                self._wf_config.what_to_create = "mass_quadrupole_with_strain"
-                self._runtime.data = self._data.mass_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.mass_quadrupole_data.abs())
-                self._runtime.Ap = Ap
-                self._runtime.tp = tp
-            else:
-                self._wf_config.what_to_create = "current_quadrupole_with_strain"
-                self._runtime.data = self._data.current_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.current_quadrupole_data.abs())
-                self._runtime.Ap = Ap
-                self._runtime.tp = self._data.current_quadrupole_data.time_at_maximum()
-        elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
-            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
-            NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("news")
-            self._data.mass_quadrupole_data = NR_mass
-            self._data.current_quadrupole_data = NR_current
-            if('mass' in val):
-                self._wf_config.what_to_create = "mass_quadrupole_with_news"
-                self._runtime.data = self._data.mass_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.mass_quadrupole_data.abs())
-                self._runtime.Ap = Ap
-                self._runtime.tp = tp
-            else:
-                self._wf_config.what_to_create = "current_quadrupole_with_news"
-                self._runtime.data = self._data.current_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.current_quadrupole_data.abs())
-                self._runtime.Ap = Ap
-                self._runtime.tp = tp
-        elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
-            logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
-            NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("psi4")
-            self._data.mass_quadrupole_data = NR_mass
-            self._data.current_quadrupole_data = NR_current
-            if('mass' in val):
-                self._wf_config.what_to_create = "mass_quadrupole_with_psi4"
-                self._runtime.data = self._data.mass_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.mass_quadrupole_data.abs())
-                self._runtime.Ap = Ap
-                self._runtime.tp = tp
-            else:
-                self._wf_config.what_to_create = "current_quadrupole_with_psi4"
-                self._runtime.data = self._data.current_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.current_quadrupole_data.abs())
-                self._runtime.Ap = Ap
-                self._runtime.tp = tp
+
+        if val in _SIMPLE_MODES:
+            self._apply_simple_mode(val)
+        elif val in _QUADRUPOLE_MODES:
+            self._apply_quadrupole_mode(val)
         else:
-            raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
-        self._runtime.t = np.arange(self._wf_config.start_before_tpeak+self._runtime.tp,self._wf_config.end_after_tpeak+self._runtime.tp,self._data.resample_dt)
-        self._runtime.t_tp_tau = (self._runtime.t - self._runtime.tp)/self._remnant.tau
-        
+            raise ValueError(
+                "Invalid choice for what to create. "
+                "Valid choices can be obtained by calling get_valid_choices()"
+            )
+
+        # Common to all modes: recompute the time grid for the new tp.
+        self._runtime.t = np.arange(
+            self._wf_config.start_before_tpeak + self._runtime.tp,
+            self._wf_config.end_after_tpeak + self._runtime.tp,
+            self._data.resample_dt,
+        )
+        self._runtime.t_tp_tau = (self._runtime.t - self._runtime.tp) / self._remnant.tau
+
+    def _apply_simple_mode(self, val):
+        '''Internal: handle the simple psi4/news/strain/strain_using_* modes.
+
+        Preserves the exact write order of the pre-refactor cascade so byte-for-byte
+        regression is unchanged.
+        '''
+        canonical, data_attr, omega_fn, warning = _SIMPLE_MODES[val]
+        if warning is not None:
+            logger.warning(warning)
+        # Order below matches the original setter exactly:
+        # what_to_create -> runtime.data -> Ap -> tp -> Omega_0
+        self._wf_config.what_to_create = canonical
+        data = getattr(self._data, data_attr)
+        self._runtime.data = data
+        tp, Ap = gen_utils.get_tp_Ap_from_spline(data.abs())
+        self._runtime.Ap = Ap
+        self._runtime.tp = tp
+        self._remnant.Omega_0 = omega_fn(self._remnant.mf, self._remnant.chif_with_sign)
+
+    def _apply_quadrupole_mode(self, val):
+        '''Internal: handle the six quadrupole modes (mass/current x strain/news/psi4).
+
+        Preserves a documented quirk: ``current_quadrupole_with_strain`` uses the
+        kuibit ``time_at_maximum()`` method for tp, while every other quadrupole
+        mode uses ``gen_utils.get_tp_Ap_from_spline``. This asymmetry is kept
+        exactly to match pre-refactor numerics.
+        '''
+        logger.warning(_QUADRUPOLE_WARNING)
+        canonical, base_mode, flavor = _QUADRUPOLE_MODES[val]
+        # Order below matches the original setter exactly:
+        # construct NR -> store both quadrupoles -> what_to_create -> runtime.data -> Ap -> tp
+        NR_current, NR_mass = self.construct_NR_mass_and_current_quadrupole(base_mode)
+        self._data.mass_quadrupole_data = NR_mass
+        self._data.current_quadrupole_data = NR_current
+
+        self._wf_config.what_to_create = canonical
+        if flavor == "mass":
+            data = self._data.mass_quadrupole_data
+        else:
+            data = self._data.current_quadrupole_data
+        self._runtime.data = data
+        tp, Ap = gen_utils.get_tp_Ap_from_spline(data.abs())
+        self._runtime.Ap = Ap
+
+        if val == "current_quadrupole_with_strain":
+            # Documented quirk preserved verbatim from pre-refactor code.
+            self._runtime.tp = self._data.current_quadrupole_data.time_at_maximum()
+        else:
+            self._runtime.tp = tp
+
     @property
     def set_initial_time(self):
         '''
@@ -555,14 +583,32 @@ class BOB:
         ascii_funcs.print_sean_face()
     def valid_choices(self):
         '''
-        All this does is print the valid choices for what_should_BOB_create.
+        Print the valid choices for what_should_BOB_create.
+
+        Derived from the dispatch tables (`_SIMPLE_MODES`, `_QUADRUPOLE_MODES`)
+        so this listing and the setter cannot drift apart.
         '''
-        print("valid choices for what_should_BOB_create are: ")
-        print(" psi4\n news\n strain_using_psi4\n strain_using_news")
-        print("For 99% of use cases, you want to either build news or strain_using_news")
-        print("\n\n\nThere are a few extra testing options. THESE SHOULD NOT BE USED UNLESS YOU KNOW WHAT YOU ARE DOING.")
-        print("Most of the options below are BAD ways to build the waveform. They are only here for testing and comparison purposes.")
-        print("strain\n  mass_quadrupole_with_strain\n current_quadrupole_with_strain\n mass_quadrupole_with_psi4\n current_quadrupole_with_psi4\n mass_quadrupole_with_news\n current_quadrupole_with_news")
+        # Modes in _SIMPLE_MODES with no warning are the recommended ones.
+        # Modes with a warning, plus all quadrupole modes (which the helper
+        # always warns on), are testing-only.
+        recommended = [m for m, spec in _SIMPLE_MODES.items() if spec[3] is None]
+        testing_simple = [m for m, spec in _SIMPLE_MODES.items() if spec[3] is not None]
+        testing_quadrupole = list(_QUADRUPOLE_MODES.keys())
+
+        print("Valid choices for what_should_BOB_create:")
+        print()
+        print("Recommended:")
+        for m in recommended:
+            print(f"  {m}")
+        print()
+        print("For 99% of use cases, you want to either build 'news' or 'strain_using_news'.")
+        print()
+        print()
+        print("Testing-only options. THESE SHOULD NOT BE USED UNLESS YOU KNOW WHAT YOU ARE DOING.")
+        print("Most of the options below are BAD ways to build the waveform.")
+        print("They are only here for testing and comparison purposes.")
+        for m in testing_simple + testing_quadrupole:
+            print(f"  {m}")
     
     def get_correct_Phi_and_Omega(self):
         '''
