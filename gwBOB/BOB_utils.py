@@ -10,6 +10,9 @@ from gwBOB import BOB_terms
 from gwBOB import gen_utils
 from gwBOB import convert_to_strain_using_series
 from gwBOB import ascii_funcs
+from gwBOB._state import (
+    Remnant, DataStore, WaveformConfig, FitConfig, RuntimeState, FitResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,55 +55,33 @@ class BOB:
         __optimize_t0 (bool): Whether to optimize t0
     
     '''
+    __slots__ = (
+        "_qnm_data_ready",
+        "_remnant",
+        "_data",
+        "_wf_config",
+        "_fit_config",
+        "_runtime",
+        "_fit_result",
+    )
+
     def __init__(self):
         '''
-        Initializes the BOB object with default values. By default a least squares optimization is performed. 
+        Initializes the BOB object with default values. By default a least squares optimization is performed.
 
         '''
         self._qnm_data_ready = False
-        #some default values
-        self.minf_t0 = True
-        self.__start_before_tpeak = -75
-        self.__end_after_tpeak = 100
-        self.t0 = -10
-        self.tp = 0
-        
-        self.what_is_BOB_building="Nothing"
-        self.__what_to_create = "Nothing"
-        self.l = 2
-        self.m = 2
-        self.Phi_0 = 0
-        self.resample_dt = 0.1
-        self.t = np.arange(self.__start_before_tpeak+self.tp,self.__end_after_tpeak+self.tp,self.resample_dt)
-        self.strain_tp = None
-        self.news_tp = None
-        self.psi4_tp = None
-
-        #optimization options
-        #by default a least squares optimization is performed
-        self.optimize_Omega0 = False
-
-        self.NR_based_on_BOB_ts = None
-        self.start_fit_before_tpeak = 0
-        self.end_fit_after_tpeak = 100
-        self.perform_final_time_alignment=False
-        self.perform_final_amplitude_rescaling=True
-
-        self.full_strain_data = None
-
-        self.auto_switch_to_numerical_integration = True
-
-        self.__optimize_t0_and_Omega0 = False
-        self.__optimize_t0 = False
-
-        self.fitted_t0 = -np.inf
-        self.fitted_Omega0 = -np.inf
-
-        self.use_strain_for_t0_optimization = False
-        self.use_strain_for_Omega0_optimization = False
-
-        #flag to see if a attempted fit failed
-        self.fit_failed = False
+        self._remnant = Remnant()
+        self._data = DataStore()
+        self._wf_config = WaveformConfig()
+        self._fit_config = FitConfig()
+        self._runtime = RuntimeState()
+        self._fit_result = FitResult()
+        self._runtime.t = np.arange(
+            self._wf_config.start_before_tpeak + self._runtime.tp,
+            self._wf_config.end_after_tpeak + self._runtime.tp,
+            self._data.resample_dt,
+        )
 
     def _ensure_qnm_data_ready(self):
         '''
@@ -122,7 +103,7 @@ class BOB:
         '''
         Returns what BOB should create
         '''
-        return self.__what_to_create
+        return self._wf_config.what_to_create
     @what_should_BOB_create.setter
     def what_should_BOB_create(self,value):
         '''
@@ -137,88 +118,88 @@ class BOB:
         val = value.lower()
         self._ensure_qnm_data_ready()
         if(val=="psi4" or val=="strain_using_psi4"):
-            self.__what_to_create = val
-            self.data = self.psi4_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data.abs())
-            self.Ap = Ap
-            self.tp = tp
-            self.Omega_0 = gen_utils.Omega_0_fit_psi4(self.mf,self.chif_with_sign)
+            self._wf_config.what_to_create = val
+            self._runtime.data = self._data.psi4_data
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.psi4_data.abs())
+            self._runtime.Ap = Ap
+            self._runtime.tp = tp
+            self._remnant.Omega_0 = gen_utils.Omega_0_fit_psi4(self._remnant.mf,self._remnant.chif_with_sign)
         elif(val=="news" or val=="strain_using_news"):
-            self.__what_to_create = val
-            self.data = self.news_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data.abs())
-            self.Ap = Ap
-            self.tp = tp
-            self.Omega_0 = gen_utils.Omega_0_fit_news(self.mf,self.chif_with_sign)
+            self._wf_config.what_to_create = val
+            self._runtime.data = self._data.news_data
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.news_data.abs())
+            self._runtime.Ap = Ap
+            self._runtime.tp = tp
+            self._remnant.Omega_0 = gen_utils.Omega_0_fit_news(self._remnant.mf,self._remnant.chif_with_sign)
         elif(val=="strain"):
             logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE STRAIN! BOB SHOULD BE BUILT FOR PSI4/NEWS AND CONVERTED TO STRAIN. THIS IS HERE FOR TESTING/COMPLETENESS!")
-            self.__what_to_create = val
-            self.data = self.strain_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
-            self.Ap = Ap
-            self.tp = tp
-            self.Omega_0 = gen_utils.Omega_0_fit_strain(self.mf,self.chif_with_sign)
+            self._wf_config.what_to_create = val
+            self._runtime.data = self._data.strain_data
+            tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.strain_data.abs())
+            self._runtime.Ap = Ap
+            self._runtime.tp = tp
+            self._remnant.Omega_0 = gen_utils.Omega_0_fit_strain(self._remnant.mf,self._remnant.chif_with_sign)
         elif(val=="mass_quadrupole_with_strain" or val=="current_quadrupole_with_strain"):
             logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("strain")
-            self.mass_quadrupole_data = NR_mass
-            self.current_quadrupole_data = NR_current
+            self._data.mass_quadrupole_data = NR_mass
+            self._data.current_quadrupole_data = NR_current
             if('mass' in val):
-                self.__what_to_create = "mass_quadrupole_with_strain"
-                self.data = self.mass_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.mass_quadrupole_data.abs())
-                self.Ap = Ap
-                self.tp = tp
+                self._wf_config.what_to_create = "mass_quadrupole_with_strain"
+                self._runtime.data = self._data.mass_quadrupole_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.mass_quadrupole_data.abs())
+                self._runtime.Ap = Ap
+                self._runtime.tp = tp
             else:
-                self.__what_to_create = "current_quadrupole_with_strain"
-                self.data = self.current_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.current_quadrupole_data.abs())
-                self.Ap = Ap
-                self.tp = self.current_quadrupole_data.time_at_maximum()      
+                self._wf_config.what_to_create = "current_quadrupole_with_strain"
+                self._runtime.data = self._data.current_quadrupole_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.current_quadrupole_data.abs())
+                self._runtime.Ap = Ap
+                self._runtime.tp = self._data.current_quadrupole_data.time_at_maximum()
         elif(val=="mass_quadrupole_with_news" or val=="current_quadrupole_with_news"):
             logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("news")
-            self.mass_quadrupole_data = NR_mass
-            self.current_quadrupole_data = NR_current
+            self._data.mass_quadrupole_data = NR_mass
+            self._data.current_quadrupole_data = NR_current
             if('mass' in val):
-                self.__what_to_create = "mass_quadrupole_with_news"
-                self.data = self.mass_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.mass_quadrupole_data.abs())
-                self.Ap = Ap
-                self.tp = tp
+                self._wf_config.what_to_create = "mass_quadrupole_with_news"
+                self._runtime.data = self._data.mass_quadrupole_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.mass_quadrupole_data.abs())
+                self._runtime.Ap = Ap
+                self._runtime.tp = tp
             else:
-                self.__what_to_create = "current_quadrupole_with_news"
-                self.data = self.current_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.current_quadrupole_data.abs())
-                self.Ap = Ap
-                self.tp = tp      
+                self._wf_config.what_to_create = "current_quadrupole_with_news"
+                self._runtime.data = self._data.current_quadrupole_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.current_quadrupole_data.abs())
+                self._runtime.Ap = Ap
+                self._runtime.tp = tp
         elif(val=="mass_quadrupole_with_psi4" or val=="current_quadrupole_with_psi4"):
             logger.warning("WARNING! THIS IS NOT A GOOD WAY TO BUILD THE QUADRUPOLE TERMS! BOB SHOULD BE BUILT FOR PSI4/NEWS AND THE QUADRUPOLE QUANTITY SHOULD BE BUILT FROM THESE TERMS. THIS IS HERE FOR TESTING/COMPLETENESS!")
             NR_current,NR_mass = self.construct_NR_mass_and_current_quadrupole("psi4")
-            self.mass_quadrupole_data = NR_mass
-            self.current_quadrupole_data = NR_current
+            self._data.mass_quadrupole_data = NR_mass
+            self._data.current_quadrupole_data = NR_current
             if('mass' in val):
-                self.__what_to_create = "mass_quadrupole_with_psi4"
-                self.data = self.mass_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.mass_quadrupole_data.abs())
-                self.Ap = Ap
-                self.tp = tp
+                self._wf_config.what_to_create = "mass_quadrupole_with_psi4"
+                self._runtime.data = self._data.mass_quadrupole_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.mass_quadrupole_data.abs())
+                self._runtime.Ap = Ap
+                self._runtime.tp = tp
             else:
-                self.__what_to_create = "current_quadrupole_with_psi4"
-                self.data = self.current_quadrupole_data
-                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.current_quadrupole_data.abs())
-                self.Ap = Ap
-                self.tp = tp      
+                self._wf_config.what_to_create = "current_quadrupole_with_psi4"
+                self._runtime.data = self._data.current_quadrupole_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self._data.current_quadrupole_data.abs())
+                self._runtime.Ap = Ap
+                self._runtime.tp = tp
         else:
             raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
-        self.t = np.arange(self.__start_before_tpeak+self.tp,self.__end_after_tpeak+self.tp,self.resample_dt)
-        self.t_tp_tau = (self.t - self.tp)/self.tau
+        self._runtime.t = np.arange(self._wf_config.start_before_tpeak+self._runtime.tp,self._wf_config.end_after_tpeak+self._runtime.tp,self._data.resample_dt)
+        self._runtime.t_tp_tau = (self._runtime.t - self._runtime.tp)/self._remnant.tau
         
     @property
     def set_initial_time(self):
         '''
         '''
-        return self.t0
+        return self._wf_config.t0
     @set_initial_time.setter
     def set_initial_time(self,value):
         '''
@@ -231,7 +212,7 @@ class BOB:
         args:
             value (tuple or float): Initial time and whether to set the frequency using the strain data
         '''
-        if(self.__what_to_create == "Nothing"):
+        if(self._wf_config.what_to_create == "Nothing"):
             raise ValueError("Please specify BOB.what_should_BOB_create first.")
         if(isinstance(value,tuple)):
             logger.info("Setting Omega_0 according to the strain data!")
@@ -239,44 +220,44 @@ class BOB:
             value = value[0]
         else:
             set_freq_using_strain_data = False
-        self.minf_t0 = False
-        
+        self._wf_config.minf_t0 = False
+
         if(set_freq_using_strain_data):
-            freq = gen_utils.get_frequency(self.strain_data)
+            freq = gen_utils.get_frequency(self._data.strain_data)
         else:
-            freq = gen_utils.get_frequency(self.data)
-        closest_idx = gen_utils.find_nearest_index(freq.t,self.tp+value)
+            freq = gen_utils.get_frequency(self._runtime.data)
+        closest_idx = gen_utils.find_nearest_index(freq.t,self._runtime.tp+value)
         w0 = freq.y[closest_idx]
-        self.Omega_0 = w0/np.abs(self.m)
-        self.t0 = self.tp+value
-        self.t0_tp_tau = (self.t0 - self.tp)/self.tau
+        self._remnant.Omega_0 = w0/np.abs(self._remnant.m)
+        self._wf_config.t0 = self._runtime.tp+value
+        self._runtime.t0_tp_tau = (self._wf_config.t0 - self._runtime.tp)/self._remnant.tau
 
     @property
     def set_start_before_tpeak(self):
         '''
         '''
-        return self.__start_before_tpeak
-    
+        return self._wf_config.start_before_tpeak
+
     @set_start_before_tpeak.setter
     def set_start_before_tpeak(self,value):
         '''
         This function allows the user to set the start time before the peak. The start time is set to the value
         specified by the user.
-        
+
 
         args:
             value (float): Start time before the peak
         '''
-        self.__start_before_tpeak = value
-        self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
-        self.t_tp_tau = (self.t - self.tp)/self.tau
-    
+        self._wf_config.start_before_tpeak = value
+        self._runtime.t = np.arange(self._runtime.tp + self._wf_config.start_before_tpeak,self._runtime.tp + self._wf_config.end_after_tpeak,self._data.resample_dt)
+        self._runtime.t_tp_tau = (self._runtime.t - self._runtime.tp)/self._remnant.tau
+
     @property
     def set_end_after_tpeak(self):
         '''
         '''
-        return self.__end_after_tpeak
-    
+        return self._wf_config.end_after_tpeak
+
     @set_end_after_tpeak.setter
     def set_end_after_tpeak(self,value):
         '''
@@ -286,51 +267,283 @@ class BOB:
         args:
             value (float): End time after the peak
         '''
-        self.__end_after_tpeak = value
-        self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
-        self.t_tp_tau = (self.t - self.tp)/self.tau
-        if(value<self.end_fit_after_tpeak):
+        self._wf_config.end_after_tpeak = value
+        self._runtime.t = np.arange(self._runtime.tp + self._wf_config.start_before_tpeak,self._runtime.tp + self._wf_config.end_after_tpeak,self._data.resample_dt)
+        self._runtime.t_tp_tau = (self._runtime.t - self._runtime.tp)/self._remnant.tau
+        if(value<self._fit_config.end_fit_after_tpeak):
             logger.info("setting end_fit_after_tpeak to %s", value)
-            self.end_fit_after_tpeak = value
-        if(value<self.start_fit_before_tpeak):
+            self._fit_config.end_fit_after_tpeak = value
+        if(value<self._fit_config.start_fit_before_tpeak):
             raise ValueError("You have a ridiculous end time. Choose something sensible")
-    
+
     @property
     def optimize_t0_and_Omega0(self):
         '''
         '''
-        return self.__optimize_t0_and_Omega0
-    
+        return self._fit_config.optimize_t0_and_Omega0
+
     @optimize_t0_and_Omega0.setter
     def optimize_t0_and_Omega0(self,value):
         '''
         This function allows the user to set the optimize_t0_and_Omega0 flag. The optimize_t0_and_Omega0 flag
         indicates whether to optimize the initial time and frequency.
-        
+
         args:
             value (bool): Optimize initial time and frequency
         '''
-        self.minf_t0 = False
-        self.__optimize_t0_and_Omega0 = value
-    
+        self._wf_config.minf_t0 = False
+        self._fit_config.optimize_t0_and_Omega0 = value
+
     @property
     def optimize_t0(self):
         '''
         '''
-        return self.__optimize_t0
-    
+        return self._fit_config.optimize_t0
+
     @optimize_t0.setter
     def optimize_t0(self,value):
         '''
         This function allows the user to set the optimize_t0 flag. The optimize_t0 flag
         indicates whether to optimize the initial time.
-        
+
         args:
             value (bool): Optimize initial time
         '''
-        self.minf_t0 = False
-        self.__optimize_t0 = value
-    
+        self._wf_config.minf_t0 = False
+        self._fit_config.optimize_t0 = value
+
+    # --- Remnant properties (physics constants) ---
+    @property
+    def mf(self): return self._remnant.mf
+    @mf.setter
+    def mf(self, v): self._remnant.mf = v
+    @property
+    def chif(self): return self._remnant.chif
+    @chif.setter
+    def chif(self, v): self._remnant.chif = v
+    @property
+    def chif_with_sign(self): return self._remnant.chif_with_sign
+    @chif_with_sign.setter
+    def chif_with_sign(self, v): self._remnant.chif_with_sign = v
+    @property
+    def M_tot(self): return self._remnant.M_tot
+    @M_tot.setter
+    def M_tot(self, v): self._remnant.M_tot = v
+    @property
+    def Omega_ISCO(self): return self._remnant.Omega_ISCO
+    @Omega_ISCO.setter
+    def Omega_ISCO(self, v): self._remnant.Omega_ISCO = v
+    @property
+    def Omega_QNM(self): return self._remnant.Omega_QNM
+    @Omega_QNM.setter
+    def Omega_QNM(self, v): self._remnant.Omega_QNM = v
+    @property
+    def Omega_0(self): return self._remnant.Omega_0
+    @Omega_0.setter
+    def Omega_0(self, v): self._remnant.Omega_0 = v
+    @property
+    def w_r(self): return self._remnant.w_r
+    @w_r.setter
+    def w_r(self, v): self._remnant.w_r = v
+    @property
+    def tau(self): return self._remnant.tau
+    @tau.setter
+    def tau(self, v): self._remnant.tau = v
+    @property
+    def l(self): return self._remnant.l
+    @l.setter
+    def l(self, v): self._remnant.l = v
+    @property
+    def m(self): return self._remnant.m
+    @m.setter
+    def m(self, v): self._remnant.m = v
+    @property
+    def metadata(self): return self._remnant.metadata
+    @metadata.setter
+    def metadata(self, v): self._remnant.metadata = v
+    @property
+    def sxs_id(self): return self._remnant.sxs_id
+    @sxs_id.setter
+    def sxs_id(self, v): self._remnant.sxs_id = v
+
+    # --- DataStore properties (NR data loaded by initialize_with_*) ---
+    @property
+    def strain_data(self): return self._data.strain_data
+    @strain_data.setter
+    def strain_data(self, v): self._data.strain_data = v
+    @property
+    def news_data(self): return self._data.news_data
+    @news_data.setter
+    def news_data(self, v): self._data.news_data = v
+    @property
+    def psi4_data(self): return self._data.psi4_data
+    @psi4_data.setter
+    def psi4_data(self, v): self._data.psi4_data = v
+    @property
+    def strain_mm_data(self): return self._data.strain_mm_data
+    @strain_mm_data.setter
+    def strain_mm_data(self, v): self._data.strain_mm_data = v
+    @property
+    def news_mm_data(self): return self._data.news_mm_data
+    @news_mm_data.setter
+    def news_mm_data(self, v): self._data.news_mm_data = v
+    @property
+    def psi4_mm_data(self): return self._data.psi4_mm_data
+    @psi4_mm_data.setter
+    def psi4_mm_data(self, v): self._data.psi4_mm_data = v
+    @property
+    def full_strain_data(self): return self._data.full_strain_data
+    @full_strain_data.setter
+    def full_strain_data(self, v): self._data.full_strain_data = v
+    @property
+    def full_psi4_data(self): return self._data.full_psi4_data
+    @full_psi4_data.setter
+    def full_psi4_data(self, v): self._data.full_psi4_data = v
+    @property
+    def strain_tp(self): return self._data.strain_tp
+    @strain_tp.setter
+    def strain_tp(self, v): self._data.strain_tp = v
+    @property
+    def news_tp(self): return self._data.news_tp
+    @news_tp.setter
+    def news_tp(self, v): self._data.news_tp = v
+    @property
+    def psi4_tp(self): return self._data.psi4_tp
+    @psi4_tp.setter
+    def psi4_tp(self, v): self._data.psi4_tp = v
+    @property
+    def strain_Ap(self): return self._data.strain_Ap
+    @strain_Ap.setter
+    def strain_Ap(self, v): self._data.strain_Ap = v
+    @property
+    def news_Ap(self): return self._data.news_Ap
+    @news_Ap.setter
+    def news_Ap(self, v): self._data.news_Ap = v
+    @property
+    def psi4_Ap(self): return self._data.psi4_Ap
+    @psi4_Ap.setter
+    def psi4_Ap(self, v): self._data.psi4_Ap = v
+    @property
+    def h_L2_norm_tp(self): return self._data.h_L2_norm_tp
+    @h_L2_norm_tp.setter
+    def h_L2_norm_tp(self, v): self._data.h_L2_norm_tp = v
+    @property
+    def strain_wm(self): return self._data.strain_wm
+    @strain_wm.setter
+    def strain_wm(self, v): self._data.strain_wm = v
+    @property
+    def strain_scri_wm(self): return self._data.strain_scri_wm
+    @strain_scri_wm.setter
+    def strain_scri_wm(self, v): self._data.strain_scri_wm = v
+    @property
+    def mass_quadrupole_data(self): return self._data.mass_quadrupole_data
+    @mass_quadrupole_data.setter
+    def mass_quadrupole_data(self, v): self._data.mass_quadrupole_data = v
+    @property
+    def current_quadrupole_data(self): return self._data.current_quadrupole_data
+    @current_quadrupole_data.setter
+    def current_quadrupole_data(self, v): self._data.current_quadrupole_data = v
+    @property
+    def resample_dt(self): return self._data.resample_dt
+    @resample_dt.setter
+    def resample_dt(self, v): self._data.resample_dt = v
+
+    # --- WaveformConfig properties ---
+    @property
+    def minf_t0(self): return self._wf_config.minf_t0
+    @minf_t0.setter
+    def minf_t0(self, v): self._wf_config.minf_t0 = v
+    @property
+    def t0(self): return self._wf_config.t0
+    @t0.setter
+    def t0(self, v): self._wf_config.t0 = v
+    @property
+    def Phi_0(self): return self._wf_config.Phi_0
+    @Phi_0.setter
+    def Phi_0(self, v): self._wf_config.Phi_0 = v
+    @property
+    def what_is_BOB_building(self): return self._wf_config.what_is_BOB_building
+    @what_is_BOB_building.setter
+    def what_is_BOB_building(self, v): self._wf_config.what_is_BOB_building = v
+
+    # --- FitConfig properties ---
+    @property
+    def optimize_Omega0(self): return self._fit_config.optimize_Omega0
+    @optimize_Omega0.setter
+    def optimize_Omega0(self, v): self._fit_config.optimize_Omega0 = v
+    @property
+    def start_fit_before_tpeak(self): return self._fit_config.start_fit_before_tpeak
+    @start_fit_before_tpeak.setter
+    def start_fit_before_tpeak(self, v): self._fit_config.start_fit_before_tpeak = v
+    @property
+    def end_fit_after_tpeak(self): return self._fit_config.end_fit_after_tpeak
+    @end_fit_after_tpeak.setter
+    def end_fit_after_tpeak(self, v): self._fit_config.end_fit_after_tpeak = v
+    @property
+    def use_strain_for_t0_optimization(self): return self._fit_config.use_strain_for_t0_optimization
+    @use_strain_for_t0_optimization.setter
+    def use_strain_for_t0_optimization(self, v): self._fit_config.use_strain_for_t0_optimization = v
+    @property
+    def use_strain_for_Omega0_optimization(self): return self._fit_config.use_strain_for_Omega0_optimization
+    @use_strain_for_Omega0_optimization.setter
+    def use_strain_for_Omega0_optimization(self, v): self._fit_config.use_strain_for_Omega0_optimization = v
+    @property
+    def auto_switch_to_numerical_integration(self): return self._fit_config.auto_switch_to_numerical_integration
+    @auto_switch_to_numerical_integration.setter
+    def auto_switch_to_numerical_integration(self, v): self._fit_config.auto_switch_to_numerical_integration = v
+    @property
+    def perform_final_time_alignment(self): return self._fit_config.perform_final_time_alignment
+    @perform_final_time_alignment.setter
+    def perform_final_time_alignment(self, v): self._fit_config.perform_final_time_alignment = v
+    @property
+    def perform_final_amplitude_rescaling(self): return self._fit_config.perform_final_amplitude_rescaling
+    @perform_final_amplitude_rescaling.setter
+    def perform_final_amplitude_rescaling(self, v): self._fit_config.perform_final_amplitude_rescaling = v
+
+    # --- RuntimeState properties ---
+    @property
+    def data(self): return self._runtime.data
+    @data.setter
+    def data(self, v): self._runtime.data = v
+    @property
+    def tp(self): return self._runtime.tp
+    @tp.setter
+    def tp(self, v): self._runtime.tp = v
+    @property
+    def Ap(self): return self._runtime.Ap
+    @Ap.setter
+    def Ap(self, v): self._runtime.Ap = v
+    @property
+    def t(self): return self._runtime.t
+    @t.setter
+    def t(self, v): self._runtime.t = v
+    @property
+    def t_tp_tau(self): return self._runtime.t_tp_tau
+    @t_tp_tau.setter
+    def t_tp_tau(self, v): self._runtime.t_tp_tau = v
+    @property
+    def t0_tp_tau(self): return self._runtime.t0_tp_tau
+    @t0_tp_tau.setter
+    def t0_tp_tau(self, v): self._runtime.t0_tp_tau = v
+    @property
+    def NR_based_on_BOB_ts(self): return self._runtime.NR_based_on_BOB_ts
+    @NR_based_on_BOB_ts.setter
+    def NR_based_on_BOB_ts(self, v): self._runtime.NR_based_on_BOB_ts = v
+
+    # --- FitResult properties ---
+    @property
+    def fitted_t0(self): return self._fit_result.fitted_t0
+    @fitted_t0.setter
+    def fitted_t0(self, v): self._fit_result.fitted_t0 = v
+    @property
+    def fitted_Omega0(self): return self._fit_result.fitted_Omega0
+    @fitted_Omega0.setter
+    def fitted_Omega0(self, v): self._fit_result.fitted_Omega0 = v
+    @property
+    def fit_failed(self): return self._fit_result.fit_failed
+    @fit_failed.setter
+    def fit_failed(self, v): self._fit_result.fit_failed = v
+
     def hello_world(self):
         '''
         '''
@@ -364,19 +577,19 @@ class BOB:
         #Even in the cases of strain_using_news, we still want to use the news frequency in all of the Omega0 optimizations because the analytical news frequency term
         #is built assuming the BOB amplitude best describes the news. While in principle, the accuracy could be improved for strain_using_news (and all X_using_Y cases)
         #by optimizing Omega0 against the NR strain frequency, this would be unphysical.
-        if('psi4' in self.__what_to_create):
+        if('psi4' in self._wf_config.what_to_create):
             if(self.minf_t0 is True):
                 Phi,Omega = BOB_terms.BOB_psi4_phase(self)
             else:
                 Phi,Omega = BOB_terms.BOB_psi4_phase_finite_t0(self)
 
-        elif('news' in self.__what_to_create):
+        elif('news' in self._wf_config.what_to_create):
             if(self.minf_t0 is True):
                 Phi,Omega = BOB_terms.BOB_news_phase(self)
             else:
                 Phi,Omega = BOB_terms.BOB_news_phase_finite_t0(self)
 
-        elif('strain' in self.__what_to_create):
+        elif('strain' in self._wf_config.what_to_create):
             if(self.minf_t0 is True):
                 Phi,Omega = BOB_terms.BOB_strain_phase(self)
             else:
@@ -398,11 +611,11 @@ class BOB:
         '''
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
-        if('psi4' in self.__what_to_create):
+        if('psi4' in self._wf_config.what_to_create):
             Omega = BOB_terms.BOB_psi4_freq(self)
-        elif('news' in self.__what_to_create):
+        elif('news' in self._wf_config.what_to_create):
             Omega = BOB_terms.BOB_news_freq(self)
-        elif('strain' in self.__what_to_create):
+        elif('strain' in self._wf_config.what_to_create):
             Omega = BOB_terms.BOB_strain_freq(self)
         else:
             raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
@@ -429,11 +642,11 @@ class BOB:
         start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
         end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
         try:
-            if('psi4' in self.__what_to_create):
+            if('psi4' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_psi4_freq_finite_t0(self)
-            elif('news' in self.__what_to_create):
+            elif('news' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_news_freq_finite_t0(self)
-            elif('strain' in self.__what_to_create):
+            elif('strain' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_strain_freq_finite_t0(self)
             else:
                 raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
@@ -465,11 +678,11 @@ class BOB:
         start_data_index = gen_utils.find_nearest_index(freq.t,self.tp+self.start_fit_before_tpeak)
         end_data_index = gen_utils.find_nearest_index(freq.t,self.tp+self.end_fit_after_tpeak)
         try:
-            if('psi4' in self.__what_to_create):
+            if('psi4' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_psi4_freq_finite_t0(self)
-            elif('news' in self.__what_to_create):
+            elif('news' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_news_freq_finite_t0(self)
-            elif('strain' in self.__what_to_create):
+            elif('strain' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_strain_freq_finite_t0(self)
             else:
                 raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
@@ -499,11 +712,11 @@ class BOB:
         start_data_index = gen_utils.find_nearest_index(freq_data.t,self.tp+self.start_fit_before_tpeak)
         end_data_index = gen_utils.find_nearest_index(freq_data.t,self.tp+self.end_fit_after_tpeak)
         try:
-            if('psi4' in self.__what_to_create):
+            if('psi4' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_psi4_freq_finite_t0(self)
-            elif('news' in self.__what_to_create):
+            elif('news' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_news_freq_finite_t0(self)
-            elif('strain' in self.__what_to_create):
+            elif('strain' in self._wf_config.what_to_create):
                 Omega = BOB_terms.BOB_strain_freq_finite_t0(self)
             else:
                 raise ValueError("Invalid choice for what to create. Valid choices can be obtained by calling get_valid_choices()")
@@ -529,9 +742,9 @@ class BOB:
         """
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
-        if(self.__end_after_tpeak<self.end_fit_after_tpeak):
+        if(self._wf_config.end_after_tpeak<self.end_fit_after_tpeak):
             logger.warning("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
-            self.end_fit_after_tpeak = self.__end_after_tpeak
+            self.end_fit_after_tpeak = self._wf_config.end_after_tpeak
         if(self.use_strain_for_Omega0_optimization):
             freq_ts = gen_utils.get_frequency(self.strain_data)
         else:
@@ -558,7 +771,7 @@ class BOB:
     
         '''
         raise ValueError("fit_t0_and_Omega0 is not working right now. TODO: fix")
-        if('psi4' in self.__what_to_create):
+        if('psi4' in self._wf_config.what_to_create):
             logger.warning("fitting t0 and Omega0 for psi4 frequencies usually does not work... the waveform may be bad")
         freq_data = gen_utils.get_frequency(self.data)
         tp = np.where(self.data.t==self.tp)[0][0]
@@ -641,9 +854,9 @@ class BOB:
         if(self.optimize_Omega0):
             raise ValueError("Cannot optimize Omega0 for finite t0 values.")
 
-        if(self.__optimize_t0_and_Omega0):
+        if(self._fit_config.optimize_t0_and_Omega0):
             self.fit_t0_and_Omega0()
-        elif(self.__optimize_t0):
+        elif(self._fit_config.optimize_t0):
             self.fit_t0()
         else:
             pass
@@ -657,10 +870,10 @@ class BOB:
         amp = BOB_terms.BOB_amplitude(self)
         BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
         
-        if(self.__what_to_create=="strain_using_news"):
+        if(self._wf_config.what_to_create=="strain_using_news"):
             t,y = convert_to_strain_using_series.generate_strain_from_news_using_series_finite_t0(self,N)
             BOB_ts = kuibit_ts(t,y)
-        elif(self.__what_to_create=="strain_using_psi4"):
+        elif(self._wf_config.what_to_create=="strain_using_psi4"):
             t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series_finite_t0(self,N)
             BOB_ts = kuibit_ts(t,y)
 
@@ -689,10 +902,10 @@ class BOB:
             self.fit_Omega0()
         else:
             pass
-        if(self.__what_to_create=="strain_using_news"):
+        if(self._wf_config.what_to_create=="strain_using_news"):
             t,y = convert_to_strain_using_series.generate_strain_from_news_using_series(self,N)
             BOB_ts = kuibit_ts(t,y)
-        elif(self.__what_to_create=="strain_using_psi4"):
+        elif(self._wf_config.what_to_create=="strain_using_psi4"):
             t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series(self,N)
             BOB_ts = kuibit_ts(t,y)
         else:
@@ -778,17 +991,17 @@ class BOB:
         
         #construct (l,-m) mode
         self.m = -self.m
-        if(self.__what_to_create=="psi4"):
+        if(self._wf_config.what_to_create=="psi4"):
             self.data = self.psi4_mm_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data)
             self.Ap = Ap
             self.tp = tp
-        elif(self.__what_to_create=="news"):
+        elif(self._wf_config.what_to_create=="news"):
             self.data = self.news_mm_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data)
             self.Ap = Ap
             self.tp = tp
-        elif(self.__what_to_create=="strain"):
+        elif(self._wf_config.what_to_create=="strain"):
             self.data = self.strain_mm_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data)
             self.Ap = Ap
@@ -796,7 +1009,7 @@ class BOB:
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
+        self.t = np.arange(self.tp + self._wf_config.start_before_tpeak,self.tp + self._wf_config.end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
         if(lmm_Omega0 is not None):
@@ -839,17 +1052,17 @@ class BOB:
         NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_current))
 
         #restore (l,m) and (l,-m) as automatic data
-        if(self.__what_to_create=="psi4"):
+        if(self._wf_config.what_to_create=="psi4"):
             self.data = self.psi4_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data)
             self.Ap = Ap
             self.tp = tp
-        elif(self.__what_to_create=="news"):
+        elif(self._wf_config.what_to_create=="news"):
             self.data = self.news_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data)
             self.Ap = Ap
             self.tp = tp
-        elif(self.__what_to_create=="strain"):
+        elif(self._wf_config.what_to_create=="strain"):
             self.data = self.strain_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data)
             self.Ap = Ap
@@ -892,17 +1105,17 @@ class BOB:
         
         #construct (l,-m) mode
         self.m = -self.m
-        if(self.__what_to_create=="psi4"):
+        if(self._wf_config.what_to_create=="psi4"):
             self.data = self.psi4_mm_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data)
             self.Ap = Ap
             self.tp = tp
-        elif(self.__what_to_create=="news"):
+        elif(self._wf_config.what_to_create=="news"):
             self.data = self.news_mm_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data)
             self.Ap = Ap
             self.tp = tp
-        elif(self.__what_to_create=="strain"):
+        elif(self._wf_config.what_to_create=="strain"):
             self.data = self.strain_mm_data
             tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data)
             self.Ap = Ap
@@ -910,7 +1123,7 @@ class BOB:
         else:
             raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        self.t = np.arange(self.tp + self.__start_before_tpeak,self.tp + self.__end_after_tpeak,self.resample_dt)
+        self.t = np.arange(self.tp + self._wf_config.start_before_tpeak,self.tp + self._wf_config.end_after_tpeak,self.resample_dt)
         self.t_tp_tau = (self.t - self.tp)/self.tau
         
         if(lmm_Omega0 is not None):
@@ -944,15 +1157,15 @@ class BOB:
         self.mass_quadrupole_data = kuibit_ts(union_ts,NR_mass)
 
         #restore (l,m) and (l,-m) as automatic data
-        if(self.__what_to_create=="psi4"):
+        if(self._wf_config.what_to_create=="psi4"):
             self.data = self.psi4_data
             self.Ap = self.psi4_data.abs_max()
             self.tp = self.psi4_data.time_at_maximum()
-        elif(self.__what_to_create=="news"):
+        elif(self._wf_config.what_to_create=="news"):
             self.data = self.news_data
             self.Ap = self.news_data.abs_max()
             self.tp = self.news_data.time_at_maximum()
-        elif(self.__what_to_create=="strain"):
+        elif(self._wf_config.what_to_create=="strain"):
             self.data = self.strain_data
             self.Ap = self.strain_data.abs_max()
             self.tp = self.strain_data.time_at_maximum()
@@ -985,7 +1198,7 @@ class BOB:
             BOB_ts = self.construct_BOB_finite_t0(N)
         
         #calculate the mismatch (without a time grid search) and perform a phase alignment
-        if("using" in self.__what_to_create):
+        if("using" in self._wf_config.what_to_create):
             mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.strain_data,0,75,use_trapz = True,return_best_phi0 = True)
             logger.info("Mismatch from peak to 75M after peak (phase-optimised): %.2e", mismatch)
             BOB_ts = BOB_ts.phase_shifted(-best_phi0)
@@ -994,8 +1207,8 @@ class BOB:
             logger.info("Mismatch from peak to 75M after peak (phase-optimised): %.2e", mismatch)
             BOB_ts = BOB_ts.phase_shifted(-best_phi0)
 
-        if("using" in self.__what_to_create):
-            if(self.__what_to_create=="strain_using_psi4" or self.__what_to_create=="strain_using_news"):
+        if("using" in self._wf_config.what_to_create):
+            if(self._wf_config.what_to_create=="strain_using_psi4" or self._wf_config.what_to_create=="strain_using_news"):
                 self.NR_based_on_BOB_ts = self.strain_data.resampled(BOB_ts.t)
         else:
             if(BOB_ts.t[-1]>self.data.t[-1]):
