@@ -10,6 +10,7 @@ from gwBOB import BOB_terms
 from gwBOB import gen_utils
 from gwBOB import convert_to_strain_using_series
 from gwBOB import ascii_funcs
+from gwBOB import _construct
 from gwBOB._state import (
     Remnant, DataStore, WaveformConfig, FitConfig, RuntimeState, FitResult,
 )
@@ -844,11 +845,9 @@ class BOB:
 
         args:
             N (int): Number of terms to use in the series if "strain_using_news" is used
-        
+
         returns:
             Kuibit Timeseries: BOB timeseries
-            
-        
         '''
         #Perform parameter sanity checks
         if(self.optimize_Omega0):
@@ -860,25 +859,15 @@ class BOB:
             self.fit_t0()
         else:
             pass
-        
-        phase = None
+
         self.fitted_t0 = self.t0
         self.fitted_Omega0 = self.Omega_0
-        Phi,Omega = self.get_correct_Phi_and_Omega()
-        phase = np.abs(self.m)*Phi
 
-        amp = BOB_terms.BOB_amplitude(self)
-        BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
-        
-        if(self._wf_config.what_to_create=="strain_using_news"):
-            t,y = convert_to_strain_using_series.generate_strain_from_news_using_series_finite_t0(self,N)
-            BOB_ts = kuibit_ts(t,y)
-        elif(self._wf_config.what_to_create=="strain_using_psi4"):
-            t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series_finite_t0(self,N)
-            BOB_ts = kuibit_ts(t,y)
+        BOB_ts = _construct.build_finite_t0(self, self._wf_config.what_to_create, N)
 
-        
-
+        # Cleanup hack — kept for backwards-compatibility per the Stage 3.3 design
+        # decision. Removing it could affect user scripts that re-construct multiple
+        # times and rely on Phi_0 starting at 0 and Omega_0 starting at Omega_ISCO.
         self.Phi_0 = 0
         self.Omega_0 = self.Omega_ISCO
 

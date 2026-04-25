@@ -4,3 +4,13 @@ docs/build/
 build/
 gwBOB.egg-info/
 
+# Ignore design notes, agent scratch, and ad-hoc markdown files.
+# README.md and joss/paper.md remain tracked.
+*.md
+!README.md
+!joss/paper.md
+
+# Local scratch files
+code_review
+test_stuff.py
+
