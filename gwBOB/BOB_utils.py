@@ -878,43 +878,35 @@ class BOB:
 
         args:
             N (int): Number of terms to use in the series if "strain_using_news" is used
-            
+
         returns:
             Kuibit Timeseries: BOB timeseries
-
         '''
-        #The construction process may change some of the parameters so we will store them and restore them at the end
+        # The construction process may change some of the parameters so we
+        # store them and restore them at the end. (`self.t` is mutated by
+        # the convert_to_strain_using_series.* helpers; restoring it is load-bearing.)
         old_optimize_Omega0 = self.optimize_Omega0
         old_t = self.t
 
         if(self.optimize_Omega0 is True):
             self.fit_Omega0()
-        else:
-            pass
-        if(self._wf_config.what_to_create=="strain_using_news"):
-            t,y = convert_to_strain_using_series.generate_strain_from_news_using_series(self,N)
-            BOB_ts = kuibit_ts(t,y)
-        elif(self._wf_config.what_to_create=="strain_using_psi4"):
-            t,y = convert_to_strain_using_series.generate_strain_from_psi4_using_series(self,N)
-            BOB_ts = kuibit_ts(t,y)
-        else:
-            #now that the correct Omega0 and Phi0 have been set based on the optimization choices, we can calculate the amplitude and phase
-            self.fitted_Omega0 = self.Omega_0 #if no omega0 optimization takes place, then this should just return omega_isco
-            Phi,Omega = self.get_correct_Phi_and_Omega()
-            phase = np.abs(self.m)*Phi
 
-            amp = BOB_terms.BOB_amplitude(self)
+        what = self._wf_config.what_to_create
 
-            BOB_ts = kuibit_ts(self.t,amp*np.exp(-1j*np.sign(self.m)*phase))
-            
-            
-        
+        # In the original implementation, `fitted_Omega0` was assigned only in the
+        # analytic-amplitude branch (i.e., NOT for strain_using_news/psi4). Preserve
+        # that asymmetry: strain_using_* leave fitted_Omega0 at its prior value.
+        if what not in ("strain_using_news", "strain_using_psi4"):
+            # if no Omega_0 optimization takes place, this just stores Omega_ISCO
+            self.fitted_Omega0 = self.Omega_0
 
-        #restore old settings
+        BOB_ts = _construct.build_minf_t0(self, what, N)
+
+        # restore old settings
         self.optimize_Omega0 = old_optimize_Omega0
         self.Phi_0 = 0
-        #we keep the existing Omega_0
-        #self.Omega_0 = self.Omega_ISCO
+        # Note: unlike construct_BOB_finite_t0, Omega_0 is intentionally NOT
+        # reset to Omega_ISCO here — preserving the historical asymmetry.
         self.t = old_t
         return BOB_ts
     def construct_NR_mass_and_current_quadrupole(self,what_to_create):
