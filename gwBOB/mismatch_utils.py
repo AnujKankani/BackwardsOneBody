@@ -13,8 +13,6 @@
 from functools import partial
 from jax import jit,vmap
 import jax.numpy as jnp
-#uncomment if we want to use cubic spline integration
-#import interpax
 from jax import debug
 #jax.config.update("jax_log_compiles", True)
 

@@ -54,42 +54,32 @@ _QUADRUPOLE_MODES = {
 
 class BOB:
     '''
-    A class to construct BOB waveforms. This class is designed to be the one-stop-shop for constructing 
-    BOB waveforms.
+    Construct Backwards-One-Body waveforms.
 
-    args:
-        minf_t0 (bool): Whether to use t0 = -infinity
-        __start_before_tpeak (int): Start time before tpeak
-        __end_after_tpeak (int): End time after tpeak
-        t0 (int): Initial time
-        tp (int): Time of congruence convergence 
-        what_is_BOB_building (str): What BOB is building
-        l (int): l mode
-        m (int): m mode
-        Phi_0 (float): Initial phase
-        resample_dt (float): Resampling time step
-        t (numpy.ndarray): Time array
-        strain_tp (float): Strain at time of congruence convergence
-        news_tp (float): News at time of congruence convergence
-        psi4_tp (float): Weyl Scalar at time of congruence convergence
-        optimize_Omega0 (bool): Whether to optimize Omega0
-        optimize_t0_and_Omega0 (bool): Whether to optimize t0 and Omega0
-        optimize_t0 (bool): Whether to optimize t0
-        fitted_t0 (float): Fitted t0
-        fitted_Omega0 (float): Fitted Omega0
-        use_strain_for_t0_optimization (bool): Whether to use strain for t0 optimization
-        use_strain_for_Omega0_optimization (bool): Whether to use strain for Omega0 optimization
-        fit_failed (bool): Whether the fit failed
-        NR_based_on_BOB_ts (numpy.ndarray): NR based on BOB timeseries
-        start_fit_before_tpeak (int): Start time before tpeak for fitting
-        end_fit_after_tpeak (int): End time after tpeak for fitting
-        perform_final_time_alignment (bool): Whether to perform final time alignment
-        perform_final_amplitude_rescaling (bool): Whether to perform final amplitude rescaling
-        full_strain_data (numpy.ndarray): Full strain data
-        auto_switch_to_numerical_integration (bool): Whether to automatically switch to numerical integration
-        __optimize_t0_and_Omega0 (bool): Whether to optimize t0 and Omega0
-        __optimize_t0 (bool): Whether to optimize t0
-    
+    Typical workflow:
+
+        bob = BOB()
+        bob.initialize_with_sxs_data("SXS:BBH:0305")   # or initialize_with_cce_data / initialize_with_NR_mode
+        bob.what_should_BOB_create = "news"            # or "psi4", "strain_using_news", etc. (see valid_choices())
+        bob.optimize_Omega0 = True                     # optional
+        t, y = bob.construct_BOB()
+
+    Internally, state is grouped into six dataclasses (see ``gwBOB/_state.py``)
+    accessed transparently via property delegation:
+
+    - ``_remnant``     : physics constants (mf, chif, Omega_ISCO, Omega_QNM, w_r, tau, l, m, ...)
+    - ``_data``        : NR waveform timeseries (psi4_data, news_data, strain_data, ...)
+    - ``_wf_config``   : waveform construction knobs (what_to_create, t0, Phi_0, minf_t0, ...)
+    - ``_fit_config``  : fit/optimization knobs (optimize_Omega0, optimize_t0, start_fit_before_tpeak, ...)
+    - ``_runtime``     : derived state recomputed on every mode switch (data, tp, Ap, t, t_tp_tau, ...)
+    - ``_fit_result``  : fit outputs (fitted_t0, fitted_Omega0, fit_failed)
+
+    Every documented public attribute (e.g. ``bob.tp``, ``bob.Omega_0``, ``bob.optimize_Omega0``,
+    ``bob.fitted_Omega0``) is reachable via a ``@property`` that reads/writes through to the
+    relevant container. ``__slots__`` is enabled so attribute typos raise ``AttributeError``
+    instead of silently creating a new attribute.
+
+    See DESIGN_state_split.md for the architectural rationale.
     '''
     __slots__ = (
         "_qnm_data_ready",
@@ -103,8 +93,13 @@ class BOB:
 
     def __init__(self):
         '''
-        Initializes the BOB object with default values. By default a least squares optimization is performed.
+        Initialize a BOB instance with default state.
 
+        After construction, you typically call one of the ``initialize_with_*``
+        methods to load NR data, then set ``what_should_BOB_create`` and any
+        optimization flags before calling ``construct_BOB``. By default no
+        optimization is performed (``optimize_Omega0 = False``,
+        ``optimize_t0 = False``).
         '''
         self._qnm_data_ready = False
         self._remnant = Remnant()
@@ -226,8 +221,7 @@ class BOB:
 
     @property
     def set_initial_time(self):
-        '''
-        '''
+        '''Return the configured initial time t0 (in code units relative to peak).'''
         return self._wf_config.t0
     @set_initial_time.setter
     def set_initial_time(self,value):
@@ -263,8 +257,7 @@ class BOB:
 
     @property
     def set_start_before_tpeak(self):
-        '''
-        '''
+        '''Return the configured start time relative to tpeak.'''
         return self._wf_config.start_before_tpeak
 
     @set_start_before_tpeak.setter
@@ -283,8 +276,7 @@ class BOB:
 
     @property
     def set_end_after_tpeak(self):
-        '''
-        '''
+        '''Return the configured end time relative to tpeak.'''
         return self._wf_config.end_after_tpeak
 
     @set_end_after_tpeak.setter
@@ -307,15 +299,23 @@ class BOB:
 
     @property
     def optimize_t0_and_Omega0(self):
-        '''
-        '''
+        '''Return whether joint t0 + Omega_0 optimization is requested.'''
         return self._fit_config.optimize_t0_and_Omega0
 
     @optimize_t0_and_Omega0.setter
     def optimize_t0_and_Omega0(self,value):
         '''
-        This function allows the user to set the optimize_t0_and_Omega0 flag. The optimize_t0_and_Omega0 flag
-        indicates whether to optimize the initial time and frequency.
+        Set the optimize_t0_and_Omega0 flag. When True, ``construct_BOB`` will
+        attempt joint optimization of the initial time and frequency.
+
+        Note:
+            ``fit_t0_and_Omega0()`` is currently not implemented and will raise
+            ``NotImplementedError`` if invoked. Use ``optimize_t0`` (with Omega_0
+            set from the strain frequency at t0) or ``optimize_Omega0`` (for
+            t0 = -infinity) instead.
+
+        Setting this flag also flips ``minf_t0`` to False because joint
+        optimization is only meaningful for finite t0.
 
         args:
             value (bool): Optimize initial time and frequency
@@ -325,8 +325,7 @@ class BOB:
 
     @property
     def optimize_t0(self):
-        '''
-        '''
+        '''Return whether t0 optimization is requested.'''
         return self._fit_config.optimize_t0
 
     @optimize_t0.setter
@@ -574,12 +573,10 @@ class BOB:
     def fit_failed(self, v): self._fit_result.fit_failed = v
 
     def hello_world(self):
-        '''
-        '''
+        '''Print the BOB welcome banner.'''
         ascii_funcs.welcome_to_BOB()
     def meet_the_creator(self):
-        '''
-        '''
+        '''Print an ASCII portrait of Sean (the creator of BOB).'''
         ascii_funcs.print_sean_face()
     def valid_choices(self):
         '''
@@ -612,14 +609,23 @@ class BOB:
     
     def get_correct_Phi_and_Omega(self):
         '''
-        This function returns the correct Phi and Omega based on the value of what_should_BOB_create.
-        
-        args:
-            None
-        
+        Return the BOB phase and frequency arrays for the currently selected mode.
+
+        Dispatches to the correct ``BOB_terms.BOB_<flavor>_phase[_finite_t0]``
+        function based on ``what_should_BOB_create`` and ``minf_t0``.
+
+        Note: even in the X_using_Y cases (e.g., strain_using_news), the analytic
+        news-frequency term is used because the BOB amplitude is constructed to
+        best describe the news; using the strain frequency for Omega_0
+        optimization on these cases would be unphysical.
+
         returns:
-            Phi (float): Phase of the waveform
-            Omega (float): Frequency of the waveform
+            tuple of (np.ndarray, np.ndarray): (Phi, Omega) — phase and angular
+            frequency arrays evaluated on the time grid ``self.t``.
+
+        Raises:
+            ValueError: If ``what_should_BOB_create`` is not one of the
+                supported flavors.
         '''
         #Even in the cases of strain_using_news, we still want to use the news frequency in all of the Omega0 optimizations because the analytical news frequency term
         #is built assuming the BOB amplitude best describes the news. While in principle, the accuracy could be improved for strain_using_news (and all X_using_Y cases)
@@ -646,15 +652,23 @@ class BOB:
         return Phi,Omega
     def fit_omega(self,x,Omega_0):
         '''
-        This function is used to fit the frequency of the waveform to the data. 
+        Optimizer callback for ``fit_Omega0`` — used by ``scipy.optimize.curve_fit``.
 
-            
+        Mutates ``self.Omega_0`` to the trial value, evaluates the analytic BOB
+        frequency for the currently selected mode, and returns the frequency
+        array sliced to the fit window. The mutation of ``self.Omega_0`` is a
+        known fragility (see code_review §2 P9 / DESIGN_stage3.md "Deferred
+        work"); for now the caller is expected to overwrite ``self.Omega_0``
+        with the optimized value after ``curve_fit`` returns.
+
         args:
-            x (float): Time
-            Omega_0 (float): Initial frequency
-        
+            x (np.ndarray): Time samples (passed by ``curve_fit``; not actually
+                used inside, since ``self.t`` provides the time grid).
+            Omega_0 (float): Trial initial angular frequency.
+
         returns:
-            Omega (float): Frequency of the waveform
+            np.ndarray: BOB frequency evaluated at ``self.t[start:end]`` for
+            the configured fit window.
         '''
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
@@ -672,15 +686,24 @@ class BOB:
         return Omega
     def fit_t0_and_omega(self,x,t0,Omega_0):
         '''
-        This function is used to fit the initial time and frequency of the waveform to the data. 
+        Optimizer callback for joint t0 + Omega_0 fitting via ``curve_fit``.
+
+        Currently UNCALLED: its only caller was the body of ``fit_t0_and_Omega0``,
+        which was retired in favor of ``raise NotImplementedError``. Kept for
+        future reuse if joint fitting is reimplemented.
+
+        Mutates ``self.Omega_0``, ``self.t0``, ``self.t0_tp_tau`` to the trial
+        values. Same impurity caveat as ``fit_omega``.
 
         args:
-            x (float): Time
-            t0 (float): Initial time
-            Omega_0 (float): Initial frequency
-        
+            x (np.ndarray): Time samples (passed by ``curve_fit``).
+            t0 (float): Trial initial time.
+            Omega_0 (float): Trial initial angular frequency.
+
         returns:
-            Omega (float): Frequency of the waveform
+            np.ndarray: BOB frequency evaluated on the fit window. On
+            evaluation failure, returns a flat array of 1e10 to signal a bad
+            residual to the optimizer.
         '''
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
@@ -703,15 +726,24 @@ class BOB:
         return Omega[start_index:end_index]
     def residual_t0_and_omega(self,p,t_freq,y_freq):
         '''
-        This function is used to calculate the residuals of the input data with respect to the BOB waveform. 
+        Optimizer callback for joint t0 + Omega_0 fitting via
+        ``scipy.optimize.differential_evolution``.
+
+        Currently UNCALLED: its only caller was the body of ``fit_t0_and_Omega0``,
+        which was retired in favor of ``raise NotImplementedError``. Kept for
+        future reuse if joint fitting is reimplemented.
+
+        Mutates ``self.Omega_0``, ``self.t0``, ``self.t0_tp_tau`` to the trial
+        values. Same impurity caveat as the other fit callbacks.
 
         args:
-            p (tuple): Tuple of parameters (t0, Omega_0)
-            t_freq (array): Time array of the input data
-            y_freq (array): Frequency array of the input data
-        
+            p (tuple of (float, float)): Trial parameters (t0, Omega_0).
+            t_freq (np.ndarray): Time array of the NR frequency reference.
+            y_freq (np.ndarray): NR frequency values aligned with ``t_freq``.
+
         returns:
-            residual (float): Residual of the input data with respect to the BOB waveform
+            float: Sum of squared residuals between the BOB-predicted and NR
+            frequencies over the configured fit window.
         '''
         #freq = gen_utils.get_frequency(self.data)
         freq = kuibit_ts(t_freq,y_freq)
@@ -741,14 +773,21 @@ class BOB:
         return np.sum((np.array(Omega[start_index:end_index],dtype=np.float64)-np.array(freq.y[start_data_index:end_data_index],dtype=np.float64))**2)
     def fit_t0_only(self,t00,freq_data):
         '''
-        This function is used to fit the initial time of the waveform to the data. 
+        Optimizer callback for ``fit_t0`` — used by ``scipy.optimize.brute``.
+
+        For each candidate t0, fixes Omega_0 from the NR frequency at that time
+        and returns the squared residual. Mutates ``self.t0``, ``self.t0_tp_tau``,
+        ``self.Omega_0`` (same impurity caveat as the other fit callbacks).
 
         args:
-            t00 (float): Initial time
-            freq_data (object): Frequency data
-        
+            t00 (np.ndarray): Single-element array containing the trial t0
+                (``brute`` passes parameters as arrays).
+            freq_data (kuibit_ts): NR (orbital) frequency timeseries — already
+                divided by ``|m|`` so ``y`` is big Omega.
+
         returns:
-            res (float): Residual of the input data with respect to the BOB waveform
+            float: Sum of squared residuals between BOB and NR frequencies on
+            the configured fit window.
         '''
         #freq data passed in is big Omega, where w = m*Omega
         self.t0 = t00[0] 
@@ -774,19 +813,21 @@ class BOB:
         return res 
     def fit_Omega0(self):
         '''
-        This function is used to fit the initial angular frequency of the QNM (Omega_0) by fitting the frequency 
-        of the data to the QNM frequency. Only works for t0 = -infinity.
+        Optimize the initial angular frequency Omega_0 by fitting BOB's analytic
+        frequency to the NR frequency over the configured fit window. Only valid
+        for the t0 = -infinity flavor.
 
-        args:
-            None
-        
-        returns:
-            None
+        On success, writes the optimized value to ``self.Omega_0``.
+        On failure (any exception during ``curve_fit``), sets
+        ``self.fit_failed = True`` and writes ``self.Omega_0 = self.Omega_ISCO``.
+
+        Side effect: if ``end_fit_after_tpeak`` exceeds ``end_after_tpeak``, the
+        former is silently lowered to match. (See code_review §2 P5 E9 — flagged
+        for future cleanup.)
+
+        Raises:
+            ValueError: If ``minf_t0`` is False (use ``fit_t0`` for finite t0).
         '''
-        """
-        Fits the initial angular frequency of the QNM (Omega_0) by fitting the frequency of the data to the QNM frequency.
-        Only works for t0 = -infinity.
-        """
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
         if(self._wf_config.end_after_tpeak<self.end_fit_after_tpeak):
@@ -805,7 +846,6 @@ class BOB:
             end_index = gen_utils.find_nearest_index(self.t,self.tp+self.end_fit_after_tpeak)
 
             popt,pcov = curve_fit(self.fit_omega,self.t[start_index:end_index],freq_ts.y[start_index:end_index],p0=[self.Omega_QNM/2],bounds=[0+1e-10,self.Omega_QNM-1e-10])
-            Omega = BOB_terms.BOB_news_freq(self)
 
         except Exception as e:
             logger.warning("fit failed, setting Omega_0 = Omega_ISCO: %s", e)
@@ -814,50 +854,34 @@ class BOB:
         self.Omega_0 = popt[0]
     def fit_t0_and_Omega0(self):
         '''
-        This function is used to fit the initial time of the waveform to the data. 
-    
-        '''
-        raise ValueError("fit_t0_and_Omega0 is not working right now. TODO: fix")
-        if('psi4' in self._wf_config.what_to_create):
-            logger.warning("fitting t0 and Omega0 for psi4 frequencies usually does not work... the waveform may be bad")
-        freq_data = gen_utils.get_frequency(self.data)
-        tp = np.where(self.data.t==self.tp)[0][0]
-        freq_peak = freq_data.y[tp]/np.abs(self.m)
-        print("freq_peak = ",freq_peak)
-        try:
-            start_index = gen_utils.find_nearest_index(self.data.t,self.tp+self.start_fit_before_tpeak)
-            end_index = gen_utils.find_nearest_index(self.data.t,self.tp+self.end_fit_after_tpeak)
-            
-            bounds = [(-100.0+self.tp, self.tp),         # t0
-            (1e-10,   freq_peak)]       # Ω0
-            res = differential_evolution(self.residual_t0_and_omega,bounds,args=(freq_data.t,freq_data.y),polish=True,maxiter=10000,popsize=50,recombination=0.1)
-            self.t0 = res.x[0]
-            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-            self.Omega_0 = res.x[1]
-            logger.debug("t0 = %s and omega_0 = %s", self.t0-self.tp, self.Omega_0)
+        Joint optimization of the initial time (t0) and initial frequency (Omega_0).
 
-            popt,pcov = curve_fit(self.fit_t0_and_omega,self.data.t[start_index:end_index],freq_data.y[start_index:end_index],p0=[res.x[0],res.x[1]],bounds=([self.tp-100,1e-10],[self.tp,freq_peak]))
-            self.t0 = popt[0]
-            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-            self.Omega_0 = popt[1]
-            #check that the final value is usable
-            Phi, Omega = self.get_correct_Phi_and_Omega()
-            self.fitted_t0 = self.t0
-            self.fitted_Omega0 = self.Omega_0
-        except:
-            logger.warning("fit failed, setting t0 = -np.inf and Omega_0 = Omega_ISCO")
-            self.t0 = -np.inf
-            self.t0_tp_tau = (self.t0 - self.tp)/self.tau
-            self.Omega_0 = self.Omega_ISCO
+        Not yet implemented. An experimental differential-evolution + curve_fit
+        approach lived here previously but was unreliable; see git history if you
+        want to revive it.
+        '''
+        raise NotImplementedError(
+            "fit_t0_and_Omega0 is not implemented. Use fit_t0 (with Omega_0 set "
+            "from the strain frequency at t0) or fit_Omega0 (for t0 = -infinity)."
+        )
     def fit_t0(self):
         '''
-        This function is used to fit the initial time of the waveform to the data. 
+        Optimize the initial time t0 by grid search.
 
+        For each candidate t0, Omega_0 is fixed from the NR frequency at that
+        time, and the squared residual against the BOB frequency is computed
+        (via ``fit_t0_only``). On completion, ``self.t0``, ``self.t0_tp_tau``,
+        ``self.Omega_0``, ``self.fitted_t0``, ``self.fitted_Omega0`` are all
+        updated.
+
+        Implementation note: a grid search is preferred to a least-squares fit
+        because (1) each t0 is linked to a discrete Omega_0 with a finite
+        timestep, (2) LSQ can get trapped in local minima even with a good
+        initial guess, and (3) since this is a 1-D fit, brute-force is fast.
+
+        Use this when ``minf_t0`` is False. For t0 = -infinity, use
+        ``fit_Omega0`` instead.
         '''
-        #We do a grid based search instead of a lsq search for several reasons including
-        #1. Each t_0 is linked to a omega_0, and we have some finite timestep
-        #2. The lsq fit can get trapped in local minimums, especially if we provide a good initial guess
-        #3. Since we only have a 1D fit, the grid based search doesn't take to long
 
         if(self.use_strain_for_t0_optimization):
             freq_data = gen_utils.get_frequency(self.strain_data.resampled(self.t))
@@ -957,14 +981,19 @@ class BOB:
         return BOB_ts
     def construct_NR_mass_and_current_quadrupole(self,what_to_create):
         '''
-        This function is used to construct the mass and current quadrupole waves from the NR data.
+        Build the NR mass and current quadrupole waveforms from the loaded
+        (l, ±m) modes via:
+
+            I_current = (i / sqrt(2)) * (h_lm - (-1)^|m| * conj(h_l,-m))
+            I_mass    = (1 / sqrt(2)) * (h_lm + (-1)^|m| * conj(h_l,-m))
 
         args:
-            what_to_create: String indicating what to create ("psi4", "news", or "strain")
-            
-        
+            what_to_create (str): Which NR data to combine — one of
+                "psi4", "news", "strain".
+
         returns:
-            Tuple(Kuibit Timeseries, Kuibit Timeseries): NR Mass and current quadrupole waves
+            tuple of (kuibit_ts, kuibit_ts): (NR_current, NR_mass) — note the
+            order: current first, mass second.
         '''
         #construct the mass and current quadrupole waves from the NR data
         what_to_create = what_to_create.lower()
@@ -991,21 +1020,35 @@ class BOB:
         return NR_current,NR_mass
     def construct_BOB_current_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
         '''
-        This function is used to construct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  
-        by building the (l,+/-m) modes for BOB first.
-        
+        Construct the current quadrupole wave
+
+            I_lm = (i / sqrt(2)) * (h_lm - (-1)^|m| * conj(h_l,-m))
+
+        by building the (l, +m) and (l, -m) modes with BOB first, then combining.
+
         args:
-            perform_phase_alignment_first (bool): Boolean indicating whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
-            lm_Omega0 (float): Initial condition frequency for the (l,+m) mode
-            lmm_Omega0 (float): Initial condition frequency for the (l,-m) mode
-        
+            perform_phase_alignment_first (bool): Whether to phase-align the
+                (l, ±m) BOB modes against NR before combining (vs. aligning
+                only the final current wave). Currently unused — see body.
+            lm_Omega0 (float, optional): Override the initial-condition
+                frequency for the (l, +m) BOB construction.
+            lmm_Omega0 (float, optional): Override the initial-condition
+                frequency for the (l, -m) BOB construction.
+
+        returns:
+            tuple of (np.ndarray, np.ndarray): (union_ts, BOB_current_wave) —
+            the time grid (union of the two mode grids) and the complex
+            current-quadrupole waveform on it.
         '''
-
-        #Comstruct the current quadrupole wave I_lm = i/sqrt(2) * (h_lm - (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
-        #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
-
-        #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
-        #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
+        # Construct the current quadrupole wave I_lm = (i/sqrt(2)) * (h_lm - (-1)^m h*_l,-m)
+        # by building the (l, ±m) modes for BOB first.
+        # The rest of the code setup isn't ideal for quadrupole construction so we
+        # do a lot of things manually here.
+        #
+        # Important: the (l, m) and (l, -m) modes have different peak times, so the
+        # BOB timeseries for each will be different. We resample both onto a union
+        # time grid before combining; the final grid may differ from what the user
+        # specified via start_before_tpeak / end_after_tpeak.
 
         if(lm_Omega0 is not None):
             self.Omega_0 = lm_Omega0
@@ -1106,20 +1149,35 @@ class BOB:
         return union_ts,BOB_current_wave
     def construct_BOB_mass_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
         '''
-        This function is used to construct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  
-        by building the (l,+/-m) modes for BOB first.
+        Construct the mass quadrupole wave
+
+            I_lm = (1 / sqrt(2)) * (h_lm + (-1)^|m| * conj(h_l,-m))
+
+        by building the (l, +m) and (l, -m) modes with BOB first, then combining.
 
         args:
-            perform_phase_alignment_first (bool): Boolean indicating whether to perform a phase alignment on the (l,+/-m) modes or on the final mass wave
-            lm_Omega0 (float): Initial condition frequency for the (l,+m) mode
-            lmm_Omega0 (float): Initial condition frequency for the (l,-m) mode
-        
-        '''
-        #Comstruct the mass quadrupole wave I_lm = 1/sqrt(2) * (h_lm + (-1)^m h*_l,-m)  by building the (l,+/-m) modes for BOB first
-        #The rest of the code setup isn't ideal for quadrupole construction so we do a lot of things manually here
+            perform_phase_alignment_first (bool): Whether to phase-align the
+                (l, ±m) BOB modes against NR before combining (vs. aligning
+                only the final mass wave). Currently unused — see body.
+            lm_Omega0 (float, optional): Override the initial-condition
+                frequency for the (l, +m) BOB construction.
+            lmm_Omega0 (float, optional): Override the initial-condition
+                frequency for the (l, -m) BOB construction.
 
-        #We need to be carefult that the (l,m) and (l,-m) modes do not have the same tp, so the BOB timeseries for each will be different
-        #We will have to create the union of both timeseries, so this may be different than what the user specifies with the parameters. Oh well. The user can use a little mystery in his life.
+        returns:
+            tuple of (np.ndarray, np.ndarray): (union_ts, BOB_mass_wave) —
+            the time grid (union of the two mode grids) and the complex
+            mass-quadrupole waveform on it.
+        '''
+        # Construct the mass quadrupole wave I_lm = (1/sqrt(2)) * (h_lm + (-1)^m h*_l,-m)
+        # by building the (l, ±m) modes for BOB first.
+        # The rest of the code setup isn't ideal for quadrupole construction so we
+        # do a lot of things manually here.
+        #
+        # Important: the (l, m) and (l, -m) modes have different peak times, so the
+        # BOB timeseries for each will be different. We resample both onto a union
+        # time grid before combining; the final grid may differ from what the user
+        # specified via start_before_tpeak / end_after_tpeak.
         if(lm_Omega0 is not None):
             self.Omega_0 = lm_Omega0
         t_lm,y_lm = self.construct_BOB()
@@ -1208,16 +1266,22 @@ class BOB:
         return union_ts,BOB_mass_wave
     def construct_BOB(self,N=2):
         '''
-        This function is used to construct the BOB timeseries.
+        Construct the BOB timeseries.
+
+        Dispatches to ``construct_BOB_minf_t0`` (when ``minf_t0`` is True) or
+        ``construct_BOB_finite_t0`` (otherwise), then performs a phase alignment
+        against the NR data and stores the resampled NR result in
+        ``self.NR_based_on_BOB_ts`` for plotting / comparison.
 
         args:
-            N (int): Number of modes to use for the BOB construction
-        
+            N (int): Number of terms in the series expansion used for
+                "strain_using_news" / "strain_using_psi4" integration. Ignored
+                for direct (non-integrated) modes. Be careful: very large N can
+                cause memory pressure.
+
         returns:
-
-            BOB_ts.t(array): BOB time array
-
-            BOB_ts.y(array): BOB data array
+            tuple of (np.ndarray, np.ndarray): (t, y) where t is the time array
+            and y is the complex BOB waveform array.
         '''
         if(self.minf_t0):
             BOB_ts = self.construct_BOB_minf_t0(N)
@@ -1577,16 +1641,24 @@ class BOB:
             logger.debug("psi4_Ap = %s", self.psi4_Ap)
     def get_psi4_data(self,**kwargs):
         '''
-        This function is used to get the NR psi4 data.
-        By default it will return the (l,m) mode specified during BOB initialization but l & m can be specified by the user.
-        
-        args:
-            l(int): Mode number
-            m(int): Mode number
-        
+        Return the NR psi4 timeseries for an arbitrary (l, m) mode.
+
+        Defaults to the (l, m) mode specified during initialization. Pass
+        ``l=...`` and/or ``m=...`` as keyword arguments to retrieve a different
+        mode.
+
+        Note: only works after ``initialize_with_sxs_data`` or
+        ``initialize_with_cce_data`` (which load the full multi-mode dataset
+        into ``self.full_psi4_data``). After ``initialize_with_NR_mode``, only
+        the single mode passed in is available, so this method will fail with
+        an ``AttributeError`` / ``NoneType`` access.
+
+        kwargs:
+            l (int): l index (defaults to ``self.l``).
+            m (int): m index (defaults to ``self.m``).
+
         returns:
-            t(array): time array of NR psi4 data
-            y(array): data array of NR psi4 data    
+            tuple of (np.ndarray, np.ndarray): (t, y) of the requested psi4 mode.
         '''
         if('l' in kwargs):
             l = kwargs['l']
@@ -1600,16 +1672,18 @@ class BOB:
         return temp_ts.t,temp_ts.y
     def get_news_data(self,**kwargs):
         '''
-        This function is used to get the NR news data.
-        By default it will return the (l,m) mode specified during BOB initialization but l & m can be specified by the user.
-        
-        args:
-            l(int): Mode number
-            m(int): Mode number
-        
+        Return the NR news timeseries (computed as d/dt of the strain) for an
+        arbitrary (l, m) mode.
+
+        Same restrictions as ``get_psi4_data``: only works after SXS or CCE
+        initialization.
+
+        kwargs:
+            l (int): l index (defaults to ``self.l``).
+            m (int): m index (defaults to ``self.m``).
+
         returns:
-            t(array): time array of NR news data
-            y(array): data array of NR news data    
+            tuple of (np.ndarray, np.ndarray): (t, y) of the requested news mode.
         '''
         if('l' in kwargs):
             l = kwargs['l']
@@ -1623,16 +1697,17 @@ class BOB:
         return temp_ts.t,temp_ts.y
     def get_strain_data(self,**kwargs):
         '''
-        This function is used to get the NR strain data. 
-        By default it will return the (l,m) mode specified during BOB initialization but l & m can be specified by the user.
-        
-        args:
-            l(int): Mode number
-            m(int): Mode number
-        
+        Return the NR strain timeseries for an arbitrary (l, m) mode.
+
+        Same restrictions as ``get_psi4_data``: only works after SXS or CCE
+        initialization.
+
+        kwargs:
+            l (int): l index (defaults to ``self.l``).
+            m (int): m index (defaults to ``self.m``).
+
         returns:
-            t(array): time array of NR strain data
-            y(array): data array of NR strain data    
+            tuple of (np.ndarray, np.ndarray): (t, y) of the requested strain mode.
         '''
         if('l' in kwargs):
             l = kwargs['l']
