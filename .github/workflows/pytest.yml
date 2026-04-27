@@ -8,9 +8,14 @@ jobs:
       github.event_name != 'push' ||
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
+    # All three Python versions are required to pass — failure on any
+    # blocks merges. ``fail-fast: false`` means each version's failures are
+    # reported independently rather than aborting the whole matrix on the
+    # first failure.
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v3
@@ -27,15 +32,40 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          # By default, cache key is based on pyproject.toml hash.
-          # If commit message contains [reset cache], the key changes → fresh cache
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
+          # Cache key includes the Python version so each matrix entry has
+          # its own pip cache (different wheels per Python version).
+          # If commit message contains [reset cache], the key changes → fresh cache.
+          key: ${{ runner.os }}-pip-py${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
           restore-keys: |
+            ${{ runner.os }}-pip-py${{ matrix.python-version }}-
             ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[tests]"
+
+      # Verify the editable install actually resolves to the local source.
+      # A stale non-editable `gwBOB` install in site-packages can shadow the
+      # local edits — this caused a real OOM event on 2026-04-25 (the older
+      # version had `resample_dt=0.01` default → 10× larger arrays).
+      # See CLAUDE.md / MEMORY.md / code_review §5.
+      - name: Verify editable install (no site-packages shadowing)
+        run: |
+          python <<'PY'
+          import sys
+          import gwBOB
+          loc = gwBOB.__file__
+          if "site-packages" in loc:
+              print("ERROR: gwBOB was loaded from site-packages, not the local source.", file=sys.stderr)
+              print(f"  gwBOB.__file__ = {loc}", file=sys.stderr)
+              print("  This is the 'stale install shadowing local source' trap that", file=sys.stderr)
+              print("  silently caused a WSL OOM event on 2026-04-25.", file=sys.stderr)
+              print("  Fix: run `pip install -e .` from BackwardsOneBody/ to make the", file=sys.stderr)
+              print("  editable install take precedence. Make sure no non-editable", file=sys.stderr)
+              print("  `gwBOB` is installed in this environment.", file=sys.stderr)
+              sys.exit(1)
+          print(f"OK: gwBOB loaded from local source: {loc}")
+          PY
 
       - name: Test with pytest
         env:
