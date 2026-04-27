@@ -2,15 +2,44 @@ name: Python package
 
 on: [push, pull_request]
 
+# T6.3 of test refactor: jobs split into three for fast feedback.
+#
+#   - unit         (Python 3.10 / 3.11 / 3.12, ~10s each)
+#       Fast, deterministic, no NR data required. Required to pass on all
+#       three Python versions to merge.
+#
+#   - integration  (Python 3.10 only, ~1m30s)
+#       SXS / CCE end-to-end workflow tests. Required to pass.
+#       Runs only after `unit` succeeds on all matrix entries.
+#
+#   - regression-baselines  (Python 3.10 only, ~16s, opt-in)
+#       Byte-for-byte fingerprints from the Stage 2 / Stage 3 refactors.
+#       Memory-heavy; opt-in via `-m regression_baseline`.
+#       Runs only after `unit` succeeds.
+#
+# Both `integration` and `regression-baselines` require `unit` to pass first,
+# so a Python-version regression in unit tests fails fast without burning
+# CI minutes on the slow suites.
+
 jobs:
-  build:
+  # =========================================================================
+  # 1. Fast unit tests across the Python × OS matrix
+  # =========================================================================
+  unit:
+    name: unit (${{ matrix.os }}, Python ${{ matrix.python-version }})
     if: |
       github.event_name != 'push' ||
       !contains(github.event.head_commit.message, '[skip ci]')
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    # All combinations are required to pass — failure on any blocks merges.
+    # T6.6 added macOS as mandatory (no continue-on-error). ``fail-fast: false``
+    # means each entry's failures are reported independently rather than
+    # aborting on the first.
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10"]
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v3
@@ -18,6 +47,76 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfftw3-dev
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install fftw
+
+      - name: Get pip cache directory
+        id: pip-cache
+        run: echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          # Cache key includes OS + Python version so each matrix entry has
+          # its own pip cache (wheels are per-OS-per-Python).
+          # If commit message contains [reset cache], the key changes → fresh cache.
+          key: ${{ runner.os }}-pip-py${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-py${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[tests]"
+
+      # Claude Code: See CLAUDE.md / MEMORY.md / code_review §5 for context.
+      - name: Verify editable install (no site-packages shadowing)
+        run: |
+          python <<'PY'
+          import sys
+          import gwBOB
+          loc = gwBOB.__file__
+          if "site-packages" in loc:
+              print("ERROR: gwBOB was loaded from site-packages, not the local source.", file=sys.stderr)
+              print(f"  gwBOB.__file__ = {loc}", file=sys.stderr)
+              print("  This is the 'stale install shadowing local source' trap that", file=sys.stderr)
+              print("  silently caused a WSL OOM event on 2026-04-25.", file=sys.stderr)
+              print("  Fix: run `pip install -e .` from BackwardsOneBody/.", file=sys.stderr)
+              sys.exit(1)
+          print(f"OK: gwBOB loaded from local source: {loc}")
+          PY
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v
+
+  # =========================================================================
+  # 2. Slow integration tests on canonical Python (3.10) only
+  # =========================================================================
+  integration:
+    name: integration (Python 3.10)
+    if: |
+      github.event_name != 'push' ||
+      !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    needs: unit   # only run if all unit-test matrix entries pass
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
 
       - name: Install system dependencies
         run: |
@@ -27,21 +126,116 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          # By default, cache key is based on pyproject.toml hash.
-          # If commit message contains [reset cache], the key changes → fresh cache
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
+          key: ${{ runner.os }}-pip-py3.10-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
           restore-keys: |
+            ${{ runner.os }}-pip-py3.10-
             ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[tests]"
 
-      - name: Test with pytest
+      - name: Verify editable install (no site-packages shadowing)
+        run: |
+          python <<'PY'
+          import sys
+          import gwBOB
+          loc = gwBOB.__file__
+          if "site-packages" in loc:
+              print("ERROR: gwBOB was loaded from site-packages, not the local source.", file=sys.stderr)
+              print(f"  gwBOB.__file__ = {loc}", file=sys.stderr)
+              sys.exit(1)
+          print(f"OK: gwBOB loaded from local source: {loc}")
+          PY
+
+      # The ~90 MB of SXS + Zenodo waveform data isn't committed to the repo;
+      # fetch_data.py downloads it. Cache it across runs (key on the script
+      # so cache busts when fetch logic changes) to keep CI fast.
+      - name: Cache SXS / CCE test data
+        id: cache-test-data
+        uses: actions/cache@v3
+        with:
+          path: tests/sxs_cache
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+
+      - name: Fetch test data
+        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        run: python tests/fetch_data.py
+
+      # Default `pytest tests/integration/` excludes the regression-baseline
+      # marker via ``addopts`` in pyproject.toml, so this job runs the
+      # workflow regressions but NOT the byte-for-byte fingerprints.
+      - name: Run integration tests
         env:
           SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
           SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
+        run: pytest tests/integration/ -v
+
+  # =========================================================================
+  # 3. Byte-for-byte regression baselines (opt-in via marker)
+  # =========================================================================
+  regression-baselines:
+    name: regression-baselines (Python 3.10)
+    if: |
+      github.event_name != 'push' ||
+      !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    needs: unit
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install system dependencies
         run: |
-          pytest tests/
-      
-      
+          sudo apt-get update
+          sudo apt-get install -y libfftw3-dev
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-py3.10-${{ hashFiles('**/pyproject.toml') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-py3.10-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[tests]"
+
+      - name: Verify editable install (no site-packages shadowing)
+        run: |
+          python <<'PY'
+          import sys
+          import gwBOB
+          loc = gwBOB.__file__
+          if "site-packages" in loc:
+              print("ERROR: gwBOB was loaded from site-packages, not the local source.", file=sys.stderr)
+              print(f"  gwBOB.__file__ = {loc}", file=sys.stderr)
+              sys.exit(1)
+          print(f"OK: gwBOB loaded from local source: {loc}")
+          PY
+
+      # Same cache + fetch pattern as the integration job; both pull the
+      # same key, so a cache populated by either job is reusable by the other.
+      - name: Cache SXS / CCE test data
+        id: cache-test-data
+        uses: actions/cache@v3
+        with:
+          path: tests/sxs_cache
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+
+      - name: Fetch test data
+        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        run: python tests/fetch_data.py
+
+      # Opt-in via ``-m regression_baseline`` overrides the ``addopts`` filter
+      # in pyproject.toml that excludes them by default.
+      - name: Run regression baselines
+        env:
+          SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
+          SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
+        run: pytest tests/integration/test_regression_baselines.py -m regression_baseline -v

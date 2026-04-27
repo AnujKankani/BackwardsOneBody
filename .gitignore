@@ -4,3 +4,27 @@ docs/build/
 build/
 gwBOB.egg-info/
 
+# Ignore design notes, agent scratch, and ad-hoc markdown files.
+# README.md and joss/paper.md remain tracked.
+*.md
+!README.md
+!joss/paper.md
+
+# Local scratch files
+code_review
+test_stuff.py
+
+# Local utility scripts (memory profiling, ad-hoc benchmarks, etc.)
+scripts/
+
+# Pytest / coverage artifacts
+.pytest_cache/
+.coverage
+tests/coverage_html/
+
+# Test data fetched on-demand by tests/fetch_data.py (~90 MB).
+# The SXS catalog data and the Zenodo CCE waveforms are not ours to
+# redistribute, and committing them bloats fresh clones. Run
+#   python tests/fetch_data.py
+# once after cloning to populate this directory. Unit tests don't need it.
+tests/sxs_cache/

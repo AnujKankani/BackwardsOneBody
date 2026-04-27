@@ -70,6 +70,24 @@ pip install gwBOB
 ```
 
 
+## Running the Tests
+
+If you've cloned the repo and want to run the test suite:
+
+```bash
+cd BackwardsOneBody/
+pip install -e ".[tests]"
+
+# Unit tests are fast and need no external data:
+pytest tests/unit/
+
+# Integration tests need ~90 MB of waveform data from the SXS catalog and
+# the Zenodo CCE record. Fetch it once:
+python tests/fetch_data.py
+pytest tests/
+```
+
+
 ## Citing this Code
 
 If you use this code please cite
@@ -98,9 +116,12 @@ If you use this code please cite
 }
 ```
 
-BOB paper to be added.
+JOSS paper to be added. If you have any issues with this code, want any new features, or use this code for your own research, please let me know!
 
-JOSS paper to be added.
+
+## AI Usage
+
+While the original code was written largely manually, this code is now mostly developed through the use of Claude Code. AI usage follows the JOSS policy on AI usage. All design decisions are made by humans. All LLM generated code is verified manually by humans. Throughout the code you will likely see comments starting with "Claude Code:" that refer to specific MD files. These files are not part of the git but Anuj will share them on request. 
 
 ## Contributing
 
