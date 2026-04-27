@@ -86,9 +86,27 @@ def fetch_sxs_bbh_2325() -> None:
 
     import sxs
 
-    sim = sxs.load(SXS_BBH_ID, download=True)
-    # Touch the strain + extra-waveform files so we know the cache is hot.
-    _ = sim.h
+    # The cache may contain a config.json with ``{"download": false}`` (set by
+    # tests that want offline behavior). That setting overrides the
+    # ``download=True`` kwarg on lazy property accesses below, so flip it
+    # while we fetch and restore on the way out.
+    try:
+        prior_download = sxs.read_config("download", True)
+    except Exception:
+        prior_download = True
+    sxs.write_config(download=True)
+    try:
+        sim = sxs.load(SXS_BBH_ID, download=True)
+        # ``sxs.load`` is lazy — it only downloads each file when its
+        # property is first accessed. Force-fetch the two waveform files
+        # the integration tests use: ``sim.h`` pulls Lev3:Strain_N2.{h5,json}
+        # and ``sim.psi4`` pulls Lev3:ExtraWaveforms.{h5,json}. Skipping
+        # psi4 caused CI to fail with "ExtraWaveforms.json not found and
+        # download is disabled" once the test reached ``sim.psi4``.
+        _ = sim.h
+        _ = sim.psi4
+    finally:
+        sxs.write_config(download=prior_download)
     print(f"  cached at {CACHE_DIR}/SXS:BBH:2325v*/")
 
 
