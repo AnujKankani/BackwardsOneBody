@@ -7,7 +7,7 @@ Unit tests for ``gwBOB.gen_utils`` signal-handling helpers (Part 1):
   - get_kuibit_frequency_lm
 
 These tests use the synthetic fixtures from ``conftest.py``. No NR data
-required. Tolerances follow ``DESIGN_test_refactor.md``:
+required. Claude Code: Tolerances follow ``DESIGN_test_refactor.md``:
 
   - Pure index/lookup operations: exact equality
   - Spline-derived frequency: rtol=1e-6 (depends on number of samples)

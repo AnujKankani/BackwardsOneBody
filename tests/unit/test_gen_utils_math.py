@@ -4,7 +4,7 @@ Pure-math unit tests for ``gwBOB.gen_utils``.
 These tests are deterministic, fast, and require no NR data. They run in
 any environment without ``SXSCACHEDIR`` / ``SXSCONFIGDIR`` configured.
 
-Tolerance policy (per DESIGN_test_refactor.md):
+Claude Code: Tolerance policy (per DESIGN_test_refactor.md):
     Closed-form math (ISCO formulas, QNM tables) → rtol=1e-8 to 1e-12.
 """
 

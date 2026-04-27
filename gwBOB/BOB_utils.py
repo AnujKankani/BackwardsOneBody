@@ -79,7 +79,7 @@ class BOB:
     relevant container. ``__slots__`` is enabled so attribute typos raise ``AttributeError``
     instead of silently creating a new attribute.
 
-    See DESIGN_state_split.md for the architectural rationale.
+    Claude Code: See DESIGN_state_split.md for the architectural rationale.
     '''
     __slots__ = (
         "_qnm_data_ready",
@@ -657,7 +657,7 @@ class BOB:
         Mutates ``self.Omega_0`` to the trial value, evaluates the analytic BOB
         frequency for the currently selected mode, and returns the frequency
         array sliced to the fit window. The mutation of ``self.Omega_0`` is a
-        known fragility (see code_review §2 P9 / DESIGN_stage3.md "Deferred
+        known fragility (Claude Code: see code_review §2 P9 / DESIGN_stage3.md "Deferred
         work"); for now the caller is expected to overwrite ``self.Omega_0``
         with the optimized value after ``curve_fit`` returns.
 
@@ -822,7 +822,7 @@ class BOB:
         ``self.fit_failed = True`` and writes ``self.Omega_0 = self.Omega_ISCO``.
 
         Side effect: if ``end_fit_after_tpeak`` exceeds ``end_after_tpeak``, the
-        former is silently lowered to match. (See code_review §2 P5 E9 — flagged
+        former is silently lowered to match. (Claude Code: See code_review §2 P5 E9 — flagged
         for future cleanup.)
 
         Raises:
@@ -1327,7 +1327,7 @@ class BOB:
                 arbitrary modes after init. Default is False (memory-efficient):
                 only the requested ``(l, m)`` and ``(l, -m)`` modes are
                 retained, dropping ~110 MB / BOB instance for SXS:BBH:2325.
-                See ``MEMORY.md`` for measured costs and parallel-init
+                Claude Code: See ``MEMORY.md`` for measured costs and parallel-init
                 implications. Note: even with ``load_all_modes=False``, the
                 multi-mode interpolation is still performed transiently during
                 init; reducing the *peak* during init requires a deeper change
@@ -1407,7 +1407,7 @@ class BOB:
         self.psi4_mm_data = psi4mm
 
         # Retain the multi-mode interpolated arrays only if the user asked.
-        # See docstring above and MEMORY.md for the rationale.
+        # Claude Code: See docstring above and MEMORY.md for the rationale.
         if load_all_modes:
             self.full_strain_data = h
             self.full_psi4_data = psi4
@@ -1447,7 +1447,7 @@ class BOB:
                 strain and psi4 arrays so that ``get_*_data(l, m)`` can return
                 arbitrary modes after init. Default is False (memory-efficient):
                 only the requested ``(l, m)`` and ``(l, -m)`` modes are
-                retained. See ``MEMORY.md`` for measurements.
+                retained. Claude Code: See ``MEMORY.md`` for measurements.
         '''
         if(m==0):
             raise ValueError("m=0 case not implemented yet")
@@ -1546,7 +1546,7 @@ class BOB:
         self.psi4_Ap = Ap
 
         # Retain the multi-mode interpolated arrays only if the user asked.
-        # See docstring above and MEMORY.md for the rationale.
+        # Claude Code: See docstring above and MEMORY.md for the rationale.
         if load_all_modes:
             self.full_strain_data = h
             self.full_psi4_data = psi4

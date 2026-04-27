@@ -19,7 +19,7 @@ by default (see ``pyproject.toml`` ``addopts``). Run them explicitly:
 
 They use the session-scoped ``initial_sxs_bob_2325`` fixture and ``deepcopy``
 per test, so peak memory stays around ~100 MB even when all 27 tests run.
-See ``CLAUDE.md`` "Memory awareness" for context.
+Claude Code: See ``CLAUDE.md`` "Memory awareness" for context.
 
 Tolerance is 1e-9 — tight enough to catch any real algorithm regression
 (meaningful drift in ``_construct.py`` would shift values by 1e-3 to 1e-6,

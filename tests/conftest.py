@@ -5,7 +5,7 @@ Path resolution and SXS cache configuration are centralized here so individual
 test modules don't have to reach for ``sys.path`` hacks or hard-coded ``./tests``
 prefixes. Adding a new test module just needs to import a fixture by name.
 
-See ``DESIGN_test_refactor.md`` for the design rationale.
+Claude Code: See ``DESIGN_test_refactor.md`` for the design rationale.
 """
 
 from __future__ import annotations
@@ -331,7 +331,7 @@ def initial_sxs_bob_2325(sxs_bbh_2325_available):
     rather than calling ``initialize_with_sxs_data`` themselves; loading
     the SXS waveform is expensive (~50 MB allocations) and doing it many
     times in one process exhausts memory in constrained environments
-    such as WSL. See CLAUDE.md "Memory awareness".
+    such as WSL. Claude Code: See CLAUDE.md "Memory awareness".
     """
     if not sxs_bbh_2325_available:
         pytest.skip("SXS:BBH:2325 cache not present in tests/sxs_cache/")

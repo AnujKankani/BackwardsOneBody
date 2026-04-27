@@ -116,11 +116,11 @@ class TestFiniteT0Phase:
             # BOB_strain_phase_finite_t0 appears to NOT be the antiderivative
             # of BOB_strain_freq_finite_t0. The derivative diverges from
             # Omega by a factor of ~1.7 at interior points; numerical and
-            # analytic phases differ by ~5% at the right tail. Tracked as
-            # a code_review §2 finding.
+            # analytic phases differ by ~5% at the right tail. Claude Code:
+            # tracked as a code_review §2 finding.
             pytest.xfail(
                 "BOB_strain_phase_finite_t0 may have an analytic-formula bug; "
-                "see code_review §2."
+                "Claude Code: see code_review §2."
             )
         Phi, Omega = phase_fn(synthetic_bob_finite)
         dt = synthetic_bob_finite.t[1] - synthetic_bob_finite.t[0]

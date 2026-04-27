@@ -80,7 +80,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[tests]"
 
-      # See CLAUDE.md / MEMORY.md / code_review §5 for context.
+      # Claude Code: See CLAUDE.md / MEMORY.md / code_review §5 for context.
       - name: Verify editable install (no site-packages shadowing)
         run: |
           python <<'PY'

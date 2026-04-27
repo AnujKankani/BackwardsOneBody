@@ -6,7 +6,7 @@ These tests require either the SXS:BBH:2325 SXS cache or the cce9 simulation
 data to be present under ``tests/sxs_cache/``. They skip cleanly when the
 data is missing.
 
-Tolerance policy (per DESIGN_test_refactor.md):
+Claude Code: Tolerance policy (per DESIGN_test_refactor.md):
     Curve_fit-derived parameters (Omega_0, etc.) → rtol=1e-3 (LM convergence
     varies across BLAS / scipy versions). Final mismatch → < 1e-6 (the
     user-facing accuracy criterion).

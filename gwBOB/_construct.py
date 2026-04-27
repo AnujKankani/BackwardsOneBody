@@ -10,7 +10,7 @@ that historical behavior is preserved unchanged. Cleanup hacks at the end of
 the wrapper methods on ``BOB`` (e.g., resetting ``Phi_0`` and ``Omega_0``)
 remain in those wrappers for backwards-compatibility.
 
-See DESIGN_stage3.md for context.
+Claude Code: See DESIGN_stage3.md for context.
 """
 
 from __future__ import annotations

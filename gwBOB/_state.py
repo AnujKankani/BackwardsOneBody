@@ -6,7 +6,7 @@ part of the public API in this release — the BOB class delegates property
 reads/writes to them internally. All dataclasses use ``slots=True`` so that
 assigning to an undeclared field raises ``AttributeError``.
 
-See DESIGN_state_split.md for the architectural rationale and migration plan.
+Claude Code: See DESIGN_state_split.md for the architectural rationale and migration plan.
 """
 
 from __future__ import annotations
