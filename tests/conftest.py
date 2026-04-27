@@ -103,6 +103,114 @@ def load_npz_dict(path: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Synthetic fixtures for unit tests (T4 of test refactor)
+#
+# These let unit tests exercise gwBOB internals without loading any NR data.
+# They're deliberately minimal: just enough surface area to satisfy the
+# function-under-test, with deterministic values so reference outputs can be
+# computed by hand or from documented analytic formulas.
+# ---------------------------------------------------------------------------
+
+class _MockMultiModeStrain:
+    """Minimal stand-in for ``sxs.WaveformModes`` (strain-style attribute access).
+
+    Supports the API that ``gen_utils.get_kuibit_lm`` uses:
+      - ``w.t``                : 1D time array
+      - ``w.data``             : 2D complex array (n_samples, n_modes)
+      - ``w.index(l, m)``      : column index for the (l, m) mode
+    """
+    def __init__(self, t, data, lm_to_index):
+        import numpy as np
+        self.t = np.asarray(t)
+        self.data = np.asarray(data)
+        self._lm_to_index = dict(lm_to_index)
+
+    def index(self, l, m):
+        return self._lm_to_index[(int(l), int(m))]
+
+
+class _MockMultiModePsi4Slice:
+    """Slice helper used by ``_MockMultiModePsi4`` — exposes ``.ndarray``."""
+    def __init__(self, arr):
+        self.ndarray = arr
+
+
+class _MockMultiModePsi4:
+    """Minimal stand-in for the psi4 attribute-access pattern.
+
+    Supports the API that ``gen_utils.get_kuibit_lm_psi4`` uses:
+      - ``w.t``                : 1D time array
+      - ``w.index(l, m)``      : column index for the (l, m) mode
+      - ``w[:, idx].ndarray``  : 1D array of mode values
+    """
+    def __init__(self, t, data, lm_to_index):
+        import numpy as np
+        self.t = np.asarray(t)
+        self._data = np.asarray(data)
+        self._lm_to_index = dict(lm_to_index)
+
+    def index(self, l, m):
+        return self._lm_to_index[(int(l), int(m))]
+
+    def __getitem__(self, key):
+        return _MockMultiModePsi4Slice(self._data[key])
+
+
+@pytest.fixture
+def synthetic_t():
+    """A regular time grid: ``np.arange(-50, 50, 0.1)``."""
+    import numpy as np
+    return np.arange(-50.0, 50.0, 0.1)
+
+
+@pytest.fixture
+def synthetic_kuibit_ts(synthetic_t):
+    """A complex timeseries with a known constant angular frequency.
+
+    Encodes ``y(t) = exp(-i * omega * t)`` with ``omega = 0.2``. Useful for
+    asserting that frequency / phase extraction recover the encoded value.
+    """
+    from kuibit.timeseries import TimeSeries as kuibit_ts
+    import numpy as np
+    omega = 0.2
+    y = np.exp(-1j * omega * synthetic_t)
+    ts = kuibit_ts(synthetic_t, y)
+    ts._encoded_omega = omega   # so tests can refer back to the truth
+    return ts
+
+
+@pytest.fixture
+def synthetic_multimode_strain():
+    """A small multi-mode strain-like object with deterministic per-mode data.
+
+    3 samples in time, 4 (l, m) modes — kept tiny so reference outputs are
+    obvious. Mode (l, m) at sample i has value ``i + 100*l + m`` (real),
+    ``-i - 100*l - m`` (imag) — so we can identify which column a slice came
+    from by inspection.
+    """
+    import numpy as np
+    t = np.array([0.0, 1.0, 2.0])
+    lm_to_index = {(2, 2): 0, (2, -2): 1, (3, 3): 2, (3, -3): 3}
+    n_samples, n_modes = len(t), len(lm_to_index)
+    data = np.zeros((n_samples, n_modes), dtype=np.complex128)
+    for (l, m), idx in lm_to_index.items():
+        for i in range(n_samples):
+            data[i, idx] = (i + 100 * l + m) - 1j * (i + 100 * l + m)
+    return _MockMultiModeStrain(t, data, lm_to_index)
+
+
+@pytest.fixture
+def synthetic_multimode_psi4(synthetic_multimode_strain):
+    """A psi4-style multi-mode object with the same shape/data as the strain
+    fixture. Differs only in attribute-access pattern (``w[:, idx].ndarray``)."""
+    return _MockMultiModePsi4(
+        synthetic_multimode_strain.t,
+        synthetic_multimode_strain.data,
+        synthetic_multimode_strain._lm_to_index,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Domain fixtures
 #
 # Heavyweight fixtures that load real NR data. Tests that need them request
