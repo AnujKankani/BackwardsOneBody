@@ -148,6 +148,20 @@ jobs:
           print(f"OK: gwBOB loaded from local source: {loc}")
           PY
 
+      # The ~90 MB of SXS + Zenodo waveform data isn't committed to the repo;
+      # fetch_data.py downloads it. Cache it across runs (key on the script
+      # so cache busts when fetch logic changes) to keep CI fast.
+      - name: Cache SXS / CCE test data
+        id: cache-test-data
+        uses: actions/cache@v3
+        with:
+          path: tests/sxs_cache
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+
+      - name: Fetch test data
+        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        run: python tests/fetch_data.py
+
       # Default `pytest tests/integration/` excludes the regression-baseline
       # marker via ``addopts`` in pyproject.toml, so this job runs the
       # workflow regressions but NOT the byte-for-byte fingerprints.
@@ -204,6 +218,19 @@ jobs:
               sys.exit(1)
           print(f"OK: gwBOB loaded from local source: {loc}")
           PY
+
+      # Same cache + fetch pattern as the integration job; both pull the
+      # same key, so a cache populated by either job is reusable by the other.
+      - name: Cache SXS / CCE test data
+        id: cache-test-data
+        uses: actions/cache@v3
+        with:
+          path: tests/sxs_cache
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+
+      - name: Fetch test data
+        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        run: python tests/fetch_data.py
 
       # Opt-in via ``-m regression_baseline`` overrides the ``addopts`` filter
       # in pyproject.toml that excludes them by default.

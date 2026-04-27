@@ -22,3 +22,9 @@ scripts/
 .coverage
 tests/coverage_html/
 
+# Test data fetched on-demand by tests/fetch_data.py (~90 MB).
+# The SXS catalog data and the Zenodo CCE waveforms are not ours to
+# redistribute, and committing them bloats fresh clones. Run
+#   python tests/fetch_data.py
+# once after cloning to populate this directory. Unit tests don't need it.
+tests/sxs_cache/
