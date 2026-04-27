@@ -30,7 +30,39 @@ docs = [
   "sphinx-copybutton",
   "sphinx-design",
 ]
-tests = ["pytest"]
+tests = ["pytest", "pytest-cov"]
+
+[tool.pytest.ini_options]
+# By default, skip the heavy byte-for-byte regression baseline tests.
+# Run them explicitly with: pytest -m regression_baseline
+addopts = "-m 'not regression_baseline'"
+markers = [
+    "integration: tests that require SXS/CCE data and are slow",
+    "slow: tests that take more than a few seconds",
+    "regression_baseline: byte-for-byte regression baselines from Stage 2 / 3 refactors. Memory-heavy; opt-in via -m regression_baseline.",
+]
+
+[tool.coverage.run]
+source = ["gwBOB"]
+omit = [
+    # Skip JAX-accelerated path; not exercised by current tests
+    "gwBOB/BOB_terms_jax.py",
+    # Top-level only contains imports + enable_output()
+    "gwBOB/__init__.py",
+    # ASCII-art helpers; cosmetic
+    "gwBOB/ascii_funcs.py",
+]
+
+[tool.coverage.report]
+# Make uncovered branches visible
+show_missing = true
+skip_covered = false
+# Lines that are intentionally not counted (e.g. defensive imports)
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
 
 [project.urls]
 Homepage = "https://github.com/AnujKankani/BackwardsOneBody"

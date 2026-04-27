@@ -1309,7 +1309,7 @@ class BOB:
             self.NR_based_on_BOB_ts = self.data.resampled(BOB_ts.t)
         
         return BOB_ts.t,BOB_ts.y
-    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.1,verbose=False,inertial_to_coprecessing_transformation=False): 
+    def initialize_with_sxs_data(self,sxs_id,l=2,m=2,download=True,resample_dt = 0.1,verbose=False,inertial_to_coprecessing_transformation=False,load_all_modes=False):
         '''
         This function is used to initialize the BOB with SXS data.
 
@@ -1321,6 +1321,17 @@ class BOB:
             resample_dt(float): Resampling time step
             verbose(bool): Whether to print verbose output
             inertial_to_coprecessing_transformation(bool): Whether to perform inertial to coprecessing transformation
+            load_all_modes(bool): If True, retain the full multi-mode interpolated
+                strain and psi4 arrays so that ``get_psi4_data(l, m)`` /
+                ``get_news_data(l, m)`` / ``get_strain_data(l, m)`` can return
+                arbitrary modes after init. Default is False (memory-efficient):
+                only the requested ``(l, m)`` and ``(l, -m)`` modes are
+                retained, dropping ~110 MB / BOB instance for SXS:BBH:2325.
+                See ``MEMORY.md`` for measured costs and parallel-init
+                implications. Note: even with ``load_all_modes=False``, the
+                multi-mode interpolation is still performed transiently during
+                init; reducing the *peak* during init requires a deeper change
+                tracked in code_review §2.
         '''
         if(m==0):
             raise ValueError("m=0 case not implemented yet")
@@ -1387,15 +1398,22 @@ class BOB:
         self.news_Ap = Ap
 
         self.strain_data = hm
-        self.full_strain_data = h
         self.strain_mm_data = hmm
 
         self.news_data = newsm
         self.news_mm_data = newsmm
 
         self.psi4_data = psi4m
-        self.full_psi4_data = psi4
         self.psi4_mm_data = psi4mm
+
+        # Retain the multi-mode interpolated arrays only if the user asked.
+        # See docstring above and MEMORY.md for the rationale.
+        if load_all_modes:
+            self.full_strain_data = h
+            self.full_psi4_data = psi4
+        else:
+            self.full_strain_data = None
+            self.full_psi4_data = None
 
         if(verbose):
             logger.debug("Mtot = %s", self.M_tot)
@@ -1412,7 +1430,7 @@ class BOB:
             logger.debug("news_Ap = %s", self.news_Ap)
             logger.debug("psi4_tp = %s", self.psi4_tp)
             logger.debug("psi4_Ap = %s", self.psi4_Ap)
-    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.1,verbose=False):
+    def initialize_with_cce_data(self,cce_id,l=2,m=2,perform_superrest_transformation=False,inertial_to_coprecessing_transformation=False,provide_own_abd=None,resample_dt = 0.1,verbose=False,load_all_modes=False):
         '''
         This function is used to initialize the BOB with CCE data.
 
@@ -1425,6 +1443,11 @@ class BOB:
             provide_own_abd(scri.Abd): Use a user passed in scri abd object (maybe useful if the user has specific pre-processing requirements)
             resample_dt(float): Resampling time step
             verbose(bool): Whether to print verbose output
+            load_all_modes(bool): If True, retain the full multi-mode interpolated
+                strain and psi4 arrays so that ``get_*_data(l, m)`` can return
+                arbitrary modes after init. Default is False (memory-efficient):
+                only the requested ``(l, m)`` and ``(l, -m)`` modes are
+                retained. See ``MEMORY.md`` for measurements.
         '''
         if(m==0):
             raise ValueError("m=0 case not implemented yet")
@@ -1522,8 +1545,14 @@ class BOB:
         self.psi4_tp = tp
         self.psi4_Ap = Ap
 
-        self.full_strain_data = h
-        self.full_psi4_data = psi4
+        # Retain the multi-mode interpolated arrays only if the user asked.
+        # See docstring above and MEMORY.md for the rationale.
+        if load_all_modes:
+            self.full_strain_data = h
+            self.full_psi4_data = psi4
+        else:
+            self.full_strain_data = None
+            self.full_psi4_data = None
         self.strain_data = hm
         self.news_data = newsm
         self.psi4_data = psi4m
@@ -1639,6 +1668,19 @@ class BOB:
             logger.debug("news_Ap = %s", self.news_Ap)
             logger.debug("psi4_tp = %s", self.psi4_tp)
             logger.debug("psi4_Ap = %s", self.psi4_Ap)
+    def _resolve_lm(self, kwargs):
+        '''Return ``(l, m)`` from ``kwargs``, falling back to ``self.l`` / ``self.m``.'''
+        l = kwargs.get('l', self.l)
+        m = kwargs.get('m', self.m)
+        return l, m
+
+    def _no_full_data_error(self, kind, l, m):
+        return AttributeError(
+            f"get_{kind}_data(l={l}, m={m}) is unavailable: full multi-mode data "
+            "was not retained at init. Re-initialize with load_all_modes=True "
+            "(memory-heavy — see MEMORY.md) to access non-default (l, m) modes."
+        )
+
     def get_psi4_data(self,**kwargs):
         '''
         Return the NR psi4 timeseries for an arbitrary (l, m) mode.
@@ -1647,11 +1689,12 @@ class BOB:
         ``l=...`` and/or ``m=...`` as keyword arguments to retrieve a different
         mode.
 
-        Note: only works after ``initialize_with_sxs_data`` or
-        ``initialize_with_cce_data`` (which load the full multi-mode dataset
-        into ``self.full_psi4_data``). After ``initialize_with_NR_mode``, only
-        the single mode passed in is available, so this method will fail with
-        an ``AttributeError`` / ``NoneType`` access.
+        With ``load_all_modes=False`` at init (the default), only the requested
+        ``(l, m)`` and ``(l, -m)`` modes are stored — calls for other modes
+        raise ``AttributeError``. Pass ``load_all_modes=True`` to
+        ``initialize_with_*`` if you need arbitrary mode access (uses much more
+        memory). After ``initialize_with_NR_mode``, only the single mode passed
+        in is ever available.
 
         kwargs:
             l (int): l index (defaults to ``self.l``).
@@ -1660,23 +1703,21 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested psi4 mode.
         '''
-        if('l' in kwargs):
-            l = kwargs['l']
-        else:
-            l = self.l
-        if('m' in kwargs):
-            m = kwargs['m']
-        else:
-            m = self.m
+        l, m = self._resolve_lm(kwargs)
+        if self.full_psi4_data is None:
+            if (l, m) == (self.l,  self.m):  return self.psi4_data.t,    self.psi4_data.y
+            if (l, m) == (self.l, -self.m):  return self.psi4_mm_data.t, self.psi4_mm_data.y
+            raise self._no_full_data_error("psi4", l, m)
         temp_ts = gen_utils.get_kuibit_lm_psi4(self.full_psi4_data,l,m)
         return temp_ts.t,temp_ts.y
+
     def get_news_data(self,**kwargs):
         '''
         Return the NR news timeseries (computed as d/dt of the strain) for an
         arbitrary (l, m) mode.
 
-        Same restrictions as ``get_psi4_data``: only works after SXS or CCE
-        initialization.
+        Same restrictions as ``get_psi4_data``: only the requested ``(l, m)``
+        and ``(l, -m)`` modes are available unless ``load_all_modes=True`` at init.
 
         kwargs:
             l (int): l index (defaults to ``self.l``).
@@ -1685,22 +1726,20 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested news mode.
         '''
-        if('l' in kwargs):
-            l = kwargs['l']
-        else:
-            l = self.l
-        if('m' in kwargs):
-            m = kwargs['m']
-        else:
-            m = self.m
+        l, m = self._resolve_lm(kwargs)
+        if self.full_strain_data is None:
+            if (l, m) == (self.l,  self.m):  return self.news_data.t,    self.news_data.y
+            if (l, m) == (self.l, -self.m):  return self.news_mm_data.t, self.news_mm_data.y
+            raise self._no_full_data_error("news", l, m)
         temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m).spline_differentiated(1)
         return temp_ts.t,temp_ts.y
+
     def get_strain_data(self,**kwargs):
         '''
         Return the NR strain timeseries for an arbitrary (l, m) mode.
 
-        Same restrictions as ``get_psi4_data``: only works after SXS or CCE
-        initialization.
+        Same restrictions as ``get_psi4_data``: only the requested ``(l, m)``
+        and ``(l, -m)`` modes are available unless ``load_all_modes=True`` at init.
 
         kwargs:
             l (int): l index (defaults to ``self.l``).
@@ -1709,14 +1748,11 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested strain mode.
         '''
-        if('l' in kwargs):
-            l = kwargs['l']
-        else:
-            l = self.l
-        if('m' in kwargs):
-            m = kwargs['m']
-        else:
-            m = self.m
+        l, m = self._resolve_lm(kwargs)
+        if self.full_strain_data is None:
+            if (l, m) == (self.l,  self.m):  return self.strain_data.t,    self.strain_data.y
+            if (l, m) == (self.l, -self.m):  return self.strain_mm_data.t, self.strain_mm_data.y
+            raise self._no_full_data_error("strain", l, m)
         temp_ts = gen_utils.get_kuibit_lm(self.full_strain_data,l,m)
         return temp_ts.t,temp_ts.y
 #convenience class for template generation

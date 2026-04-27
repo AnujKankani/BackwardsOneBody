@@ -14,3 +14,11 @@ gwBOB.egg-info/
 code_review
 test_stuff.py
 
+# Local utility scripts (memory profiling, ad-hoc benchmarks, etc.)
+scripts/
+
+# Pytest / coverage artifacts
+.pytest_cache/
+.coverage
+tests/coverage_html/
+
