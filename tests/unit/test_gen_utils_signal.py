@@ -173,3 +173,197 @@ class TestGetKuibitFrequencyLM:
     def test_time_array_matches_input(self, constant_freq_psi4):
         freq = gen_utils.get_kuibit_frequency_lm(constant_freq_psi4, 2, 2)
         np.testing.assert_array_equal(freq.t, constant_freq_psi4.t)
+
+
+# ---------------------------------------------------------------------------
+# get_phase  (unwrapped phase of a complex timeseries)
+# ---------------------------------------------------------------------------
+
+class TestGetPhase:
+    def test_constant_frequency_signal_has_linear_phase(self):
+        """``y = exp(-i * omega * t)`` has phase ``-omega * t``, which after
+        the sign-flip-to-positive branch becomes ``+omega * t``."""
+        omega = 0.3
+        t = np.linspace(-10.0, 10.0, 2001)
+        y = np.exp(-1j * omega * t)
+        ts = kuibit_ts(t, y)
+        phase = gen_utils.get_phase(ts)
+        # phase(t) should be linear in t, slope = +omega (after sign flip).
+        # Skip the first/last sample to avoid wrap-around edge effects.
+        np.testing.assert_allclose(phase.y[1:-1], omega * t[1:-1], rtol=1e-10)
+
+    def test_returns_kuibit_timeseries_with_same_time(self):
+        t = np.linspace(0, 1, 11)
+        y = np.exp(1j * t)
+        ts = kuibit_ts(t, y)
+        phase = gen_utils.get_phase(ts)
+        assert isinstance(phase, kuibit_ts)
+        np.testing.assert_array_equal(phase.t, t)
+
+    def test_sign_flip_makes_phase_positive(self):
+        """Branch coverage: when ``y[-1] < 0``, the function flips the sign."""
+        # signal whose unwrapped phase ends negative: y = exp(+i * omega * t)
+        # (gives phase = omega * t, which after np.angle goes to small numbers
+        # near t=0 and grows positive — but the sign flip handles a different
+        # case). To force the flip path: encode y = exp(+i * omega * t) with t<0.
+        omega = 0.5
+        t = np.linspace(-5, 5, 1001)
+        y = np.exp(-1j * omega * t)   # so phase goes from +omega*5 at t=-5 down to -omega*5 at t=5
+        ts = kuibit_ts(t, y)
+        phase = gen_utils.get_phase(ts)
+        # Implementation flips so the LAST point is non-negative.
+        assert phase.y[-1] >= 0
+
+
+# ---------------------------------------------------------------------------
+# get_frequency  (angular frequency of a complex timeseries)
+# ---------------------------------------------------------------------------
+
+class TestGetFrequency:
+    def test_constant_frequency_signal_recovered(self):
+        """``y = A(t) * exp(-i * omega * t)`` with a Gaussian envelope ``A(t)``
+        — the angular frequency should be ``omega`` everywhere except at the
+        edges where finite-difference artefacts dominate."""
+        omega = 0.4
+        t = np.linspace(-10.0, 10.0, 2001)
+        envelope = np.exp(-(t**2) / 50.0)   # Gaussian — peak amplitude at t=0
+        y = envelope * np.exp(-1j * omega * t)
+        ts = kuibit_ts(t, y)
+        freq = gen_utils.get_frequency(ts)
+        # Interior should match omega; sign should be positive near tp=0.
+        interior = slice(50, -50)
+        np.testing.assert_allclose(freq.y[interior], omega, rtol=1e-3)
+
+    def test_returns_kuibit_timeseries(self):
+        t = np.linspace(0, 1, 11)
+        ts = kuibit_ts(t, np.exp(-1j * t))
+        freq = gen_utils.get_frequency(ts)
+        assert isinstance(freq, kuibit_ts)
+        np.testing.assert_array_equal(freq.t, t)
+
+
+# ---------------------------------------------------------------------------
+# get_tp_Ap_from_spline  (peak finder via cubic-spline interior root)
+# ---------------------------------------------------------------------------
+
+class TestGetTpApFromSpline:
+    def test_gaussian_recovers_peak(self):
+        """Gaussian centered at t=2.5 with peak amplitude 3.7 — the peak finder
+        should return values close to (2.5, 3.7)."""
+        t = np.linspace(0.0, 5.0, 1001)
+        peak_t, peak_amp = 2.5, 3.7
+        amp = peak_amp * np.exp(-((t - peak_t) ** 2) / 0.5)
+        amp_ts = kuibit_ts(t, amp)
+        tp, Ap = gen_utils.get_tp_Ap_from_spline(amp_ts)
+        # Spline interior root should land essentially exactly on the analytic peak.
+        assert abs(tp - peak_t) < 1e-4
+        np.testing.assert_allclose(Ap, peak_amp, rtol=1e-6)
+
+    def test_returns_python_floats(self):
+        """Important for downstream ``self.tp = ...`` assignments and tests
+        that may serialize ``tp`` / ``Ap`` to NPZ."""
+        t = np.linspace(0.0, 1.0, 101)
+        amp_ts = kuibit_ts(t, np.exp(-((t - 0.3) ** 2) / 0.05))
+        tp, Ap = gen_utils.get_tp_Ap_from_spline(amp_ts)
+        # numpy scalar / Python float — both should be `float`-castable.
+        assert float(tp) == tp
+        assert float(Ap) == Ap
+
+    def test_peak_at_neither_endpoint(self):
+        """The function filters critical points to the interior; if the only
+        maximum candidate is at a boundary, it must still find SOMETHING. We
+        assert it returns a finite scalar rather than raising."""
+        t = np.linspace(0.0, 5.0, 501)
+        # Peak well inside the domain.
+        amp = np.exp(-((t - 2.5) ** 2) / 0.3)
+        tp, Ap = gen_utils.get_tp_Ap_from_spline(kuibit_ts(t, amp))
+        assert 0.0 < tp < 5.0
+        assert Ap > 0.0
+
+
+# ---------------------------------------------------------------------------
+# mismatch  (normalized inner-product mismatch on cropped windows)
+# ---------------------------------------------------------------------------
+
+class TestMismatch:
+    @pytest.fixture
+    def gaussian_signal(self):
+        """A complex Gaussian-modulated carrier — peak time = 0, peak amp = 1."""
+        t = np.linspace(-5.0, 5.0, 1001)
+        envelope = np.exp(-(t ** 2) / 1.0)
+        y = envelope * np.exp(-1j * 0.5 * t)
+        return kuibit_ts(t, y)
+
+    def test_self_mismatch_is_zero(self, gaussian_signal):
+        """``mismatch(x, x) == 0`` for any signal (within numerical tolerance)."""
+        m = gen_utils.mismatch(gaussian_signal, gaussian_signal, t0=-2.0, tf=2.0,
+                               use_trapz=True)
+        assert abs(m) < 1e-10
+
+    def test_phase_shifted_self_recovers_zero(self, gaussian_signal):
+        """``mismatch`` is phase-optimized: an overall phase shift between
+        otherwise-identical signals should still give mismatch ≈ 0."""
+        shifted = kuibit_ts(gaussian_signal.t,
+                             gaussian_signal.y * np.exp(1j * 0.7))
+        m = gen_utils.mismatch(gaussian_signal, shifted, t0=-2.0, tf=2.0,
+                               use_trapz=True)
+        assert abs(m) < 1e-10
+
+    def test_returns_best_phi0_when_requested(self, gaussian_signal):
+        shifted = kuibit_ts(gaussian_signal.t,
+                             gaussian_signal.y * np.exp(1j * 0.7))
+        m, best_phi0 = gen_utils.mismatch(
+            gaussian_signal, shifted, t0=-2.0, tf=2.0,
+            use_trapz=True, return_best_phi0=True,
+        )
+        assert abs(m) < 1e-10
+        # The recovered shift should match the applied one (up to sign convention).
+        # Since the function returns -np.angle(numerator), accept either sign.
+        assert abs(abs(best_phi0) - 0.7) < 1e-6
+
+    def test_orthogonal_signals_give_higher_mismatch(self, gaussian_signal):
+        """Same envelope but very different carrier frequency — mismatch should
+        be substantially larger than zero."""
+        t = gaussian_signal.t
+        envelope = np.exp(-(t ** 2) / 1.0)
+        # Carrier at omega=5.0 vs gaussian_signal's omega=0.5 — strongly different.
+        orthogonal = kuibit_ts(t, envelope * np.exp(-1j * 5.0 * t))
+        m = gen_utils.mismatch(gaussian_signal, orthogonal, t0=-2.0, tf=2.0,
+                               use_trapz=True)
+        assert m > 0.1   # clearly non-zero
+
+    def test_trapz_and_spline_agree_within_quadrature_tolerance(self, gaussian_signal):
+        """The ``use_trapz`` flag chooses between trapezoid and cubic-spline
+        definite integration. They should agree well for a smooth signal."""
+        env = np.exp(-(gaussian_signal.t ** 2) / 1.0)
+        other = kuibit_ts(gaussian_signal.t,
+                          env * np.exp(-1j * 0.55 * gaussian_signal.t))
+        m_trapz  = gen_utils.mismatch(gaussian_signal, other, t0=-2.0, tf=2.0,
+                                      use_trapz=True)
+        m_spline = gen_utils.mismatch(gaussian_signal, other, t0=-2.0, tf=2.0,
+                                      use_trapz=False)
+        np.testing.assert_allclose(m_trapz, m_spline, rtol=1e-3)
+
+    def test_resample_when_grids_differ(self, gaussian_signal):
+        """When NR and model grids don't match, ``resample_NR_to_model=True``
+        should resample under the hood and still give mismatch ≈ 0 for a
+        self-comparison up to interpolation error."""
+        # Subsample to a different grid
+        t2 = np.linspace(-5.0, 5.0, 501)   # half the resolution
+        y2 = np.exp(-(t2 ** 2) / 1.0) * np.exp(-1j * 0.5 * t2)
+        coarse_self = kuibit_ts(t2, y2)
+        m = gen_utils.mismatch(gaussian_signal, coarse_self, t0=-2.0, tf=2.0,
+                               use_trapz=True)
+        # Resampling introduces small numerical error; 1e-4 is reasonable.
+        assert m < 1e-4
+
+    def test_mismatch_value_in_valid_range(self, gaussian_signal):
+        """For ANY two real signals, mismatch should be in [0, 1]."""
+        rng = np.random.default_rng(seed=0)
+        t = gaussian_signal.t
+        envelope = np.exp(-(t ** 2) / 1.0)
+        random_phase = rng.uniform(0, 2*np.pi, size=len(t))
+        random_signal = kuibit_ts(t, envelope * np.exp(1j * random_phase))
+        m = gen_utils.mismatch(gaussian_signal, random_signal, t0=-2.0, tf=2.0,
+                               use_trapz=True)
+        assert 0.0 <= m <= 1.0

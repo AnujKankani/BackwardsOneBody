@@ -210,6 +210,81 @@ def synthetic_multimode_psi4(synthetic_multimode_strain):
     )
 
 
+@pytest.fixture
+def synthetic_bob():
+    """A ``SimpleNamespace`` mimicking the attribute surface of a ``BOB``
+    instance — just enough for ``BOB_terms.*`` to read.
+
+    Designed for: ``Omega_0 < Omega_QNM`` (always true for physical remnants),
+    ``tau > 0``, peak time ``tp = 0`` so ``t_tp_tau = t / tau``.
+
+    The defaults below are arbitrary-but-physical: representative for a
+    near-equal-mass BBH remnant.
+    """
+    from types import SimpleNamespace
+    import numpy as np
+
+    Omega_0   = 0.15
+    Omega_QNM = 0.4
+    Phi_0     = 0.0
+    tau       = 10.0
+    tp        = 0.0
+    t0        = -10.0
+    Ap        = 0.1
+    m         = 2
+
+    # Wide, symmetric window so asymptotic tests have plenty of "tail" on
+    # both sides: |t / tau| reaches 10 at the edges, and tanh(±10) ≈ ±1 to
+    # ~9 decimal places, so the asymptotic frequency limits are essentially
+    # exact. ``linspace`` (vs ``arange``) guarantees an odd-length symmetric
+    # grid with t = 0 exactly at the centre.
+    t = np.linspace(-100.0, 100.0, 2001)
+    t_tp_tau  = (t - tp) / tau
+    t0_tp_tau = (t0 - tp) / tau
+
+    return SimpleNamespace(
+        Omega_0=Omega_0, Omega_QNM=Omega_QNM, Phi_0=Phi_0,
+        tau=tau, tp=tp, t0=t0,
+        Ap=Ap, m=m,
+        t=t, t_tp_tau=t_tp_tau, t0_tp_tau=t0_tp_tau,
+        # Some BOB_terms.* finite_t0 phase functions try the analytic form
+        # and, on ValueError, consult ``auto_switch_to_numerical_integration``
+        # before deciding whether to fall back to a numerical antiderivative.
+        # Real ``BOB`` instances default this to True.
+        auto_switch_to_numerical_integration=True,
+    )
+
+
+@pytest.fixture
+def synthetic_bob_finite(synthetic_bob):
+    """A bob whose time grid starts AT ``t0`` and extends far into ``t >> tp``.
+
+    This is the valid range for finite-t0 BOB_terms formulas: at ``t < t0``,
+    psi4_finite_t0 produces a negative radicand (raises) and
+    news/strain_finite_t0 produce unphysical values. Use this fixture for any
+    test of the ``BOB_*_finite_t0`` family.
+    """
+    from types import SimpleNamespace
+    import numpy as np
+
+    t0  = synthetic_bob.t0
+    tp  = synthetic_bob.tp
+    tau = synthetic_bob.tau
+    # Range [t0, t0 + 110] — covers t = t0 plus a long tail well past tp.
+    t = np.linspace(t0, t0 + 110.0, 1101)
+    return SimpleNamespace(
+        Omega_0=synthetic_bob.Omega_0,
+        Omega_QNM=synthetic_bob.Omega_QNM,
+        Phi_0=synthetic_bob.Phi_0,
+        tau=tau, tp=tp, t0=t0,
+        Ap=synthetic_bob.Ap, m=synthetic_bob.m,
+        t=t,
+        t_tp_tau=(t  - tp) / tau,
+        t0_tp_tau=(t0 - tp) / tau,
+        auto_switch_to_numerical_integration=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Domain fixtures
 #
