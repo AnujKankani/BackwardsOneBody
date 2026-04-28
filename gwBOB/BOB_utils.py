@@ -1313,6 +1313,16 @@ class BOB:
         '''
         This function is used to initialize the BOB with SXS data.
 
+        Memory: by default, this method extracts the requested ``(l, m)`` and
+        ``(l, -m)`` modes from the un-interpolated waveform first and resamples
+        only those two modes to the dense uniform grid. This drops the init
+        peak from ~1.2 GB to ~700 MB on SXS:BBH:2325. The original slow path
+        (interpolate all ~77 modes, then slice) is still used when
+        ``load_all_modes=True`` or
+        ``inertial_to_coprecessing_transformation=True``, since both require
+        the full multi-mode object. Claude Code: see peak_memory_fix.md for
+        the rollout history.
+
         args:
             sxs_id(str): SXS id of the simulation
             l(int): Mode number
@@ -1320,18 +1330,18 @@ class BOB:
             download(bool): Whether to download the data
             resample_dt(float): Resampling time step
             verbose(bool): Whether to print verbose output
-            inertial_to_coprecessing_transformation(bool): Whether to perform inertial to coprecessing transformation
+            inertial_to_coprecessing_transformation(bool): Whether to perform
+                inertial to coprecessing transformation. Forces the slow
+                init path (rotation is a multi-mode operation).
             load_all_modes(bool): If True, retain the full multi-mode interpolated
                 strain and psi4 arrays so that ``get_psi4_data(l, m)`` /
                 ``get_news_data(l, m)`` / ``get_strain_data(l, m)`` can return
                 arbitrary modes after init. Default is False (memory-efficient):
                 only the requested ``(l, m)`` and ``(l, -m)`` modes are
                 retained, dropping ~110 MB / BOB instance for SXS:BBH:2325.
-                Claude Code: See ``MEMORY.md`` for measured costs and parallel-init
-                implications. Note: even with ``load_all_modes=False``, the
-                multi-mode interpolation is still performed transiently during
-                init; reducing the *peak* during init requires a deeper change
-                tracked in code_review §2.
+                ``load_all_modes=True`` also forces the slow init path.
+                Claude Code: See ``MEMORY.md`` for measured costs and
+                parallel-init implications.
         '''
         if(m==0):
             raise ValueError("m=0 case not implemented yet")
@@ -1365,28 +1375,55 @@ class BOB:
 
         
 
-        h = sim.h
-        h = h.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
-        if(inertial_to_coprecessing_transformation):
-            logger.info("Converting from inertial to coprecessing frame!")
-            h = h.to_coprecessing_frame().copy()
+        # Claude Code: fast path described in peak_memory_fix.md. Falls back
+        # to the slow (multi-mode interpolate) path whenever we either need
+        # all modes (load_all_modes=True) or are doing a multi-mode rotation
+        # (inertial_to_coprecessing_transformation=True).
+        _use_fast_path = not load_all_modes and not inertial_to_coprecessing_transformation
 
-        hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
-        #we also store the (l,-m) mode for current and quadrupole wave construction
-        hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m).cropped(init=ref_time+100)
+        h_native = sim.h
+        grid_h = np.arange(h_native.t[0], h_native.t[-1], self.resample_dt)
+
+        if _use_fast_path:
+            logger.debug("initialize_with_sxs_data: using fast init path (per-mode resample)")
+            # Slice the two single-mode views from the un-interpolated waveform,
+            # then resample only those two modes to the dense uniform grid.
+            hm_native  = gen_utils.get_kuibit_lm(h_native, self.l,  self.m)
+            hmm_native = gen_utils.get_kuibit_lm(h_native, self.l, -self.m)
+            hm  = hm_native.resampled(grid_h).cropped(init=ref_time+100)
+            hmm = hmm_native.resampled(grid_h).cropped(init=ref_time+100)
+            # h_L2_norm_tp from the un-interpolated multi-mode object — gives
+            # the same physical quantity, ~resample_dt less precise.
+            self.h_L2_norm_tp = h_native.max_norm_time()
+            h = None  # not retained on the fast path
+        else:
+            h = h_native.interpolate(grid_h)
+            if(inertial_to_coprecessing_transformation):
+                logger.info("Converting from inertial to coprecessing frame!")
+                h = h.to_coprecessing_frame().copy()
+            hm = gen_utils.get_kuibit_lm(h,self.l,self.m).cropped(init=ref_time+100)
+            #we also store the (l,-m) mode for current and quadrupole wave construction
+            hmm = gen_utils.get_kuibit_lm(h,self.l,-self.m).cropped(init=ref_time+100)
+            self.h_L2_norm_tp = h.max_norm_time()
+
         tp,Ap = gen_utils.get_tp_Ap_from_spline(hm.abs())
         self.strain_tp = tp
         self.strain_Ap = Ap
-        
-        self.h_L2_norm_tp = h.max_norm_time()
 
-        psi4 = sim.psi4
-        psi4 = psi4.interpolate(np.arange(h.t[0],h.t[-1],self.resample_dt))
-        if(inertial_to_coprecessing_transformation):
-            logger.info("Converting from inertial to coprecessing frame!")
-            psi4 = psi4.to_coprecessing_frame().copy()
-        psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m).cropped(init=ref_time+100)
-        psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m).cropped(init=ref_time+100)
+        psi4_native = sim.psi4
+        if _use_fast_path:
+            psi4m_native  = gen_utils.get_kuibit_lm_psi4(psi4_native, self.l,  self.m)
+            psi4mm_native = gen_utils.get_kuibit_lm_psi4(psi4_native, self.l, -self.m)
+            psi4m  = psi4m_native.resampled(grid_h).cropped(init=ref_time+100)
+            psi4mm = psi4mm_native.resampled(grid_h).cropped(init=ref_time+100)
+            psi4 = None
+        else:
+            psi4 = psi4_native.interpolate(grid_h)
+            if(inertial_to_coprecessing_transformation):
+                logger.info("Converting from inertial to coprecessing frame!")
+                psi4 = psi4.to_coprecessing_frame().copy()
+            psi4m = gen_utils.get_kuibit_lm_psi4(psi4,self.l,self.m).cropped(init=ref_time+100)
+            psi4mm = gen_utils.get_kuibit_lm_psi4(psi4,self.l,-self.m).cropped(init=ref_time+100)
         tp,Ap = gen_utils.get_tp_Ap_from_spline(psi4m.abs())
         self.psi4_tp = tp
         self.psi4_Ap = Ap

@@ -110,6 +110,39 @@ def test_initialize_with_sxs_data(trusted_outputs_dir, sxs_bbh_2325_available):
 
 
 @pytest.mark.integration
+def test_fast_path_matches_slow_path(sxs_bbh_2325_available):
+    """The fast init path (default) must produce arrays equivalent to the
+    slow path (``load_all_modes=True``) within rtol=1e-9 on (l, ±m) modes
+    for strain, news, and psi4. The 27 regression baselines already prove
+    this transitively, but a direct equivalence test makes the contract
+    explicit and gives the slow path automated coverage now that it is no
+    longer the default. Claude Code: see peak_memory_fix.md.
+    """
+    if not sxs_bbh_2325_available:
+        pytest.skip("SXS:BBH:2325 cache not present in tests/sxs_cache/")
+
+    bob_fast = BOB_utils.BOB()
+    bob_fast.initialize_with_sxs_data("SXS:BBH:2325", l=2, m=2, download=False)
+
+    bob_slow = BOB_utils.BOB()
+    bob_slow.initialize_with_sxs_data(
+        "SXS:BBH:2325", l=2, m=2, download=False, load_all_modes=True,
+    )
+
+    for attr in ("strain_data", "strain_mm_data",
+                 "news_data",   "news_mm_data",
+                 "psi4_data",   "psi4_mm_data"):
+        np.testing.assert_allclose(
+            getattr(bob_fast, attr).y, getattr(bob_slow, attr).y,
+            rtol=1e-9, err_msg=f"{attr}.y drifted between fast and slow paths",
+        )
+        np.testing.assert_allclose(
+            getattr(bob_fast, attr).t, getattr(bob_slow, attr).t,
+            rtol=1e-12, err_msg=f"{attr}.t drifted between fast and slow paths",
+        )
+
+
+@pytest.mark.integration
 def test_initialize_with_cce_data(BOB_cce, trusted_outputs_dir):
     """End-to-end CCE workflow: init → set 3 modes → construct → mismatch."""
     expected_params = _params_from_npz(trusted_outputs_dir / "BOB_BBH_CCE9_l2mm2_optimize_news.npz")
