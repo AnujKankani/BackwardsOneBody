@@ -6,8 +6,8 @@ from sympy import Ei as Ei_sp
 
 def define_BOB_symbols():
     t, t0, tp, tau = sp.symbols('t t0 tp tau', real=True)
-    Omega0, Omega_QNM, Ap, Phi_0 = sp.symbols('Omega0 Omega_QNM Ap Phi_0', positive=True)
-    return t, t0, tp, tau, Omega0, Omega_QNM, Ap, Phi_0
+    Omega_0, Omega_QNM, Ap, Phi_0 = sp.symbols('Omega_0 Omega_QNM Ap Phi_0', positive=True)
+    return t, t0, tp, tau, Omega_0, Omega_QNM, Ap, Phi_0
 
 def BOB_amplitude_sym(t, tp, tau, Ap):
     '''
@@ -27,7 +27,7 @@ def BOB_amplitude_sym(t, tp, tau, Ap):
     x = (t - tp) / tau
     return Ap * sp.sech(x)
 
-def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
+def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM):
     '''
     Frequency for the strain when assuming the BOB amplitude best models the strain (for finite t_0)
 
@@ -36,7 +36,7 @@ def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
         t0 (sympy.Symbol): Initial Condition time
         tp (sympy.Symbol): Time of peak amplitude 
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
 
     Returns:
@@ -44,11 +44,11 @@ def BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     '''
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
-    Omega_ratio = Omega0 / Omega_QNM
+    Omega_ratio = Omega_0 / Omega_QNM
     exponent = (sp.tanh(x) - 1) / (sp.tanh(x0) - 1)
     return Omega_QNM * Omega_ratio**exponent
 
-def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
+def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM, Phi_0):
     '''
     Phase for the strain when the BOB amplitude models the strain (for finite t_0)
 
@@ -57,7 +57,7 @@ def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
         t0 (sympy.Symbol): Initial Condition time
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
 
@@ -66,10 +66,10 @@ def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 
         Omega - Strain frequency (waveform frequency)/(mode number)
     '''
-    Omega = BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM)
+    Omega = BOB_strain_freq_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM)
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
-    Omega_ratio = Omega0 / Omega_QNM
+    Omega_ratio = Omega_0 / Omega_QNM
     outer = Omega_QNM * tau / sp.Integer(2)
     tanh_tp_t0_tau_p1 = sp.tanh(-x0) + 1
     term1_exp = sp.Integer(2) / tanh_tp_t0_tau_p1
@@ -81,7 +81,7 @@ def BOB_strain_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
     Phi = outer * inner + Phi_0
     return Phi, Omega
 
-def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
+def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM):
     '''
     Frequency for the news when the BOB amplitude models the news (for finite t_0)
 
@@ -90,7 +90,7 @@ def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
         t0 (sympy.Symbol): Initial Condition time
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
 
     Returns:
@@ -100,11 +100,11 @@ def BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     '''
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
-    F = (Omega_QNM**2 - Omega0**2) / (1 - sp.tanh(x0))
+    F = (Omega_QNM**2 - Omega_0**2) / (1 - sp.tanh(x0))
     Omega2 = Omega_QNM**2 + F * (sp.tanh(x) - 1)
     return sp.sqrt(Omega2)
 
-def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
+def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM, Phi_0):
     '''
     Phase for the news when the BOB amplitude models the News (for finite t_0)
 
@@ -113,7 +113,7 @@ def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
         t0 (sympy.Symbol): Initial Condition time
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
 
@@ -122,15 +122,15 @@ def BOB_news_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 
         Omega - News frequency (waveform frequency)/(mode number)
     '''
-    Omega = BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM)
+    Omega = BOB_news_freq_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM)
     x0 = (t0 - tp) / tau
-    F = (Omega_QNM**2 - Omega0**2) / (1 - sp.tanh(x0))
+    F = (Omega_QNM**2 - Omega_0**2) / (1 - sp.tanh(x0))
     delta = sp.Integer(2) * F - Omega_QNM**2
     term1 = Omega_QNM * tau / sp.Integer(2) * sp.log((Omega + Omega_QNM) / sp.Abs(Omega - Omega_QNM))
     term2 = -sp.sqrt(delta) * tau * sp.atan(Omega / sp.sqrt(delta))
     return term1 + term2 + Phi_0, Omega
 
-def BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
+def BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM):
     '''
     Frequency for Psi4 when the BOB amplitude models Psi4 (for finite t_0)
 
@@ -139,7 +139,7 @@ def BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
         t0 (sympy.Symbol): Initial Condition time
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
 
     Returns:
@@ -147,11 +147,11 @@ def BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM):
     '''
     x = (t - tp) / tau
     x0 = (t0 - tp) / tau
-    k = (Omega_QNM**4 - Omega0**4) / (1 - sp.tanh(x0))
-    X = Omega0**4 + k * (sp.tanh(x) - sp.tanh(x0))
+    k = (Omega_QNM**4 - Omega_0**4) / (1 - sp.tanh(x0))
+    X = Omega_0**4 + k * (sp.tanh(x) - sp.tanh(x0))
     return X**sp.Rational(1, 4)
 
-def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
+def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM, Phi_0):
     '''
     Phase for Psi4 when the BOB amplitude models Psi4 (for finite t_0)
 
@@ -160,7 +160,7 @@ def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
         t0 (sympy.Symbol): Initial Condition time
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
 
@@ -169,19 +169,19 @@ def BOB_psi4_phase_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM, Phi_0):
 
         Omega - Psi4 frequency (waveform frequency)/(mode number)
     '''
-    Omega = BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega0, Omega_QNM)
+    Omega = BOB_psi4_freq_finite_t0_sym(t, t0, tp, tau, Omega_0, Omega_QNM)
     x0 = (t0 - tp) / tau
-    k = (Omega_QNM**4 - Omega0**4) / (1 - sp.tanh(x0))
-    KappaP = (Omega0**4 + k * (1 - sp.tanh(x0)))**sp.Rational(1, 4)
-    KappaM = (Omega0**4 - k * (1 + sp.tanh(x0)))**sp.Rational(1, 4)
-    term_P_tanh = KappaP * tau * (sp.atanh(Omega / KappaP) - sp.atanh(Omega0 / KappaP))
-    term_M_tanh = KappaM * tau * (sp.atanh(Omega / KappaM) - sp.atanh(Omega0 / KappaM))
-    term_P_tan  = KappaP * tau * (sp.atan(Omega / KappaP) - sp.atan(Omega0 / KappaP))
-    term_M_tan  = KappaM * tau * (sp.atan(Omega / KappaM) - sp.atan(Omega0 / KappaM))
+    k = (Omega_QNM**4 - Omega_0**4) / (1 - sp.tanh(x0))
+    KappaP = (Omega_0**4 + k * (1 - sp.tanh(x0)))**sp.Rational(1, 4)
+    KappaM = (Omega_0**4 - k * (1 + sp.tanh(x0)))**sp.Rational(1, 4)
+    term_P_tanh = KappaP * tau * (sp.atanh(Omega / KappaP) - sp.atanh(Omega_0 / KappaP))
+    term_M_tanh = KappaM * tau * (sp.atanh(Omega / KappaM) - sp.atanh(Omega_0 / KappaM))
+    term_P_tan  = KappaP * tau * (sp.atan(Omega / KappaP) - sp.atan(Omega_0 / KappaP))
+    term_M_tan  = KappaM * tau * (sp.atan(Omega / KappaM) - sp.atan(Omega_0 / KappaM))
     return term_P_tanh + term_P_tan - term_M_tanh - term_M_tan + Phi_0, Omega
 
 # --- Asymptotic (t0 -> -inf) ---
-def BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau):
+def BOB_strain_freq_sym(t, tp, Omega_0, Omega_QNM, tau):
     '''
     Frequency for the strain when the BOB amplitude models the strain (for t_0 = -inf)
 
@@ -189,16 +189,16 @@ def BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau):
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
 
     Returns:
         Omega - Strain frequency (waveform frequency)/(mode number)
     '''
     x = (t - tp)/tau
-    return Omega_QNM * (Omega0 / Omega_QNM)**((sp.tanh(x) - 1) / sp.Integer(-2))
+    return Omega_QNM * (Omega_0 / Omega_QNM)**((sp.tanh(x) - 1) / sp.Integer(-2))
 
-def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
+def BOB_strain_phase_sym(t, tp, Omega_0, Omega_QNM, tau, Phi_0):
     '''
 
     Phase for the strain when the BOB amplitude models the strain (for t_0 = -inf)
@@ -207,7 +207,7 @@ def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
 
@@ -216,15 +216,15 @@ def BOB_strain_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
         
         Omega - Strain frequency (waveform frequency)/(mode number)
     '''
-    Omega = BOB_strain_freq_sym(t, tp, Omega0, Omega_QNM, tau)
+    Omega = BOB_strain_freq_sym(t, tp, Omega_0, Omega_QNM, tau)
     x = (t - tp)/tau
     outer = tau / sp.Integer(2)
-    log_sqrt_ratio = sp.Rational(1,2) * sp.log(Omega_QNM/Omega0)
+    log_sqrt_ratio = sp.Rational(1,2) * sp.log(Omega_QNM/Omega_0)
     term1_arg = log_sqrt_ratio * (sp.tanh(x) + 1)
     term2_arg = log_sqrt_ratio * (sp.tanh(x) - 1)
-    return outer * (Omega0 * Ei_sp(term1_arg) - Omega_QNM * Ei_sp(term2_arg)) + Phi_0, Omega
+    return outer * (Omega_0 * Ei_sp(term1_arg) - Omega_QNM * Ei_sp(term2_arg)) + Phi_0, Omega
 
-def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
+def BOB_news_freq_sym(t, tp, Omega_0, Omega_QNM, tau):
     '''
     
     Frequency for the news when the BOB amplitude models the news (for t_0 = -inf)
@@ -233,7 +233,7 @@ def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
 
     Returns:
@@ -241,11 +241,11 @@ def BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau):
     '''
 
     x = (t - tp)/tau
-    Omega_minus = Omega_QNM**2 - Omega0**2
-    Omega_plus = Omega_QNM**2 + Omega0**2
+    Omega_minus = Omega_QNM**2 - Omega_0**2
+    Omega_plus = Omega_QNM**2 + Omega_0**2
     return sp.sqrt(Omega_minus * sp.tanh(x) / sp.Integer(2) + Omega_plus / sp.Integer(2))
 
-def BOB_news_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
+def BOB_news_phase_sym(t, tp, Omega_0, Omega_QNM, tau, Phi_0):
     '''
     Phase for the strain when the BOB amplitude models the strain (for t_0 = -inf)
 
@@ -253,7 +253,7 @@ def BOB_news_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
 
@@ -262,13 +262,13 @@ def BOB_news_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
 
         Omega - Strain frequency (waveform frequency)/(mode number)
         '''
-    Omega = BOB_news_freq_sym(t, tp, Omega0, Omega_QNM, tau)
+    Omega = BOB_news_freq_sym(t, tp, Omega_0, Omega_QNM, tau)
     outer = tau / sp.Integer(2)
     inner1 = sp.log((Omega + Omega_QNM) / sp.Abs(Omega - Omega_QNM))
-    inner2 = sp.log((Omega + Omega0) / sp.Abs(Omega - Omega0))
-    return outer * (Omega_QNM * inner1 - Omega0 * inner2) + Phi_0, Omega
+    inner2 = sp.log((Omega + Omega_0) / sp.Abs(Omega - Omega_0))
+    return outer * (Omega_QNM * inner1 - Omega_0 * inner2) + Phi_0, Omega
 
-def BOB_psi4_freq_sym(t, tp, Omega0, Omega_QNM, tau):
+def BOB_psi4_freq_sym(t, tp, Omega_0, Omega_QNM, tau):
     '''
     Frequency for Psi4 when the BOB amplitude models Psi4 (for t_0 = -inf)
 
@@ -276,17 +276,17 @@ def BOB_psi4_freq_sym(t, tp, Omega0, Omega_QNM, tau):
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
 
     Returns:
         Omega - Psi4 frequency (waveform frequency) / (mode number)
     '''
     x = (t - tp)/tau
-    k = (Omega_QNM**4 - Omega0**4) / sp.Integer(2)
-    return (Omega0**4 + k * (sp.tanh(x) + 1))**sp.Rational(1, 4)
+    k = (Omega_QNM**4 - Omega_0**4) / sp.Integer(2)
+    return (Omega_0**4 + k * (sp.tanh(x) + 1))**sp.Rational(1, 4)
 
-def BOB_psi4_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
+def BOB_psi4_phase_sym(t, tp, Omega_0, Omega_QNM, tau, Phi_0):
     '''
     Phase for Psi4 when the BOB amplitude models Psi4 (for t_0 = -inf)
 
@@ -294,7 +294,7 @@ def BOB_psi4_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
         t (sympy.Symbol): Time 
         tp (sympy.Symbol): Time of peak amplitude
         tau (sympy.Symbol): Damping term; can also be described as 1/gamma (gamma is imaginry QNM fre)
-        Omega0 (sympy.Symbol): Initial Condition Frequency
+        Omega_0 (sympy.Symbol): Initial Condition Frequency
         Omega_QNM (sympy.Symbol): Real part of Quasinormal mode (QNM) frequency (little omega)/(mode number)
         Phi_0 (sympy.Symbol): Initial Condition Phase (phi)/(mode number)
 
@@ -303,16 +303,16 @@ def BOB_psi4_phase_sym(t, tp, Omega0, Omega_QNM, tau, Phi_0):
 
         Omega - Psi4 frequency (waveform frequency) / (mode number)
     '''
-    Omega = BOB_psi4_freq_sym(t, tp, Omega0, Omega_QNM, tau)
-    Omega_minus_q0 = Omega_QNM - Omega0
-    Omega_plus_q0 = Omega_QNM + Omega0
+    Omega = BOB_psi4_freq_sym(t, tp, Omega_0, Omega_QNM, tau)
+    Omega_minus_q0 = Omega_QNM - Omega_0
+    Omega_plus_q0 = Omega_QNM + Omega_0
     outer_num = sp.sqrt(Omega_minus_q0 * Omega_plus_q0) * tau
     outer_den = 2 * sp.sqrt(sp.Abs(Omega_minus_q0)) * sp.sqrt(sp.Abs(Omega_plus_q0))
     outer = outer_num / outer_den
     inner1 = Omega_QNM * (sp.log(sp.Abs(Omega + Omega_QNM)) - sp.log(sp.Abs(Omega - Omega_QNM)))
-    inner2 = -Omega0 * (sp.log(sp.Abs(Omega + Omega0)) - sp.log(sp.Abs(Omega - Omega0)))
+    inner2 = -Omega_0 * (sp.log(sp.Abs(Omega + Omega_0)) - sp.log(sp.Abs(Omega - Omega_0)))
     inner3 = 2 * Omega_QNM * sp.atan(Omega / Omega_QNM)
-    inner4 = -2 * Omega0 * sp.atan(Omega / Omega0)
+    inner4 = -2 * Omega_0 * sp.atan(Omega / Omega_0)
     return outer * (inner1 + inner2 + inner3 + inner4) + Phi_0, Omega
 
 
