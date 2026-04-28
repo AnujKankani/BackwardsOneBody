@@ -187,7 +187,7 @@ class TestPublicAPIInvariants:
         bob = BOB_utils.BOB()
         bob.optimize_Omega0 = True
         # Force the finite-t0 branch by direct call (skipping the setter)
-        with pytest.raises(ValueError, match="Cannot optimize Omega0 for finite t0"):
+        with pytest.raises(ValueError, match="Cannot optimize Omega_0 for finite t0"):
             bob.construct_BOB_finite_t0(N=1)
 
     def test_setting_set_initial_time_before_what_to_create_raises(self):

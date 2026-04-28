@@ -149,16 +149,16 @@ def get_frequency(ts):
     if(freq.y[find_nearest_index(freq.t,tp)]<0):
         freq.y = -freq.y
     return kuibit_ts(ts.t,freq.y)
-def get_r_isco(chi_with_sign,M):
+def get_r_isco(mf, chif_with_sign):
     '''
-    Compute the prograde ISCO radius for a Kerr black hole. For negative chi_with_sign values, we return the retrograde value
-    
+    Compute the prograde ISCO radius for a Kerr black hole. For negative chif_with_sign values, we return the retrograde value
+
     Parameters
     ----------
-    chi_with_sign : float
-        Dimensionless spin of the remnant. Negative value indicates a spin pointed opposite the direction of the initial anular momentum of the binary.
-    M : float
+    mf : float
         Mass of the remnant (in geometric units).
+    chif_with_sign : float
+        Dimensionless spin of the remnant. Negative value indicates a spin pointed opposite the direction of the initial anular momentum of the binary.
 
     Returns
     -------
@@ -167,29 +167,29 @@ def get_r_isco(chi_with_sign,M):
     '''
     #Bardeen Press Teukolskly eq 2.21
     #defined for prograde orbits
-    if(chi_with_sign>=0):
+    if(chif_with_sign>=0):
         sign = 1.0
     else:
         sign = -1.0
-    chi = np.abs(chi_with_sign)
-    a = chi*M
-    a_M = a/M
+    chi = np.abs(chif_with_sign)
+    a = chi*mf
+    a_M = a/mf
 
     z1 = 1 + (((1-a_M**2)**(1./3.)) * ((1+a_M)**(1./3.) + (1-a_M)**(1./3.))) #good
     z2 = (3*(a_M**2) + z1**2)**0.5 #good
-    r_isco = M * (3 + z2 - (sign)*((3-z1)*(3+z1+2*z2))**0.5) #good
+    r_isco = mf * (3 + z2 - (sign)*((3-z1)*(3+z1+2*z2))**0.5) #good
     return r_isco
-def get_Omega_isco(chi_with_sign,M):
+def get_Omega_isco(mf, chif_with_sign):
     '''
     Compute the orbital angular velocity at the ISCO for a Kerr black hole.
-    For negative chi_with_sign values, we return the retrograde value
+    For negative chif_with_sign values, we return the retrograde value
 
     Parameters
     ----------
-    chi_with_sign : float
-        Dimensionless spin of the remnant. Negative value indicates a spin pointed opposite the direction of the initial anular momentum of the binary.
-    M : float
+    mf : float
         Mass of the remnant (in geometric units).
+    chif_with_sign : float
+        Dimensionless spin of the remnant. Negative value indicates a spin pointed opposite the direction of the initial anular momentum of the binary.
 
     Returns
     -------
@@ -198,26 +198,26 @@ def get_Omega_isco(chi_with_sign,M):
     '''
     #Bardeen Press Teukolskly eq 2.16
     #defined for prograde orbits
-    if(chi_with_sign>=0):
+    if(chif_with_sign>=0):
         sign = 1.0
     else:
         sign = -1.0
-    chi = np.abs(chi_with_sign)
-    r_isco = get_r_isco(chi_with_sign,M)
-    a = chi*M
-    Omega = sign*np.sqrt(M)/(r_isco**1.5 + sign*a*np.sqrt(M)) # = dphi/dt
+    chi = np.abs(chif_with_sign)
+    r_isco = get_r_isco(mf, chif_with_sign)
+    a = chi*mf
+    Omega = sign*np.sqrt(mf)/(r_isco**1.5 + sign*a*np.sqrt(mf)) # = dphi/dt
     return Omega
 
-def get_qnm(chif,Mf,l,m,n=0,sign=1):
+def get_qnm(mf, chif, l, m, n=0, sign=1):
     '''
     Get the fundamental quasinormal mode frequency components for a Kerr black hole.
 
     Parameters
     ----------
+    mf : float
+        Final black-hole mass (geometric units).
     chif : float
         Dimensionless final spin magnitude (chi).
-    Mf : float
-        Final black-hole mass (geometric units).
     l : int
         Spherical-harmonic index ``l``.
     m : int
@@ -232,7 +232,6 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     tuple[float, float]
         ``(w_r, tau)`` where ``w_r`` is the real angular frequency and ``tau`` is the damping time.
     '''
-    #omega_qnm, all_C, ells = qnmfits.read_qnms.qnm_from_tuple((l,m,n,1),chif,M=M)
     if(sign==-1):
         grav_lmn = qnm.modes_cache(s=-2,l=l,m=-m,n=n)
         omega_qnm, A, C = grav_lmn(a=chif)#qnm package uses M = 1 so a = chi here
@@ -240,7 +239,7 @@ def get_qnm(chif,Mf,l,m,n=0,sign=1):
     else:
         grav_lmn = qnm.modes_cache(s=-2,l=l,m=m,n=n)
         omega_qnm, A, C = grav_lmn(a=chif)#qnm package uses M = 1 so a = chi here
-    omega_qnm /= Mf #rescale to remnant black hole mass
+    omega_qnm /= mf #rescale to remnant black hole mass
     w_r = np.abs(omega_qnm.real)
     imag_qnm = np.abs(omega_qnm.imag)
     tau = 1./imag_qnm
@@ -454,7 +453,7 @@ def estimate_parameters(BOB,
     tf : float, optional
         End time after peak for mismatch window, by default 75.
     force_Omega0_optimization : bool, optional
-        If True, enforce Omega0 optimization during construction, by default False.
+        If True, enforce Omega_0 optimization during construction, by default False.
     NR_data : kuibit_ts, optional
         Reference data to compare against. If None, inferred from ``BOB`` selection.
     make_current_naturally : bool, optional
@@ -462,9 +461,9 @@ def estimate_parameters(BOB,
     make_mass_naturally : bool, optional
         If True, construct mass quadrupole via natural method, by default False.
     include_Omega0_as_parameter : bool, optional
-        Include Omega0 as an optimization parameter, by default False.
+        Include Omega_0 as an optimization parameter, by default False.
     include_2Omega0_as_parameters : bool, optional
-        Include both lm and lmm Omega0 as parameters (quadrupole builds), by default False.
+        Include both lm and lmm Omega_0 as parameters (quadrupole builds), by default False.
     perform_phase_alignment_first : bool, optional
         If True, perform phase alignment before quadrupole combination, by default False.
     start_with_wide_search : bool, optional
@@ -545,7 +544,7 @@ def estimate_parameters(BOB,
         if(include_Omega0_as_parameter):
             #keep this for ordinary (l,m) &(l,-m) modes
             BOB.Omega_0 = lm_Omega0_guess
-        w_r,tau = get_qnm(BOB.chif,BOB.mf,BOB.l,np.abs(BOB.m),sign=np.sign(BOB.chif_with_sign))
+        w_r,tau = get_qnm(BOB.mf, BOB.chif, BOB.l, np.abs(BOB.m), sign=np.sign(BOB.chif_with_sign))
         BOB.Omega_QNM = w_r/np.abs(BOB.m)
         BOB.Phi_0 = 0
         BOB.tau = tau
@@ -922,13 +921,13 @@ def load_lower_lev_SXS(sim):
     else:
         raise ValueError("only one Level found")
     return sim_lower
-def Omega_0_fit_psi4(Mf,chif_with_sign):
+def Omega_0_fit_psi4(mf, chif_with_sign):
     '''
-    Omega0 for psi4 using the fit from Kankani and McWilliams (2025)
-    
+    Omega_0 for psi4 using the fit from Kankani and McWilliams (2025)
+
     Parameters
     ----------
-    Mf : float
+    mf : float
         Remnant mass.
     chif_with_sign : float
         Remnant spin. (negative values indicate a final spin pointing opposite to the initial orbital angular momentum)
@@ -937,19 +936,18 @@ def Omega_0_fit_psi4(Mf,chif_with_sign):
     -------
     float
         Omega_0 fit.
-    
     '''
     A = 1.42968337
     B = 0.08424419
     C = -1.22848524
-    return A*Mf + B*chif_with_sign + C
-def Omega_0_fit_news(Mf,chif_with_sign):
+    return A*mf + B*chif_with_sign + C
+def Omega_0_fit_news(mf, chif_with_sign):
     '''
-    Omega0 for news using the fit from Kankani and McWilliams (2025)
+    Omega_0 for news using the fit from Kankani and McWilliams (2025)
 
     Parameters
     ----------
-    Mf : float
+    mf : float
         Remnant mass.
     chif_with_sign : float
         Remnant spin. (negative values indicate a final spin pointing opposite to the initial orbital angular momentum)
@@ -958,19 +956,18 @@ def Omega_0_fit_news(Mf,chif_with_sign):
     -------
     float
         Omega_0 fit.
-    
     '''
     A = 0.33568227
     B = 0.03450997
     C = -0.18763176
-    return A*Mf + B*chif_with_sign + C
-def Omega_0_fit_strain(Mf,chif_with_sign):
+    return A*mf + B*chif_with_sign + C
+def Omega_0_fit_strain(mf, chif_with_sign):
     '''
-    Omega0 for strain using the fit from Kankani and McWilliams (2025)
+    Omega_0 for strain using the fit from Kankani and McWilliams (2025)
 
     Parameters
     ----------
-    Mf : float
+    mf : float
         Remnant mass.
     chif_with_sign : float
         Remnant spin. (negative values indicate a final spin pointing opposite to the initial orbital angular momentum)
@@ -979,12 +976,11 @@ def Omega_0_fit_strain(Mf,chif_with_sign):
     -------
     float
         Omega_0 fit.
-    
     '''
     A = 0.01663248
     B = 0.01798275
     C = 0.07882578
-    return A*Mf + B*chif_with_sign + C
+    return A*mf + B*chif_with_sign + C
     
 
 

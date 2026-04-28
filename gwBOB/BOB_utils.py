@@ -627,9 +627,9 @@ class BOB:
             ValueError: If ``what_should_BOB_create`` is not one of the
                 supported flavors.
         '''
-        #Even in the cases of strain_using_news, we still want to use the news frequency in all of the Omega0 optimizations because the analytical news frequency term
+        #Even in the cases of strain_using_news, we still want to use the news frequency in all of the Omega_0 optimizations because the analytical news frequency term
         #is built assuming the BOB amplitude best describes the news. While in principle, the accuracy could be improved for strain_using_news (and all X_using_Y cases)
-        #by optimizing Omega0 against the NR strain frequency, this would be unphysical.
+        #by optimizing Omega_0 against the NR strain frequency, this would be unphysical.
         if('psi4' in self._wf_config.what_to_create):
             if(self.minf_t0 is True):
                 Phi,Omega = BOB_terms.BOB_psi4_phase(self)
@@ -829,7 +829,7 @@ class BOB:
             ValueError: If ``minf_t0`` is False (use ``fit_t0`` for finite t0).
         '''
         if(self.minf_t0 is False):
-            raise ValueError("You are setup for a finite t0 right now. Omega0 fitting is only defined for t0 = infinity.")
+            raise ValueError("You are setup for a finite t0 right now. Omega_0 fitting is only defined for t0 = infinity.")
         if(self._wf_config.end_after_tpeak<self.end_fit_after_tpeak):
             logger.warning("end_after_tpeak is less than end_fit_after_tpeak. Setting end_fit_after_tpeak to end_after_tpeak")
             self.end_fit_after_tpeak = self._wf_config.end_after_tpeak
@@ -921,7 +921,7 @@ class BOB:
         '''
         #Perform parameter sanity checks
         if(self.optimize_Omega0):
-            raise ValueError("Cannot optimize Omega0 for finite t0 values.")
+            raise ValueError("Cannot optimize Omega_0 for finite t0 values.")
 
         if(self._fit_config.optimize_t0_and_Omega0):
             self.fit_t0_and_Omega0()
@@ -1364,11 +1364,11 @@ class BOB:
 
         self.chif = np.linalg.norm(self.chif)
         self.chif_with_sign = self.chif*sign
-        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.chif_with_sign,self.mf))
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.mf, self.chif_with_sign))
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
-        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+        w_r,tau = gen_utils.get_qnm(self.mf, self.chif, self.l, np.abs(self.m), n=0, sign=sign)
         self.w_r = np.abs(w_r)
         self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
@@ -1524,12 +1524,12 @@ class BOB:
         sign = np.sign(self.chif[2])
         self.chif = np.linalg.norm(self.chif)
         self.chif_with_sign = self.chif*sign
-        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.chif_with_sign,self.mf))
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.mf, self.chif_with_sign))
         self.Omega_0 = self.Omega_ISCO
         self.l = l
         self.m = m
         
-        w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+        w_r,tau = gen_utils.get_qnm(self.mf, self.chif, self.l, np.abs(self.m), n=0, sign=sign)
         self.w_r = np.abs(w_r)
         self.tau = np.abs(tau)
         self.Omega_QNM = self.w_r/np.abs(self.m)
@@ -1665,12 +1665,12 @@ class BOB:
         self.l = l
         self.m = m
         
-        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.chif_with_sign,self.mf))
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.mf, self.chif_with_sign))
         self.Omega_0 = self.Omega_ISCO
         
         if(w_r<0 or tau<0):
             logger.info("Calculating Kerr QNM parameters from provided Mf and chif")
-            w_r,tau = gen_utils.get_qnm(self.chif,self.mf,self.l,np.abs(self.m),n=0,sign=sign)
+            w_r,tau = gen_utils.get_qnm(self.mf, self.chif, self.l, np.abs(self.m), n=0, sign=sign)
             self.w_r = np.abs(w_r)
             self.tau = np.abs(tau)
         else:

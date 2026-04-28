@@ -74,8 +74,8 @@ This function takes in quite a few parameters, due to its overlapping usage with
                                         chif_guess=0.5,
                                         t0=t0,
                                         tf=tf,
-                                        force_Omega0_optimization=False, #True if we want to perform a least squares fit for Omega0.
-                                        include_Omega0_as_parameter=True, #Use Omega0 as a third parameter in the optimization algorithm, along with the final mass and spin.
+                                        force_Omega0_optimization=False, #True if we want to perform a least squares fit for Omega_0.
+                                        include_Omega0_as_parameter=True, #Use Omega_0 as a third parameter in the optimization algorithm, along with the final mass and spin.
                                         start_with_wide_search=False, #If True we start with the scipy differential_evolution algorithm and finish with the scipy minimize algorithm
                                         t_shift_range = np.arange(-10,10,0.1),#Time shift array to be used in the mismatch calculation
                                         )
