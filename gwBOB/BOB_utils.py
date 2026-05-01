@@ -320,6 +320,8 @@ class BOB:
         args:
             value (bool): Optimize initial time and frequency
         '''
+        if value:
+            self._require_NR("optimize_t0_and_Omega0")
         self._wf_config.minf_t0 = False
         self._fit_config.optimize_t0_and_Omega0 = value
 
@@ -337,6 +339,8 @@ class BOB:
         args:
             value (bool): Optimize initial time
         '''
+        if value:
+            self._require_NR("optimize_t0")
         self._wf_config.minf_t0 = False
         self._fit_config.optimize_t0 = value
 
@@ -498,7 +502,10 @@ class BOB:
     @property
     def optimize_Omega0(self): return self._fit_config.optimize_Omega0
     @optimize_Omega0.setter
-    def optimize_Omega0(self, v): self._fit_config.optimize_Omega0 = v
+    def optimize_Omega0(self, v):
+        if v:
+            self._require_NR("optimize_Omega0")
+        self._fit_config.optimize_Omega0 = v
     @property
     def start_fit_before_tpeak(self): return self._fit_config.start_fit_before_tpeak
     @start_fit_before_tpeak.setter
@@ -670,6 +677,7 @@ class BOB:
             np.ndarray: BOB frequency evaluated at ``self.t[start:end]`` for
             the configured fit window.
         '''
+        self._require_NR("fit_omega")
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         if('psi4' in self._wf_config.what_to_create):
@@ -705,6 +713,7 @@ class BOB:
             evaluation failure, returns a flat array of 1e10 to signal a bad
             residual to the optimizer.
         '''
+        self._require_NR("fit_t0_and_omega")
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         self.t0 = t0
@@ -745,6 +754,7 @@ class BOB:
             float: Sum of squared residuals between the BOB-predicted and NR
             frequencies over the configured fit window.
         '''
+        self._require_NR("residual_t0_and_omega")
         #freq = gen_utils.get_frequency(self.data)
         freq = kuibit_ts(t_freq,y_freq)
         t0,Omega_0 = p
@@ -789,8 +799,9 @@ class BOB:
             float: Sum of squared residuals between BOB and NR frequencies on
             the configured fit window.
         '''
+        self._require_NR("fit_t0_only")
         #freq data passed in is big Omega, where w = m*Omega
-        self.t0 = t00[0] 
+        self.t0 = t00[0]
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
         self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)] #freq data is already big Omega
         start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
@@ -828,6 +839,7 @@ class BOB:
         Raises:
             ValueError: If ``minf_t0`` is False (use ``fit_t0`` for finite t0).
         '''
+        self._require_NR("fit_Omega0")
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega_0 fitting is only defined for t0 = infinity.")
         if(self._wf_config.end_after_tpeak<self.end_fit_after_tpeak):
@@ -860,6 +872,7 @@ class BOB:
         approach lived here previously but was unreliable; see git history if you
         want to revive it.
         '''
+        self._require_NR("fit_t0_and_Omega0")
         raise NotImplementedError(
             "fit_t0_and_Omega0 is not implemented. Use fit_t0 (with Omega_0 set "
             "from the strain frequency at t0) or fit_Omega0 (for t0 = -infinity)."
@@ -882,7 +895,7 @@ class BOB:
         Use this when ``minf_t0`` is False. For t0 = -infinity, use
         ``fit_Omega0`` instead.
         '''
-
+        self._require_NR("fit_t0")
         if(self.use_strain_for_t0_optimization):
             freq_data = gen_utils.get_frequency(self.strain_data.resampled(self.t))
         else:
@@ -995,6 +1008,7 @@ class BOB:
             tuple of (kuibit_ts, kuibit_ts): (NR_current, NR_mass) — note the
             order: current first, mass second.
         '''
+        self._require_NR("construct_NR_mass_and_current_quadrupole")
         #construct the mass and current quadrupole waves from the NR data
         what_to_create = what_to_create.lower()
         if(what_to_create=="psi4"):
@@ -1040,6 +1054,7 @@ class BOB:
             the time grid (union of the two mode grids) and the complex
             current-quadrupole waveform on it.
         '''
+        self._require_NR("construct_BOB_current_quadrupole_naturally")
         # Construct the current quadrupole wave I_lm = (i/sqrt(2)) * (h_lm - (-1)^m h*_l,-m)
         # by building the (l, ±m) modes for BOB first.
         # The rest of the code setup isn't ideal for quadrupole construction so we
@@ -1169,6 +1184,7 @@ class BOB:
             the time grid (union of the two mode grids) and the complex
             mass-quadrupole waveform on it.
         '''
+        self._require_NR("construct_BOB_mass_quadrupole_naturally")
         # Construct the mass quadrupole wave I_lm = (1/sqrt(2)) * (h_lm + (-1)^m h*_l,-m)
         # by building the (l, ±m) modes for BOB first.
         # The rest of the code setup isn't ideal for quadrupole construction so we
@@ -1768,6 +1784,7 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested psi4 mode.
         '''
+        self._require_NR("get_psi4_data")
         l, m = self._resolve_lm(kwargs)
         if self.full_psi4_data is None:
             if (l, m) == (self.l,  self.m):  return self.psi4_data.t,    self.psi4_data.y
@@ -1791,6 +1808,7 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested news mode.
         '''
+        self._require_NR("get_news_data")
         l, m = self._resolve_lm(kwargs)
         if self.full_strain_data is None:
             if (l, m) == (self.l,  self.m):  return self.news_data.t,    self.news_data.y
@@ -1813,6 +1831,7 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested strain mode.
         '''
+        self._require_NR("get_strain_data")
         l, m = self._resolve_lm(kwargs)
         if self.full_strain_data is None:
             if (l, m) == (self.l,  self.m):  return self.strain_data.t,    self.strain_data.y
