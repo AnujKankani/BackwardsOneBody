@@ -1718,6 +1718,34 @@ class BOB:
             "(memory-heavy — see MEMORY.md) to access non-default (l, m) modes."
         )
 
+    def _require_NR(self, capability):
+        '''
+        Raise ``RuntimeError`` if this BOB instance was initialized via the
+        standalone path (no NR data loaded). Called at the top of methods and
+        setters that read NR timeseries — fit drivers, optimize-flag setters,
+        per-mode data getters, and the quadrupole construction helpers.
+
+        In non-standalone mode this is a no-op.
+
+        Claude Code: See DESIGN_standalone_init.md "Disabled capabilities" for
+        the audit list and the rationale for centralizing the gate here.
+
+        args:
+            capability (str): Human-readable name of the operation being
+                guarded; included in the error message so the user can locate
+                the call site.
+
+        Raises:
+            RuntimeError: If ``self._runtime.is_standalone`` is True.
+        '''
+        if self._runtime.is_standalone:
+            raise RuntimeError(
+                f"{capability} requires NR data; not available after "
+                f"initialize_standalone(). Use initialize_with_sxs_data, "
+                f"initialize_with_cce_data, or initialize_with_NR_mode if you "
+                f"need this capability."
+            )
+
     def get_psi4_data(self,**kwargs):
         '''
         Return the NR psi4 timeseries for an arbitrary (l, m) mode.
