@@ -17,6 +17,7 @@ Features of gwBOB
 
 - Generate any flavor of BOB (psi4, news, strain, mass and current quadrupoles) using various initial conditions!
 - Easy calling of SXS and CCE waveforms as well as user provided NR waveforms!
+- Standalone mode: build a BOB waveform from just :math:`(m_f, \chi_f, l, m)` — no NR data required!
 - Easy comparisons of BOB to NR waveforms as well as a sum of overtones!
 - "Simple" parameter estimation using BOB!
 - Open source, documented, and actively developed!

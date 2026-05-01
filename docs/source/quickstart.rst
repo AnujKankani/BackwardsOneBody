@@ -124,3 +124,37 @@ Integrating the news to obtain the strain is a complex problem separate from the
 
 .. image:: images/BOB_strain_0305.png
 
+
+Standalone mode (no NR data required)
+-------------------------------------
+
+Sometimes you just want a BOB waveform for a remnant whose final mass and spin you already know — no SXS or CCE simulation, no calibration to NR, just the analytic model. ``initialize_standalone`` does exactly that.
+
+.. code-block:: python
+
+    BOB = BOB_utils.BOB()
+    BOB.initialize_standalone(mf=0.95, chif=0.7)
+    BOB.what_should_BOB_create = "news"
+    t, y = BOB.construct_BOB()
+
+That's the whole pipeline. The peak time defaults to :math:`t_p = 0`, the peak amplitude defaults to :math:`A_p = 1` (a unit-amplitude template), the QNM parameters are computed from Kerr via the ``qnm`` package, and :math:`\Omega_0` is set to the mode-appropriate fit value (``Omega_0_fit_psi4``, ``Omega_0_fit_news``, or ``Omega_0_fit_strain``) at the moment you set ``what_should_BOB_create``. Switching modes refits :math:`\Omega_0` automatically.
+
+You can also pass any of these explicitly:
+
+.. code-block:: python
+
+    BOB.initialize_standalone(
+        mf=0.95, chif=0.7, l=2, m=2,
+        tp=0.0, Ap=1.0,                 # peak time and amplitude
+        start_before_tpeak=-75.0,
+        end_after_tpeak=75.0,
+        resample_dt=0.1,                # output grid spacing (>= 0.1)
+        Omega_0=0.123,                  # explicit Omega_0; sticky across mode switches
+        t0=-10.0,                       # finite-t0 build, relative to tp
+        w_r=0.5, tau=12.0,              # non-Kerr QNM (e.g., for "Beyond Kerr" experiments)
+    )
+
+Because no NR data is loaded, several capabilities are unavailable in standalone mode and raise a clear error if you try them: ``optimize_Omega0`` and the other ``optimize_*`` flags, the ``fit_*`` drivers, the ``construct_BOB_*_quadrupole_naturally`` helpers, the per-mode ``get_psi4_data`` / ``get_news_data`` / ``get_strain_data`` accessors, and the ``strain_using_news`` / ``strain_using_psi4`` / ``mass_quadrupole_*`` / ``current_quadrupole_*`` modes (because these need NR timeseries for the integration constants or for the :math:`(l, \pm m)` combination).
+
+Supported modes in standalone mode are ``"psi4"``, ``"news"``, and ``"strain"``. The finite-:math:`t_0` build is available — pass ``t0=`` at init time as shown above, or use ``BOB.set_initial_time = -10`` after setting ``what_should_BOB_create``. ``BOB.NR_based_on_BOB_ts`` is ``None`` after ``construct_BOB`` because there is no NR data to align against; use the returned ``(t, y)`` arrays directly.
+
