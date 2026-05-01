@@ -241,7 +241,7 @@ class BOB:
            data. The trailing time-grid recompute in the setter still uses
            ``self._runtime.tp`` correctly because it was set at init.
 
-        2. The ``Omega_0`` fit is gated on ``omega_0_user_override`` so an
+        2. The ``Omega_0`` fit is gated on ``Omega0_user_override`` so an
            explicit user-supplied ``Omega_0`` survives mode switches.
 
         Claude Code: See DESIGN_standalone_init.md "Behavioral changes elsewhere".
@@ -258,7 +258,7 @@ class BOB:
         self._wf_config.what_to_create = canonical
         self._runtime.data = None  # explicit: no NR data exists in standalone mode
         # _runtime.tp and _runtime.Ap were set by initialize_standalone — leave them.
-        if not self._runtime.omega_0_user_override:
+        if not self._runtime.Omega0_user_override:
             self._remnant.Omega_0 = omega_fn(self._remnant.mf, self._remnant.chif_with_sign)
 
     @property
@@ -1345,7 +1345,13 @@ class BOB:
             BOB_ts = self.construct_BOB_minf_t0(N)
         else:
             BOB_ts = self.construct_BOB_finite_t0(N)
-        
+
+        # Claude Code: Standalone path has no NR data to phase-align against. See
+        # DESIGN_standalone_init.md "Behavioral changes elsewhere".
+        if self._runtime.is_standalone:
+            logger.info("Standalone mode: skipping NR phase-alignment")
+            return BOB_ts.t, BOB_ts.y
+
         #calculate the mismatch (without a time grid search) and perform a phase alignment
         if("using" in self._wf_config.what_to_create):
             mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.strain_data,0,75,use_trapz = True,return_best_phi0 = True)
@@ -1763,6 +1769,138 @@ class BOB:
             logger.debug("news_Ap = %s", self.news_Ap)
             logger.debug("psi4_tp = %s", self.psi4_tp)
             logger.debug("psi4_Ap = %s", self.psi4_Ap)
+
+    def initialize_standalone(self, mf, chif, l=2, m=2, *,
+                              tp=0.0, Ap=1.0,
+                              start_before_tpeak=-75.0, end_after_tpeak=75.0,
+                              resample_dt=0.1,
+                              Omega_0=None,
+                              w_r=-1, tau=-1, verbose=False):
+        '''
+        Initialize BOB without any NR data — produce a waveform purely from
+        analytic inputs (final mass, final spin, mode numbers, time grid).
+
+        Capabilities that depend on NR data are unavailable after this call
+        and will raise ``RuntimeError``: ``optimize_Omega0``, ``optimize_t0``,
+        ``optimize_t0_and_Omega0``, the ``fit_*`` drivers, and the quadrupole
+        construction helpers. The ``what_should_BOB_create`` setter accepts
+        only ``"psi4"``, ``"news"``, or ``"strain"``; ``"strain_using_*"`` and
+        the quadrupole modes raise ``ValueError`` because they require NR data.
+
+        Claude Code: See DESIGN_standalone_init.md for the full behavioral spec.
+
+        args:
+            mf (float): Final remnant mass.
+            chif (float or array-like of length 3): Final remnant spin. A
+                scalar is treated as the signed z-component. A 3-vector is
+                checked to have negligible x/y components and reduced to a
+                signed magnitude.
+            l (int): Mode number (default 2).
+            m (int): Mode number (default 2). ``m=0`` is not implemented.
+            tp (float): Peak time of the waveform on the output grid (default
+                0.0). User-supplied since no NR peak detection happens.
+            Ap (float): Peak amplitude (default 1.0 for a unit-amplitude
+                template). User-supplied since no NR amplitude calibration
+                happens.
+            start_before_tpeak (float): Start of the output time grid
+                relative to ``tp`` (default -75.0).
+            end_after_tpeak (float): End of the output time grid relative to
+                ``tp`` (default 75.0).
+            resample_dt (float): Output grid spacing (default 0.1). Values
+                below 0.1 are rejected to prevent inadvertent multi-GB
+                allocations (Claude Code: see code_review §2 P8 E10).
+            Omega_0 (float, optional): Initial angular frequency. If None
+                (the default), the mode-appropriate fit
+                ``gen_utils.Omega_0_fit_{psi4,news,strain}(mf, chif_with_sign)``
+                is applied automatically when ``what_should_BOB_create`` is
+                set, and re-applied on every subsequent mode switch. If a
+                float, the user value is used and the fit is never applied;
+                the override is sticky across mode switches.
+            w_r (float): Real part of the QNM angular frequency. Negative
+                values (default -1) trigger a Kerr lookup via ``qnm``.
+            tau (float): QNM damping time. Negative values (default -1)
+                trigger a Kerr lookup.
+            verbose (bool): Emit debug-level info about the resolved physics
+                constants.
+
+        Raises:
+            ValueError: For ``m=0``, malformed ``chif``, non-zero in-plane
+                spin components, or ``resample_dt < 0.1``.
+        '''
+        if m == 0:
+            raise ValueError("m=0 case not implemented yet")
+        if l != abs(m):
+            logger.warning("Warning! l != abs(m). This is not supported currently. Proceed at your own risk!")
+        if resample_dt < 0.1:
+            raise ValueError(
+                f"resample_dt={resample_dt} is below the safety floor of 0.1. "
+                "Smaller values produce much larger interpolated arrays and "
+                "can cause out-of-memory crashes. Claude Code: see "
+                "code_review §2 P8 E10."
+            )
+
+        # chif shape handling matches initialize_with_NR_mode.
+        chif_arr = np.atleast_1d(np.asarray(chif, dtype=float))
+        if chif_arr.size == 1:
+            sign = float(np.sign(chif_arr[0])) or 1.0
+            chif_mag = float(np.abs(chif_arr[0]))
+        elif chif_arr.size == 3:
+            if abs(chif_arr[0]) > 0.01 or abs(chif_arr[1]) > 0.01:
+                raise ValueError("Final spin has non-zero x or y component; not supported")
+            sign = float(np.sign(chif_arr[2])) or 1.0
+            chif_mag = float(np.linalg.norm(chif_arr))
+        else:
+            raise ValueError("chif must be a scalar or length-3 array")
+
+        self.mf = mf
+        self.chif = chif_mag
+        self.chif_with_sign = sign * chif_mag
+        self.l = l
+        self.m = m
+
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.mf, self.chif_with_sign))
+        # Claude Code: see DESIGN_standalone_init.md "Omega_0 defaulting".
+        # If user supplied Omega_0, store and mark override; else install
+        # Omega_ISCO as a placeholder (mirrors initialize_with_NR_mode) which
+        # _apply_standalone_mode overwrites with the mode-appropriate fit when
+        # what_should_BOB_create is set.
+        if Omega_0 is None:
+            self.Omega_0 = self.Omega_ISCO
+            self._runtime.Omega0_user_override = False
+        else:
+            self.Omega_0 = float(Omega_0)
+            self._runtime.Omega0_user_override = True
+
+        if w_r < 0 or tau < 0:
+            logger.info("Calculating Kerr QNM parameters from provided mf and chif")
+            w_r_kerr, tau_kerr = gen_utils.get_qnm(self.mf, self.chif, self.l, np.abs(self.m), n=0, sign=sign)
+            self.w_r = np.abs(w_r_kerr)
+            self.tau = np.abs(tau_kerr)
+        else:
+            logger.info("Using user provided w_r and tau!")
+            self.w_r = np.abs(w_r)
+            self.tau = np.abs(tau)
+        self.Omega_QNM = self.w_r / np.abs(self.m)
+
+        # Standalone-specific runtime state. Setting is_standalone last so any
+        # earlier failure leaves the BOB in a non-standalone (and thus
+        # consistent default) state.
+        self._runtime.tp = tp
+        self._runtime.Ap = Ap
+        self._data.resample_dt = resample_dt
+        self._wf_config.start_before_tpeak = start_before_tpeak
+        self._wf_config.end_after_tpeak = end_after_tpeak
+        self._runtime.is_standalone = True
+
+        if verbose:
+            logger.debug("Standalone init: (l, m) = (%s, %s)", self.l, self.m)
+            logger.debug("Omega_ISCO = %s", self.Omega_ISCO)
+            logger.debug("Omega_QNM = %s", self.Omega_QNM)
+            logger.debug("tau = %s", self.tau)
+            logger.debug("tp = %s, Ap = %s", tp, Ap)
+            logger.debug("Omega_0 = %s (user override = %s)",
+                         self.Omega_0, self._runtime.Omega0_user_override)
+
     def _resolve_lm(self, kwargs):
         '''Return ``(l, m)`` from ``kwargs``, falling back to ``self.l`` / ``self.m``.'''
         l = kwargs.get('l', self.l)

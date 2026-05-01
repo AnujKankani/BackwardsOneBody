@@ -108,7 +108,7 @@ class RuntimeState:
     # Claude Code: See DESIGN_standalone_init.md. True when the user passed an
     # explicit Omega_0 to initialize_standalone, signalling that
     # _apply_standalone_mode must NOT overwrite it with the mode-appropriate fit.
-    omega_0_user_override: bool = False
+    Omega0_user_override: bool = False
 
 
 @dataclass(slots=True)
