@@ -274,6 +274,14 @@ class BOB:
         float, the initial time is set to the value and the frequency is set using the
         data specified by "what_should_BOB_create".
 
+        Standalone-mode behavior (Claude Code: see DESIGN_standalone_init.md):
+        when ``self._runtime.is_standalone`` is True, the NR-frequency lookup
+        is skipped — there is no NR data to read. ``t0`` and ``minf_t0`` are
+        set as usual; ``Omega_0`` retains whatever value it had (the
+        mode-appropriate fit applied at ``what_should_BOB_create`` time, or
+        the user override). The user can set ``Omega_0`` manually if they
+        want a different value for the finite-t0 build.
+
         args:
             value (tuple or float): Initial time and whether to set the frequency using the strain data
         '''
@@ -286,6 +294,19 @@ class BOB:
         else:
             set_freq_using_strain_data = False
         self._wf_config.minf_t0 = False
+
+        if self._runtime.is_standalone:
+            # No NR data — skip the Omega_0 refit entirely. t0 is interpreted
+            # in the same coordinate as the NR-init path: relative to tp.
+            if set_freq_using_strain_data:
+                logger.warning(
+                    "set_initial_time: tuple form (use strain frequency) is "
+                    "ignored in standalone mode — no NR strain data exists. "
+                    "Omega_0 left at its current value."
+                )
+            self._wf_config.t0 = self._runtime.tp + value
+            self._runtime.t0_tp_tau = (self._wf_config.t0 - self._runtime.tp)/self._remnant.tau
+            return
 
         if(set_freq_using_strain_data):
             freq = gen_utils.get_frequency(self._data.strain_data)
@@ -1774,7 +1795,7 @@ class BOB:
                               tp=0.0, Ap=1.0,
                               start_before_tpeak=-75.0, end_after_tpeak=75.0,
                               resample_dt=0.1,
-                              Omega_0=None,
+                              Omega_0=None, t0=None,
                               w_r=-1, tau=-1, verbose=False):
         '''
         Initialize BOB without any NR data — produce a waveform purely from
@@ -1816,6 +1837,13 @@ class BOB:
                 set, and re-applied on every subsequent mode switch. If a
                 float, the user value is used and the fit is never applied;
                 the override is sticky across mode switches.
+            t0 (float, optional): If provided, switches to the finite-t0
+                build with this initial time (relative to ``tp``). The user
+                must call ``what_should_BOB_create`` afterwards to actually
+                build the waveform; the finite-t0 path is selected
+                automatically because ``minf_t0`` is flipped to False here.
+                If None (the default), the BOB stays on the minf-t0 (t0 = -inf)
+                analytic path.
             w_r (float): Real part of the QNM angular frequency. Negative
                 values (default -1) trigger a Kerr lookup via ``qnm``.
             tau (float): QNM damping time. Negative values (default -1)
@@ -1890,6 +1918,14 @@ class BOB:
         self._data.resample_dt = resample_dt
         self._wf_config.start_before_tpeak = start_before_tpeak
         self._wf_config.end_after_tpeak = end_after_tpeak
+        if t0 is not None:
+            # Flip to the finite-t0 build. t0 is interpreted relative to tp,
+            # matching set_initial_time's coordinate convention. t0_tp_tau is
+            # also pre-computed here so the user can go straight to
+            # construct_BOB() after setting what_should_BOB_create.
+            self._wf_config.t0 = self._runtime.tp + float(t0)
+            self._wf_config.minf_t0 = False
+            self._runtime.t0_tp_tau = (self._wf_config.t0 - self._runtime.tp) / self.tau
         self._runtime.is_standalone = True
 
         if verbose:
