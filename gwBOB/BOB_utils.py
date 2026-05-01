@@ -1827,9 +1827,9 @@ class BOB:
                 relative to ``tp`` (default -75.0).
             end_after_tpeak (float): End of the output time grid relative to
                 ``tp`` (default 75.0).
-            resample_dt (float): Output grid spacing (default 0.1). Values
-                below 0.1 are rejected to prevent inadvertent multi-GB
-                allocations (Claude Code: see code_review §2 P8 E10).
+            resample_dt (float): Output grid spacing (default 0.1). Smaller
+                values produce much larger arrays — be conservative on
+                memory-constrained machines.
             Omega_0 (float, optional): Initial angular frequency. If None
                 (the default), the mode-appropriate fit
                 ``gen_utils.Omega_0_fit_{psi4,news,strain}(mf, chif_with_sign)``
@@ -1852,20 +1852,13 @@ class BOB:
                 constants.
 
         Raises:
-            ValueError: For ``m=0``, malformed ``chif``, non-zero in-plane
-                spin components, or ``resample_dt < 0.1``.
+            ValueError: For ``m=0``, malformed ``chif``, or non-zero in-plane
+                spin components.
         '''
         if m == 0:
             raise ValueError("m=0 case not implemented yet")
         if l != abs(m):
             logger.warning("Warning! l != abs(m). This is not supported currently. Proceed at your own risk!")
-        if resample_dt < 0.1:
-            raise ValueError(
-                f"resample_dt={resample_dt} is below the safety floor of 0.1. "
-                "Smaller values produce much larger interpolated arrays and "
-                "can cause out-of-memory crashes. Claude Code: see "
-                "code_review §2 P8 E10."
-            )
 
         # chif shape handling matches initialize_with_NR_mode.
         chif_arr = np.atleast_1d(np.asarray(chif, dtype=float))

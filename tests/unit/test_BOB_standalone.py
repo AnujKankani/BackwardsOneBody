@@ -207,17 +207,7 @@ def test_m0_rejection():
 
 
 # ---------------------------------------------------------------------------
-# Test 6: resample_dt validation. Closes part of code_review §2 P8 E10.
-# ---------------------------------------------------------------------------
-
-def test_resample_dt_validation():
-    bob = BOB()
-    with pytest.raises(ValueError, match=r"resample_dt"):
-        bob.initialize_standalone(mf=MF, chif=CHIF, resample_dt=0.01)
-
-
-# ---------------------------------------------------------------------------
-# Test 7: w_r / tau overrides bypass Kerr lookup.
+# Test 6: w_r / tau overrides bypass Kerr lookup.
 # ---------------------------------------------------------------------------
 
 def test_w_r_tau_overrides():
@@ -230,7 +220,7 @@ def test_w_r_tau_overrides():
 
 
 # ---------------------------------------------------------------------------
-# Test 8: construct_BOB short-circuit — no crash on self.data is None,
+# Test 7: construct_BOB short-circuit — no crash on self.data is None,
 # and NR_based_on_BOB_ts stays None. Locks in the standalone branch in
 # construct_BOB so a future refactor can't silently re-introduce the
 # NR-alignment block unconditionally.
@@ -249,7 +239,7 @@ def test_construct_BOB_short_circuit():
 
 
 # ---------------------------------------------------------------------------
-# Test 9: finite-t0 path works without NR. Only the optimize_* flags are
+# Test 8: finite-t0 path works without NR. Only the optimize_* flags are
 # rejected; the finite-t0 build itself is pure analytic math.
 # ---------------------------------------------------------------------------
 
@@ -270,7 +260,7 @@ def test_finite_t0_path():
 
 
 # ---------------------------------------------------------------------------
-# Test 12: t0 + Omega_0 at init time. The user can pass both up front and
+# Test 9: t0 + Omega_0 at init time. The user can pass both up front and
 # then go straight to what_should_BOB_create + construct_BOB.
 # ---------------------------------------------------------------------------
 
@@ -297,7 +287,7 @@ def test_init_with_t0_and_Omega_0():
 
 
 # ---------------------------------------------------------------------------
-# Test 10: default Omega_0 applies the mode-appropriate fit.
+# Test 10: default Omega_0 applies the mode-appropriate fit at mode-set time.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
