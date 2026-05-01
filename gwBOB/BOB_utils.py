@@ -51,6 +51,16 @@ _QUADRUPOLE_MODES = {
     "current_quadrupole_with_psi4":   ("current_quadrupole_with_psi4",   "psi4",   "current"),
 }
 
+# Claude Code: Dispatch table for standalone (no-NR) modes. See DESIGN_standalone_init.md.
+# Trimmed subset of _SIMPLE_MODES — only the three modes that don't need NR data:
+# strain_using_* needs the NR series-integration constants and quadrupole modes
+# need NR (l, ±m) timeseries. Tuple is (canonical_name, Omega_0 fit fn).
+_STANDALONE_MODES = {
+    "psi4":   ("psi4",   gen_utils.Omega_0_fit_psi4),
+    "news":   ("news",   gen_utils.Omega_0_fit_news),
+    "strain": ("strain", gen_utils.Omega_0_fit_strain),
+}
+
 
 class BOB:
     '''
@@ -151,7 +161,9 @@ class BOB:
         val = value.lower()
         self._ensure_qnm_data_ready()
 
-        if val in _SIMPLE_MODES:
+        if self._runtime.is_standalone:
+            self._apply_standalone_mode(val)
+        elif val in _SIMPLE_MODES:
             self._apply_simple_mode(val)
         elif val in _QUADRUPOLE_MODES:
             self._apply_quadrupole_mode(val)
@@ -218,6 +230,36 @@ class BOB:
             self._runtime.tp = self._data.current_quadrupole_data.time_at_maximum()
         else:
             self._runtime.tp = tp
+
+    def _apply_standalone_mode(self, val):
+        '''Internal: handle the three psi4/news/strain modes after standalone init.
+
+        Two deliberate differences from ``_apply_simple_mode``:
+
+        1. ``tp`` and ``Ap`` are NOT recomputed — they were captured at
+           ``initialize_standalone`` time from user input, not derived from NR
+           data. The trailing time-grid recompute in the setter still uses
+           ``self._runtime.tp`` correctly because it was set at init.
+
+        2. The ``Omega_0`` fit is gated on ``omega_0_user_override`` so an
+           explicit user-supplied ``Omega_0`` survives mode switches.
+
+        Claude Code: See DESIGN_standalone_init.md "Behavioral changes elsewhere".
+        '''
+        if val not in _STANDALONE_MODES:
+            raise ValueError(
+                f"In standalone mode, what_should_BOB_create must be one of "
+                f"{sorted(_STANDALONE_MODES)}. The mode {val!r} is not supported "
+                "because it requires NR data. Re-initialize with "
+                "initialize_with_sxs_data, initialize_with_cce_data, or "
+                "initialize_with_NR_mode if you need this capability."
+            )
+        canonical, omega_fn = _STANDALONE_MODES[val]
+        self._wf_config.what_to_create = canonical
+        self._runtime.data = None  # explicit: no NR data exists in standalone mode
+        # _runtime.tp and _runtime.Ap were set by initialize_standalone — leave them.
+        if not self._runtime.omega_0_user_override:
+            self._remnant.Omega_0 = omega_fn(self._remnant.mf, self._remnant.chif_with_sign)
 
     @property
     def set_initial_time(self):
