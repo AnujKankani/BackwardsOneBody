@@ -128,7 +128,7 @@ Integrating the news to obtain the strain is a complex problem separate from the
 Standalone mode (no NR data required)
 -------------------------------------
 
-Sometimes you just want a BOB waveform for a remnant whose final mass and spin you already know — no SXS or CCE simulation, no calibration to NR, just the analytic model. ``initialize_standalone`` does exactly that.
+Sometimes you just want a BOB waveform for a remnant whose final mass and spin you already know. ``initialize_standalone`` does exactly that.
 
 .. code-block:: python
 
@@ -137,7 +137,7 @@ Sometimes you just want a BOB waveform for a remnant whose final mass and spin y
     BOB.what_should_BOB_create = "news"
     t, y = BOB.construct_BOB()
 
-That's the whole pipeline. The peak time defaults to :math:`t_p = 0`, the peak amplitude defaults to :math:`A_p = 1` (a unit-amplitude template), the QNM parameters are computed from Kerr via the ``qnm`` package, and :math:`\Omega_0` is set to the mode-appropriate fit value (``Omega_0_fit_psi4``, ``Omega_0_fit_news``, or ``Omega_0_fit_strain``) at the moment you set ``what_should_BOB_create``. Switching modes refits :math:`\Omega_0` automatically.
+The peak time defaults to :math:`t_p = 0`, the peak amplitude defaults to :math:`A_p = 1` , the QNM parameters are computed from Kerr via the ``qnm`` package, and :math:`\Omega_0` is set to the mode-appropriate fit value (``Omega_0_fit_psi4``, ``Omega_0_fit_news``, or ``Omega_0_fit_strain``) at the moment you set ``what_should_BOB_create``. Switching modes refits :math:`\Omega_0` automatically.
 
 You can also pass any of these explicitly:
 
