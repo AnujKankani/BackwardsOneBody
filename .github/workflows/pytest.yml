@@ -157,6 +157,13 @@ jobs:
         with:
           path: tests/sxs_cache
           key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+          # Fall back to any earlier test-data cache when fetch_data.py changes.
+          # The waveform files themselves are immutable Zenodo/SXS artifacts, so
+          # an older cache is still valid data, and fetch_data.py re-downloads
+          # anything missing. Without this, editing the script forces a full
+          # ~90 MB re-download and re-exposes CI to Zenodo being down.
+          restore-keys: |
+            ${{ runner.os }}-test-data-
 
       - name: Fetch test data
         if: steps.cache-test-data.outputs.cache-hit != 'true'
@@ -227,6 +234,13 @@ jobs:
         with:
           path: tests/sxs_cache
           key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+          # Fall back to any earlier test-data cache when fetch_data.py changes.
+          # The waveform files themselves are immutable Zenodo/SXS artifacts, so
+          # an older cache is still valid data, and fetch_data.py re-downloads
+          # anything missing. Without this, editing the script forces a full
+          # ~90 MB re-download and re-exposes CI to Zenodo being down.
+          restore-keys: |
+            ${{ runner.os }}-test-data-
 
       - name: Fetch test data
         if: steps.cache-test-data.outputs.cache-hit != 'true'

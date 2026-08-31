@@ -24,13 +24,27 @@ a quick no-op. Total download is ~90 MB.
 from __future__ import annotations
 
 import os
+import socket
 import sys
+import time
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.request import urlretrieve
 
 
 TESTS_DIR = Path(__file__).resolve().parent
 CACHE_DIR = TESTS_DIR / "sxs_cache"
+
+# Zenodo intermittently returns 502/503/504 from its gateway, and a single
+# blip used to abort the whole ~90 MB fetch (CI hit a 504 on the very first
+# CCE file). Retry transient failures with exponential backoff; permanent
+# ones (404, 403) still fail immediately so a genuinely wrong URL is loud.
+DOWNLOAD_ATTEMPTS = 4
+RETRY_BACKOFF_SECONDS = 2.0
+RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+# Without this a stalled connection hangs forever; urlretrieve has no timeout
+# argument, so it has to be set globally.
+SOCKET_TIMEOUT_SECONDS = 60.0
 
 SXS_BBH_ID = "SXS:BBH:2325"
 CCE_ZENODO_RECORD = "10783596"
@@ -61,15 +75,40 @@ def _download_if_missing(url: str, dest: Path) -> bool:
     dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"  downloading {dest.name} ...", flush=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
-    try:
-        urlretrieve(url, tmp)
-        tmp.rename(dest)
-    except BaseException:
-        # Don't leave a half-written .part file behind on Ctrl-C / network error.
-        if tmp.exists():
-            tmp.unlink()
-        raise
-    return True
+    socket.setdefaulttimeout(SOCKET_TIMEOUT_SECONDS)
+
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            urlretrieve(url, tmp)
+            tmp.rename(dest)
+            return True
+        except BaseException as exc:
+            # Don't leave a half-written .part file behind on Ctrl-C, a network
+            # error, or a failed attempt we're about to retry.
+            if tmp.exists():
+                tmp.unlink()
+
+            transient = (
+                isinstance(exc, HTTPError) and exc.code in RETRYABLE_STATUS
+            ) or (
+                # URLError covers DNS failures and connection resets; a bare
+                # socket.timeout can surface mid-transfer. Neither is fatal.
+                isinstance(exc, (URLError, socket.timeout))
+                and not isinstance(exc, HTTPError)
+            )
+            if not transient or attempt == DOWNLOAD_ATTEMPTS:
+                raise
+
+            delay = RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1)
+            print(
+                f"    attempt {attempt}/{DOWNLOAD_ATTEMPTS} failed ({exc}); "
+                f"retrying in {delay:.0f}s ...",
+                flush=True,
+            )
+            time.sleep(delay)
+
+    # Unreachable: the loop either returns or raises.
+    raise AssertionError("retry loop exited without returning")
 
 
 def fetch_sxs_bbh_2325() -> None:
