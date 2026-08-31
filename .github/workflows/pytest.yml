@@ -156,7 +156,17 @@ jobs:
         uses: actions/cache@v3
         with:
           path: tests/sxs_cache
-          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+          # ``[reset cache]`` in the commit message busts the PRIMARY key (matching
+          # the pip caches above), which forces a re-save afterwards — actions/cache
+          # never re-saves under a key that already hit, so without this a bad entry
+          # would persist until someone edited fetch_data.py or deleted it via the
+          # API. Note it does not guarantee a clean slate: restore-keys below is a
+          # prefix match and will still restore the older entry. What actually
+          # repairs a bad cache is the check -> fetch -> verify sequence; the reset
+          # lever is what lets the repaired copy be written back.
+          # Also note head_commit is null on pull_request events, so the lever only
+          # works on push (same limitation as the pip cache keys).
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
           # Fall back to any earlier test-data cache when fetch_data.py changes.
           # The waveform files themselves are immutable Zenodo/SXS artifacts, so
           # an older cache is still valid data, and fetch_data.py re-downloads
@@ -165,9 +175,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-test-data-
 
+      # Don't trust the cache-hit flag: an incomplete cache entry would make the
+      # *_available fixtures in conftest.py return False, every integration test
+      # would SKIP, and pytest reports skips as green. So check what is actually
+      # on disk, fetch only if something is missing, then re-check as a hard gate.
+      #
+      # Checking rather than always fetching also keeps a warm cache offline.
+      # fetch_data.py's SXS half calls sxs.load(download=True), which hits
+      # api.github.com even when every file is already cached — unauthenticated,
+      # rate-limited at 60 req/hr per (shared) runner IP, and not covered by the
+      # retry logic in _download_if_missing.
+      - name: Check cached test data
+        id: check-data
+        run: |
+          if python tests/check_test_data.py; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Fetch test data
-        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        if: steps.check-data.outputs.complete != 'true'
         run: python tests/fetch_data.py
+
+      # Hard gate: always runs. Fails the job if the data is still incomplete,
+      # so a skipped-everything run can never masquerade as a pass.
+      - name: Verify test data is present
+        run: python tests/check_test_data.py
 
       # Default `pytest tests/integration/` excludes the regression-baseline
       # marker via ``addopts`` in pyproject.toml, so this job runs the
@@ -233,7 +267,17 @@ jobs:
         uses: actions/cache@v3
         with:
           path: tests/sxs_cache
-          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+          # ``[reset cache]`` in the commit message busts the PRIMARY key (matching
+          # the pip caches above), which forces a re-save afterwards — actions/cache
+          # never re-saves under a key that already hit, so without this a bad entry
+          # would persist until someone edited fetch_data.py or deleted it via the
+          # API. Note it does not guarantee a clean slate: restore-keys below is a
+          # prefix match and will still restore the older entry. What actually
+          # repairs a bad cache is the check -> fetch -> verify sequence; the reset
+          # lever is what lets the repaired copy be written back.
+          # Also note head_commit is null on pull_request events, so the lever only
+          # works on push (same limitation as the pip cache keys).
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
           # Fall back to any earlier test-data cache when fetch_data.py changes.
           # The waveform files themselves are immutable Zenodo/SXS artifacts, so
           # an older cache is still valid data, and fetch_data.py re-downloads
@@ -242,9 +286,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-test-data-
 
+      # Don't trust the cache-hit flag: an incomplete cache entry would make the
+      # *_available fixtures in conftest.py return False, every integration test
+      # would SKIP, and pytest reports skips as green. So check what is actually
+      # on disk, fetch only if something is missing, then re-check as a hard gate.
+      #
+      # Checking rather than always fetching also keeps a warm cache offline.
+      # fetch_data.py's SXS half calls sxs.load(download=True), which hits
+      # api.github.com even when every file is already cached — unauthenticated,
+      # rate-limited at 60 req/hr per (shared) runner IP, and not covered by the
+      # retry logic in _download_if_missing.
+      - name: Check cached test data
+        id: check-data
+        run: |
+          if python tests/check_test_data.py; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Fetch test data
-        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        if: steps.check-data.outputs.complete != 'true'
         run: python tests/fetch_data.py
+
+      # Hard gate: always runs. Fails the job if the data is still incomplete,
+      # so a skipped-everything run can never masquerade as a pass.
+      - name: Verify test data is present
+        run: python tests/check_test_data.py
 
       # Opt-in via ``-m regression_baseline`` overrides the ``addopts`` filter
       # in pyproject.toml that excludes them by default.
