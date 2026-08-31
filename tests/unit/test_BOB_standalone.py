@@ -2,17 +2,16 @@
 
 Claude Code: See DESIGN_standalone_init.md for the architectural spec.
 
-Most tests here run without any NR data — that's the entire point of the
-standalone path. The single exception is ``test_parity_with_NR_init``,
-which uses the existing ``initial_sxs_bob_2325`` fixture from conftest.py
-to confirm the standalone analytic minf-t0 build is identical to the
-NR-init build for matching ``(mf, chif, tp, Ap, Omega_QNM, tau)``.
-That test skips cleanly when the SXS cache is not populated.
+Every test here runs without any NR data — that's the entire point of the
+standalone path, and it keeps this file inside the fast unit feedback loop.
+
+The convention-parity check against the NR-init path (confirming the
+standalone analytic minf-t0 build is identical to the NR-init build for
+matching ``(mf, chif, tp, Ap, Omega_QNM, tau)``) needs the SXS cache, so it
+lives in ``tests/integration/test_standalone_parity.py`` instead.
 """
 
 from __future__ import annotations
-
-import copy
 
 import numpy as np
 import pytest
@@ -52,49 +51,9 @@ def test_happy_path(mode):
 
 
 # ---------------------------------------------------------------------------
-# Test 2: Convention parity with the NR-init path.
-# ---------------------------------------------------------------------------
-
-def test_parity_with_NR_init(initial_sxs_bob_2325):
-    """A standalone BOB built with the NR-init BOB's tp/Ap/Omega_QNM/tau/Omega_0
-    should produce the bit-identical analytic minf-t0 waveform. Proves no
-    numerical fork between the two code paths for matching inputs.
-
-    Note: the NR path applies a phase alignment in ``construct_BOB``; the
-    standalone path skips it. We compare ``construct_BOB_minf_t0`` directly
-    to bypass that asymmetry — that's the analytic build proper.
-    """
-    sxs_bob = copy.deepcopy(initial_sxs_bob_2325)
-    sxs_bob.what_should_BOB_create = "news"
-    sxs_ts = sxs_bob.construct_BOB_minf_t0(N=2)
-
-    # Build a standalone BOB with the same physics constants. Pass Omega_0
-    # explicitly so it matches sxs_bob.Omega_0 exactly (the standalone-mode
-    # default would re-fit and could differ at FP precision).
-    standalone = BOB()
-    standalone.initialize_standalone(
-        mf=sxs_bob.mf,
-        chif=sxs_bob.chif_with_sign,  # signed scalar accepted
-        l=sxs_bob.l,
-        m=sxs_bob.m,
-        tp=sxs_bob.tp,
-        Ap=sxs_bob.Ap,
-        start_before_tpeak=sxs_bob._wf_config.start_before_tpeak,
-        end_after_tpeak=sxs_bob._wf_config.end_after_tpeak,
-        resample_dt=sxs_bob._data.resample_dt,
-        Omega_0=sxs_bob.Omega_0,
-        w_r=sxs_bob.w_r,
-        tau=sxs_bob.tau,
-    )
-    standalone.what_should_BOB_create = "news"
-    standalone_ts = standalone.construct_BOB_minf_t0(N=2)
-
-    np.testing.assert_allclose(sxs_ts.t, standalone_ts.t, rtol=1e-12, atol=0)
-    np.testing.assert_allclose(sxs_ts.y, standalone_ts.y, rtol=1e-12, atol=0)
-
-
-# ---------------------------------------------------------------------------
-# Test 3: chif shape acceptance (scalar, +z vector, -z vector).
+# Test 2: chif shape acceptance (scalar, +z vector, -z vector).
+# Claude Code: convention parity with the NR-init path moved to
+# tests/integration/test_standalone_parity.py — it needs the SXS cache.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -115,7 +74,7 @@ def test_chif_shape_acceptance(chif_input, expected_signed):
 
 
 # ---------------------------------------------------------------------------
-# Test 4: Disabled-capability errors. Each must raise with a message
+# Test 3: Disabled-capability errors. Each must raise with a message
 # mentioning "standalone" so the user can identify the constraint.
 # ---------------------------------------------------------------------------
 
@@ -197,7 +156,7 @@ def test_audit_list_complete(operation):
 
 
 # ---------------------------------------------------------------------------
-# Test 5: m=0 rejection.
+# Test 4: m=0 rejection.
 # ---------------------------------------------------------------------------
 
 def test_m0_rejection():
@@ -207,7 +166,7 @@ def test_m0_rejection():
 
 
 # ---------------------------------------------------------------------------
-# Test 6: w_r / tau overrides bypass Kerr lookup.
+# Test 5: w_r / tau overrides bypass Kerr lookup.
 # ---------------------------------------------------------------------------
 
 def test_w_r_tau_overrides():
@@ -220,7 +179,7 @@ def test_w_r_tau_overrides():
 
 
 # ---------------------------------------------------------------------------
-# Test 7: construct_BOB short-circuit — no crash on self.data is None,
+# Test 6: construct_BOB short-circuit — no crash on self.data is None,
 # and NR_based_on_BOB_ts stays None. Locks in the standalone branch in
 # construct_BOB so a future refactor can't silently re-introduce the
 # NR-alignment block unconditionally.
@@ -239,7 +198,7 @@ def test_construct_BOB_short_circuit():
 
 
 # ---------------------------------------------------------------------------
-# Test 8: finite-t0 path works without NR. Only the optimize_* flags are
+# Test 7: finite-t0 path works without NR. Only the optimize_* flags are
 # rejected; the finite-t0 build itself is pure analytic math.
 # ---------------------------------------------------------------------------
 
@@ -260,7 +219,7 @@ def test_finite_t0_path():
 
 
 # ---------------------------------------------------------------------------
-# Test 9: t0 + Omega_0 at init time. The user can pass both up front and
+# Test 8: t0 + Omega_0 at init time. The user can pass both up front and
 # then go straight to what_should_BOB_create + construct_BOB.
 # ---------------------------------------------------------------------------
 
@@ -287,7 +246,7 @@ def test_init_with_t0_and_Omega_0():
 
 
 # ---------------------------------------------------------------------------
-# Test 10: default Omega_0 applies the mode-appropriate fit at mode-set time.
+# Test 9: default Omega_0 applies the mode-appropriate fit at mode-set time.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -320,7 +279,7 @@ def test_Omega_0_default_updates_on_mode_switch():
 
 
 # ---------------------------------------------------------------------------
-# Test 11: user-supplied Omega_0 is sticky across mode switches; the manual
+# Test 10: user-supplied Omega_0 is sticky across mode switches; the manual
 # bob.Omega_0 setter still works.
 # ---------------------------------------------------------------------------
 

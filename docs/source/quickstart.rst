@@ -148,13 +148,11 @@ You can also pass any of these explicitly:
         tp=0.0, Ap=1.0,                 # peak time and amplitude
         start_before_tpeak=-75.0,
         end_after_tpeak=75.0,
-        resample_dt=0.1,                # output grid spacing (>= 0.1)
+        resample_dt=0.1,                # output grid spacing (default 0.1)
         Omega_0=0.123,                  # explicit Omega_0; sticky across mode switches
         t0=-10.0,                       # finite-t0 build, relative to tp
         w_r=0.5, tau=12.0,              # non-Kerr QNM (e.g., for "Beyond Kerr" experiments)
     )
 
-Because no NR data is loaded, several capabilities are unavailable in standalone mode and raise a clear error if you try them: ``optimize_Omega0`` and the other ``optimize_*`` flags, the ``fit_*`` drivers, the ``construct_BOB_*_quadrupole_naturally`` helpers, the per-mode ``get_psi4_data`` / ``get_news_data`` / ``get_strain_data`` accessors, and the ``strain_using_news`` / ``strain_using_psi4`` / ``mass_quadrupole_*`` / ``current_quadrupole_*`` modes (because these need NR timeseries for the integration constants or for the :math:`(l, \pm m)` combination).
-
-Supported modes in standalone mode are ``"psi4"``, ``"news"``, and ``"strain"``. The finite-:math:`t_0` build is available — pass ``t0=`` at init time as shown above, or use ``BOB.set_initial_time = -10`` after setting ``what_should_BOB_create``. ``BOB.NR_based_on_BOB_ts`` is ``None`` after ``construct_BOB`` because there is no NR data to align against; use the returned ``(t, y)`` arrays directly.
+Because no NR data is loaded, several capabilities are unavailable in standalone mode and raise a clear error if you try them.
 

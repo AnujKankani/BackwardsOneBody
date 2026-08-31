@@ -2,6 +2,17 @@ Utilities
 =================
 The code contains several utilities to make comparisons to NR and other waveform models easier
 
+.. note::
+
+   This page assumes BOB was initialized with NR data (``initialize_with_sxs_data``,
+   ``initialize_with_cce_data``, or ``initialize_with_NR_mode``). After
+   ``initialize_standalone`` there is no NR waveform to compare against, so the
+   mismatch and parameter-estimation utilities below are unavailable and raise
+   ``RuntimeError``. Of the stored values, ``Ap``, ``tp``, ``mf`` and ``chif`` return
+   the values you passed in rather than anything measured from NR, and
+   ``M_tot``, ``h_L2_norm_tp`` and the per-quantity ``psi4_Ap`` / ``psi4_tp`` /
+   ``news_Ap`` / ``news_tp`` / ``strain_Ap`` / ``strain_tp`` are all ``None``.
+
 Mismatch
 ---------
 
