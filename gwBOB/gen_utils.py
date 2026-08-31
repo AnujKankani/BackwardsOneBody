@@ -10,7 +10,12 @@ import scri
 import spherical_functions as sf
 from scipy.signal import butter, filtfilt, detrend, lfilter
 from scipy.optimize import minimize, differential_evolution
-from numpy import trapz
+# scipy's trapezoid is used rather than numpy's: numpy deprecated `np.trapz`
+# in 2.0 (renamed to `np.trapezoid`) and removed it in a later 2.x, while
+# `np.trapezoid` does not exist on numpy 1.x. `scipy.integrate.trapezoid`
+# (scipy >= 1.6) is the same algorithm and works on both, so gwBOB imports
+# cleanly across the numpy 1.x / 2.x split.
+from scipy.integrate import trapezoid as trapz
 from scipy.interpolate import CubicSpline
 import sxs
 
