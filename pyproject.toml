@@ -19,6 +19,17 @@ dependencies = [
   "sympy",
   "qnmfits",
   "jax",
+  # Imported directly by gwBOB modules, previously only pulled in
+  # transitively via sxs / kuibit / qnmfits. Declared explicitly so a
+  # change in those packages' own dependencies cannot silently break
+  # gwBOB's imports.
+  "numpy",
+  "scipy>=1.6",       # scipy.integrate.trapezoid (numpy 1.x/2.x portable)
+  "matplotlib",
+  "scri",
+  "spherical-functions",
+  "numpy-quaternion",  # provides the `quaternion` module
+  "qnm",
 ]
 
 [project.optional-dependencies]
