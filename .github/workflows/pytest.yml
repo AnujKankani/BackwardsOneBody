@@ -31,6 +31,11 @@ jobs:
       github.event_name != 'push' ||
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ${{ matrix.os }}
+    # qnm caches its precomputed tables per-OS by default (~/.cache/qnm on
+    # Linux, ~/.qnm elsewhere). Pinning QNMCACHEDIR gives one workspace-relative
+    # path we can hand to actions/cache on every runner.
+    env:
+      QNMCACHEDIR: ${{ github.workspace }}/.qnm-cache
     # All combinations are required to pass — failure on any blocks merges.
     # T6.6 added macOS as mandatory (no continue-on-error). ``fail-fast: false``
     # means each entry's failures are reported independently rather than
@@ -75,6 +80,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py${{ matrix.python-version }}-
             ${{ runner.os }}-pip-
+      # ~94 MB of precomputed qnm spin sequences, fetched from a single
+      # third-party host (duetosymmetry.com) that became unreachable from
+      # GitHub's runners on 2026-08-31. gwBOB no longer treats a failed
+      # download as fatal, but caching it keeps runs fast and independent of
+      # that host. Key is static: the archive is versioned by qnm itself.
+      - name: Restore qnm tables
+        id: qnm-cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+          restore-keys: |
+            ${{ runner.os }}-qnm-data-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -100,6 +119,18 @@ jobs:
       - name: Run unit tests
         run: pytest tests/unit/ -v
 
+      # Save only if the tables actually EXTRACTED (not merely that an archive
+      # exists: a truncated download leaves an archive that qnm never unpacks). qnm writes NOTHING to the
+      # cache dir when the download fails (verified: 0 files) and computes modes
+      # in memory instead, so a plain actions/cache would store an empty dir under
+      # the primary key, hit it forever after, and never save again.
+      - name: Save qnm tables
+        if: always() && steps.qnm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/.qnm-cache/data/**', github.workspace)) != ''
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+
   # =========================================================================
   # 2. Slow integration tests on canonical Python (3.10) only
   # =========================================================================
@@ -110,6 +141,8 @@ jobs:
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     needs: unit   # only run if all unit-test matrix entries pass
+    env:
+      QNMCACHEDIR: ${{ github.workspace }}/.qnm-cache
 
     steps:
       - uses: actions/checkout@v3
@@ -130,6 +163,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py3.10-
             ${{ runner.os }}-pip-
+      # ~94 MB of precomputed qnm spin sequences, fetched from a single
+      # third-party host (duetosymmetry.com) that became unreachable from
+      # GitHub's runners on 2026-08-31. gwBOB no longer treats a failed
+      # download as fatal, but caching it keeps runs fast and independent of
+      # that host. Key is static: the archive is versioned by qnm itself.
+      - name: Restore qnm tables
+        id: qnm-cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+          restore-keys: |
+            ${{ runner.os }}-qnm-data-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -212,6 +259,18 @@ jobs:
           SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
         run: pytest tests/integration/ -v
 
+      # Save only if the tables actually EXTRACTED (not merely that an archive
+      # exists: a truncated download leaves an archive that qnm never unpacks). qnm writes NOTHING to the
+      # cache dir when the download fails (verified: 0 files) and computes modes
+      # in memory instead, so a plain actions/cache would store an empty dir under
+      # the primary key, hit it forever after, and never save again.
+      - name: Save qnm tables
+        if: always() && steps.qnm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/.qnm-cache/data/**', github.workspace)) != ''
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+
   # =========================================================================
   # 3. Byte-for-byte regression baselines (opt-in via marker)
   # =========================================================================
@@ -222,6 +281,8 @@ jobs:
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     needs: unit
+    env:
+      QNMCACHEDIR: ${{ github.workspace }}/.qnm-cache
 
     steps:
       - uses: actions/checkout@v3
@@ -242,6 +303,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py3.10-
             ${{ runner.os }}-pip-
+      # ~94 MB of precomputed qnm spin sequences, fetched from a single
+      # third-party host (duetosymmetry.com) that became unreachable from
+      # GitHub's runners on 2026-08-31. gwBOB no longer treats a failed
+      # download as fatal, but caching it keeps runs fast and independent of
+      # that host. Key is static: the archive is versioned by qnm itself.
+      - name: Restore qnm tables
+        id: qnm-cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+          restore-keys: |
+            ${{ runner.os }}-qnm-data-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -321,3 +396,15 @@ jobs:
           SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
           SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
         run: pytest tests/integration/test_regression_baselines.py -m regression_baseline -v
+
+      # Save only if the tables actually EXTRACTED (not merely that an archive
+      # exists: a truncated download leaves an archive that qnm never unpacks). qnm writes NOTHING to the
+      # cache dir when the download fails (verified: 0 files) and computes modes
+      # in memory instead, so a plain actions/cache would store an empty dir under
+      # the primary key, hit it forever after, and never save again.
+      - name: Save qnm tables
+        if: always() && steps.qnm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/.qnm-cache/data/**', github.workspace)) != ''
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0

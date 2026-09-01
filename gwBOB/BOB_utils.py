@@ -1,6 +1,8 @@
 # pyright: reportUnreachable=false
 #construct all BOB related quantities here
 import logging
+import socket
+import time
 import numpy as np
 from scipy.optimize import least_squares, curve_fit, brute, fmin, differential_evolution
 from kuibit.timeseries import TimeSeries as kuibit_ts
@@ -16,6 +18,89 @@ from gwBOB._state import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# qnm precomputed-table download
+#
+# ``qnm.download_data()`` fetches a ~94 MB archive of precomputed spin
+# sequences from a single third-party host (duetosymmetry.com). It is a speed
+# optimization, NOT a requirement: when the tables are absent, the qnm package
+# solves for each mode on demand. Measured on the modes gwBOB uses (s=-2,
+# l <= 4, n <= 2, spins up to 0.95): 30 evaluations take ~2.4 s without the
+# tables versus ~0.05 s with them, and the results agree to 1e-14 — far below
+# any tolerance in this project.
+#
+# So a failed download must not be fatal. It previously was, which meant one
+# unreachable website made gwBOB unusable: on 2026-08-31 that host became
+# unreachable from GitHub's runners and every integration test failed with
+# "Unable to initialize qnm data" after a 2m14s connection hang.
+#
+# The attempt is made at most once per process (module-level flag) so a slow
+# failure is not repaid for every BOB instance.
+# ---------------------------------------------------------------------------
+_QNM_DOWNLOAD_ATTEMPTS = 3
+_QNM_DOWNLOAD_TIMEOUT_SECONDS = 30.0
+_QNM_RETRY_BACKOFF_SECONDS = 2.0
+_qnm_download_attempted = False
+
+
+def _qnm_tables_extracted():
+    '''
+    True if the qnm precomputed tables are unpacked and usable.
+
+    ``qnm.download_data()`` returns silently when an archive already sits in
+    the cache dir, even a truncated one from an interrupted transfer, and in
+    that case never decompresses it. Checking for the extracted ``data/``
+    directory is what distinguishes "tables ready" from "a broken file is in
+    the way".
+    '''
+    try:
+        cachedir = qnm.cached.get_cachedir()
+    except Exception:
+        return False
+    return bool(cachedir) and (cachedir / "data").is_dir()
+
+
+def _download_qnm_tables():
+    '''
+    Fetch the qnm precomputed tables, with a socket timeout and retries.
+
+    ``qnm.download_data()`` is a no-op when the archive is already cached, so
+    this costs nothing on a warm cache. It uses ``urllib.urlretrieve``
+    internally and exposes no timeout argument, hence the temporary global
+    socket timeout — without it an unreachable host hangs for minutes.
+
+    Raises the last exception if every attempt fails.
+    '''
+    prior_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(_QNM_DOWNLOAD_TIMEOUT_SECONDS)
+    try:
+        for attempt in range(1, _QNM_DOWNLOAD_ATTEMPTS + 1):
+            try:
+                # overwrite=False on the first attempt keeps a warm cache free
+                # (download_data returns immediately when the archive exists).
+                # Later attempts force a re-download: a mid-transfer failure
+                # leaves a truncated archive behind, and overwrite=False would
+                # then make every subsequent call a silent no-op that never
+                # extracts anything.
+                qnm.download_data(overwrite=(attempt > 1))
+                if _qnm_tables_extracted():
+                    return
+                raise RuntimeError(
+                    "qnm archive is present but was never extracted "
+                    "(truncated or partial download?)"
+                )
+            except Exception:
+                if attempt == _QNM_DOWNLOAD_ATTEMPTS:
+                    raise
+                delay = _QNM_RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1)
+                logger.debug(
+                    "qnm table download attempt %s/%s failed; retrying in %.0fs",
+                    attempt, _QNM_DOWNLOAD_ATTEMPTS, delay,
+                )
+                time.sleep(delay)
+    finally:
+        socket.setdefaulttimeout(prior_timeout)
 
 
 # Warning text emitted by the `what_should_BOB_create` setter for testing-only modes.
@@ -126,18 +211,30 @@ class BOB:
 
     def _ensure_qnm_data_ready(self):
         '''
-        Lazily downloads qnm data the first time BOB needs it.
+        Fetch the qnm precomputed tables the first time BOB needs them.
+
+        A failed download is NOT fatal: the tables are a speed optimization,
+        and the qnm package computes each mode on demand without them. On
+        failure we warn once and continue. See the module-level comment above
+        ``_download_qnm_tables`` for the measurements behind that choice.
         '''
+        global _qnm_download_attempted
         if self._qnm_data_ready:
             return
-        try:
-            qnm.download_data()
-            self._qnm_data_ready = True
-        except Exception as exc:
-            raise RuntimeError(
-                "Unable to initialize qnm data. "
-                "Please check your network/filesystem access and retry."
-            ) from exc
+        if not _qnm_download_attempted:
+            # Set before the attempt so a raising download is not retried by
+            # the next BOB instance in the same process.
+            _qnm_download_attempted = True
+            try:
+                _download_qnm_tables()
+            except Exception as exc:
+                logger.warning(
+                    "Could not download the precomputed qnm tables (%s). "
+                    "Continuing without them — quasinormal modes will be "
+                    "computed on demand, which is slower on first use but "
+                    "numerically equivalent.", exc,
+                )
+        self._qnm_data_ready = True
 
     @property
     def what_should_BOB_create(self):
