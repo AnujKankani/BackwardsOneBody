@@ -31,6 +31,11 @@ jobs:
       github.event_name != 'push' ||
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ${{ matrix.os }}
+    # qnm caches its precomputed tables per-OS by default (~/.cache/qnm on
+    # Linux, ~/.qnm elsewhere). Pinning QNMCACHEDIR gives one workspace-relative
+    # path we can hand to actions/cache on every runner.
+    env:
+      QNMCACHEDIR: ${{ github.workspace }}/.qnm-cache
     # All combinations are required to pass — failure on any blocks merges.
     # T6.6 added macOS as mandatory (no continue-on-error). ``fail-fast: false``
     # means each entry's failures are reported independently rather than
@@ -75,6 +80,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py${{ matrix.python-version }}-
             ${{ runner.os }}-pip-
+      # ~94 MB of precomputed qnm spin sequences, fetched from a single
+      # third-party host (duetosymmetry.com) that became unreachable from
+      # GitHub's runners on 2026-08-31. gwBOB no longer treats a failed
+      # download as fatal, but caching it keeps runs fast and independent of
+      # that host. Key is static: the archive is versioned by qnm itself.
+      - name: Restore qnm tables
+        id: qnm-cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+          restore-keys: |
+            ${{ runner.os }}-qnm-data-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -100,6 +119,18 @@ jobs:
       - name: Run unit tests
         run: pytest tests/unit/ -v
 
+      # Save only if the tables actually EXTRACTED (not merely that an archive
+      # exists: a truncated download leaves an archive that qnm never unpacks). qnm writes NOTHING to the
+      # cache dir when the download fails (verified: 0 files) and computes modes
+      # in memory instead, so a plain actions/cache would store an empty dir under
+      # the primary key, hit it forever after, and never save again.
+      - name: Save qnm tables
+        if: always() && steps.qnm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/.qnm-cache/data/**', github.workspace)) != ''
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+
   # =========================================================================
   # 2. Slow integration tests on canonical Python (3.10) only
   # =========================================================================
@@ -110,6 +141,8 @@ jobs:
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     needs: unit   # only run if all unit-test matrix entries pass
+    env:
+      QNMCACHEDIR: ${{ github.workspace }}/.qnm-cache
 
     steps:
       - uses: actions/checkout@v3
@@ -130,6 +163,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py3.10-
             ${{ runner.os }}-pip-
+      # ~94 MB of precomputed qnm spin sequences, fetched from a single
+      # third-party host (duetosymmetry.com) that became unreachable from
+      # GitHub's runners on 2026-08-31. gwBOB no longer treats a failed
+      # download as fatal, but caching it keeps runs fast and independent of
+      # that host. Key is static: the archive is versioned by qnm itself.
+      - name: Restore qnm tables
+        id: qnm-cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+          restore-keys: |
+            ${{ runner.os }}-qnm-data-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -156,11 +203,52 @@ jobs:
         uses: actions/cache@v3
         with:
           path: tests/sxs_cache
-          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+          # ``[reset cache]`` in the commit message busts the PRIMARY key (matching
+          # the pip caches above), which forces a re-save afterwards — actions/cache
+          # never re-saves under a key that already hit, so without this a bad entry
+          # would persist until someone edited fetch_data.py or deleted it via the
+          # API. Note it does not guarantee a clean slate: restore-keys below is a
+          # prefix match and will still restore the older entry. What actually
+          # repairs a bad cache is the check -> fetch -> verify sequence; the reset
+          # lever is what lets the repaired copy be written back.
+          # Also note head_commit is null on pull_request events, so the lever only
+          # works on push (same limitation as the pip cache keys).
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
+          # Fall back to any earlier test-data cache when fetch_data.py changes.
+          # The waveform files themselves are immutable Zenodo/SXS artifacts, so
+          # an older cache is still valid data, and fetch_data.py re-downloads
+          # anything missing. Without this, editing the script forces a full
+          # ~90 MB re-download and re-exposes CI to Zenodo being down.
+          restore-keys: |
+            ${{ runner.os }}-test-data-
+
+      # Don't trust the cache-hit flag: an incomplete cache entry would make the
+      # *_available fixtures in conftest.py return False, every integration test
+      # would SKIP, and pytest reports skips as green. So check what is actually
+      # on disk, fetch only if something is missing, then re-check as a hard gate.
+      #
+      # Checking rather than always fetching also keeps a warm cache offline.
+      # fetch_data.py's SXS half calls sxs.load(download=True), which hits
+      # api.github.com even when every file is already cached — unauthenticated,
+      # rate-limited at 60 req/hr per (shared) runner IP, and not covered by the
+      # retry logic in _download_if_missing.
+      - name: Check cached test data
+        id: check-data
+        run: |
+          if python tests/check_test_data.py; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Fetch test data
-        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        if: steps.check-data.outputs.complete != 'true'
         run: python tests/fetch_data.py
+
+      # Hard gate: always runs. Fails the job if the data is still incomplete,
+      # so a skipped-everything run can never masquerade as a pass.
+      - name: Verify test data is present
+        run: python tests/check_test_data.py
 
       # Default `pytest tests/integration/` excludes the regression-baseline
       # marker via ``addopts`` in pyproject.toml, so this job runs the
@@ -170,6 +258,18 @@ jobs:
           SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
           SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
         run: pytest tests/integration/ -v
+
+      # Save only if the tables actually EXTRACTED (not merely that an archive
+      # exists: a truncated download leaves an archive that qnm never unpacks). qnm writes NOTHING to the
+      # cache dir when the download fails (verified: 0 files) and computes modes
+      # in memory instead, so a plain actions/cache would store an empty dir under
+      # the primary key, hit it forever after, and never save again.
+      - name: Save qnm tables
+        if: always() && steps.qnm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/.qnm-cache/data/**', github.workspace)) != ''
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
 
   # =========================================================================
   # 3. Byte-for-byte regression baselines (opt-in via marker)
@@ -181,6 +281,8 @@ jobs:
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     needs: unit
+    env:
+      QNMCACHEDIR: ${{ github.workspace }}/.qnm-cache
 
     steps:
       - uses: actions/checkout@v3
@@ -201,6 +303,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-py3.10-
             ${{ runner.os }}-pip-
+      # ~94 MB of precomputed qnm spin sequences, fetched from a single
+      # third-party host (duetosymmetry.com) that became unreachable from
+      # GitHub's runners on 2026-08-31. gwBOB no longer treats a failed
+      # download as fatal, but caching it keeps runs fast and independent of
+      # that host. Key is static: the archive is versioned by qnm itself.
+      - name: Restore qnm tables
+        id: qnm-cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0
+          restore-keys: |
+            ${{ runner.os }}-qnm-data-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -226,11 +342,52 @@ jobs:
         uses: actions/cache@v3
         with:
           path: tests/sxs_cache
-          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}
+          # ``[reset cache]`` in the commit message busts the PRIMARY key (matching
+          # the pip caches above), which forces a re-save afterwards — actions/cache
+          # never re-saves under a key that already hit, so without this a bad entry
+          # would persist until someone edited fetch_data.py or deleted it via the
+          # API. Note it does not guarantee a clean slate: restore-keys below is a
+          # prefix match and will still restore the older entry. What actually
+          # repairs a bad cache is the check -> fetch -> verify sequence; the reset
+          # lever is what lets the repaired copy be written back.
+          # Also note head_commit is null on pull_request events, so the lever only
+          # works on push (same limitation as the pip cache keys).
+          key: ${{ runner.os }}-test-data-${{ hashFiles('tests/fetch_data.py') }}-${{ contains(github.event.head_commit.message, '[reset cache]') }}
+          # Fall back to any earlier test-data cache when fetch_data.py changes.
+          # The waveform files themselves are immutable Zenodo/SXS artifacts, so
+          # an older cache is still valid data, and fetch_data.py re-downloads
+          # anything missing. Without this, editing the script forces a full
+          # ~90 MB re-download and re-exposes CI to Zenodo being down.
+          restore-keys: |
+            ${{ runner.os }}-test-data-
+
+      # Don't trust the cache-hit flag: an incomplete cache entry would make the
+      # *_available fixtures in conftest.py return False, every integration test
+      # would SKIP, and pytest reports skips as green. So check what is actually
+      # on disk, fetch only if something is missing, then re-check as a hard gate.
+      #
+      # Checking rather than always fetching also keeps a warm cache offline.
+      # fetch_data.py's SXS half calls sxs.load(download=True), which hits
+      # api.github.com even when every file is already cached — unauthenticated,
+      # rate-limited at 60 req/hr per (shared) runner IP, and not covered by the
+      # retry logic in _download_if_missing.
+      - name: Check cached test data
+        id: check-data
+        run: |
+          if python tests/check_test_data.py; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Fetch test data
-        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        if: steps.check-data.outputs.complete != 'true'
         run: python tests/fetch_data.py
+
+      # Hard gate: always runs. Fails the job if the data is still incomplete,
+      # so a skipped-everything run can never masquerade as a pass.
+      - name: Verify test data is present
+        run: python tests/check_test_data.py
 
       # Opt-in via ``-m regression_baseline`` overrides the ``addopts`` filter
       # in pyproject.toml that excludes them by default.
@@ -239,3 +396,15 @@ jobs:
           SXSCACHEDIR: ${{ github.workspace }}/tests/sxs_cache
           SXSCONFIGDIR: ${{ github.workspace }}/tests/sxs_cache
         run: pytest tests/integration/test_regression_baselines.py -m regression_baseline -v
+
+      # Save only if the tables actually EXTRACTED (not merely that an archive
+      # exists: a truncated download leaves an archive that qnm never unpacks). qnm writes NOTHING to the
+      # cache dir when the download fails (verified: 0 files) and computes modes
+      # in memory instead, so a plain actions/cache would store an empty dir under
+      # the primary key, hit it forever after, and never save again.
+      - name: Save qnm tables
+        if: always() && steps.qnm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/.qnm-cache/data/**', github.workspace)) != ''
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ github.workspace }}/.qnm-cache
+          key: ${{ runner.os }}-qnm-data-0.4.0

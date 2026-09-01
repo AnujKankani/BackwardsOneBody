@@ -1,6 +1,8 @@
 # pyright: reportUnreachable=false
 #construct all BOB related quantities here
 import logging
+import socket
+import time
 import numpy as np
 from scipy.optimize import least_squares, curve_fit, brute, fmin, differential_evolution
 from kuibit.timeseries import TimeSeries as kuibit_ts
@@ -16,6 +18,89 @@ from gwBOB._state import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# qnm precomputed-table download
+#
+# ``qnm.download_data()`` fetches a ~94 MB archive of precomputed spin
+# sequences from a single third-party host (duetosymmetry.com). It is a speed
+# optimization, NOT a requirement: when the tables are absent, the qnm package
+# solves for each mode on demand. Measured on the modes gwBOB uses (s=-2,
+# l <= 4, n <= 2, spins up to 0.95): 30 evaluations take ~2.4 s without the
+# tables versus ~0.05 s with them, and the results agree to 1e-14 — far below
+# any tolerance in this project.
+#
+# So a failed download must not be fatal. It previously was, which meant one
+# unreachable website made gwBOB unusable: on 2026-08-31 that host became
+# unreachable from GitHub's runners and every integration test failed with
+# "Unable to initialize qnm data" after a 2m14s connection hang.
+#
+# The attempt is made at most once per process (module-level flag) so a slow
+# failure is not repaid for every BOB instance.
+# ---------------------------------------------------------------------------
+_QNM_DOWNLOAD_ATTEMPTS = 3
+_QNM_DOWNLOAD_TIMEOUT_SECONDS = 30.0
+_QNM_RETRY_BACKOFF_SECONDS = 2.0
+_qnm_download_attempted = False
+
+
+def _qnm_tables_extracted():
+    '''
+    True if the qnm precomputed tables are unpacked and usable.
+
+    ``qnm.download_data()`` returns silently when an archive already sits in
+    the cache dir, even a truncated one from an interrupted transfer, and in
+    that case never decompresses it. Checking for the extracted ``data/``
+    directory is what distinguishes "tables ready" from "a broken file is in
+    the way".
+    '''
+    try:
+        cachedir = qnm.cached.get_cachedir()
+    except Exception:
+        return False
+    return bool(cachedir) and (cachedir / "data").is_dir()
+
+
+def _download_qnm_tables():
+    '''
+    Fetch the qnm precomputed tables, with a socket timeout and retries.
+
+    ``qnm.download_data()`` is a no-op when the archive is already cached, so
+    this costs nothing on a warm cache. It uses ``urllib.urlretrieve``
+    internally and exposes no timeout argument, hence the temporary global
+    socket timeout — without it an unreachable host hangs for minutes.
+
+    Raises the last exception if every attempt fails.
+    '''
+    prior_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(_QNM_DOWNLOAD_TIMEOUT_SECONDS)
+    try:
+        for attempt in range(1, _QNM_DOWNLOAD_ATTEMPTS + 1):
+            try:
+                # overwrite=False on the first attempt keeps a warm cache free
+                # (download_data returns immediately when the archive exists).
+                # Later attempts force a re-download: a mid-transfer failure
+                # leaves a truncated archive behind, and overwrite=False would
+                # then make every subsequent call a silent no-op that never
+                # extracts anything.
+                qnm.download_data(overwrite=(attempt > 1))
+                if _qnm_tables_extracted():
+                    return
+                raise RuntimeError(
+                    "qnm archive is present but was never extracted "
+                    "(truncated or partial download?)"
+                )
+            except Exception:
+                if attempt == _QNM_DOWNLOAD_ATTEMPTS:
+                    raise
+                delay = _QNM_RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1)
+                logger.debug(
+                    "qnm table download attempt %s/%s failed; retrying in %.0fs",
+                    attempt, _QNM_DOWNLOAD_ATTEMPTS, delay,
+                )
+                time.sleep(delay)
+    finally:
+        socket.setdefaulttimeout(prior_timeout)
 
 
 # Warning text emitted by the `what_should_BOB_create` setter for testing-only modes.
@@ -49,6 +134,16 @@ _QUADRUPOLE_MODES = {
     "current_quadrupole_with_news":   ("current_quadrupole_with_news",   "news",   "current"),
     "mass_quadrupole_with_psi4":      ("mass_quadrupole_with_psi4",      "psi4",   "mass"),
     "current_quadrupole_with_psi4":   ("current_quadrupole_with_psi4",   "psi4",   "current"),
+}
+
+# Claude Code: Dispatch table for standalone (no-NR) modes. See DESIGN_standalone_init.md.
+# Trimmed subset of _SIMPLE_MODES — only the three modes that don't need NR data:
+# strain_using_* needs the NR series-integration constants and quadrupole modes
+# need NR (l, ±m) timeseries. Tuple is (canonical_name, Omega_0 fit fn).
+_STANDALONE_MODES = {
+    "psi4":   ("psi4",   gen_utils.Omega_0_fit_psi4),
+    "news":   ("news",   gen_utils.Omega_0_fit_news),
+    "strain": ("strain", gen_utils.Omega_0_fit_strain),
 }
 
 
@@ -116,18 +211,30 @@ class BOB:
 
     def _ensure_qnm_data_ready(self):
         '''
-        Lazily downloads qnm data the first time BOB needs it.
+        Fetch the qnm precomputed tables the first time BOB needs them.
+
+        A failed download is NOT fatal: the tables are a speed optimization,
+        and the qnm package computes each mode on demand without them. On
+        failure we warn once and continue. See the module-level comment above
+        ``_download_qnm_tables`` for the measurements behind that choice.
         '''
+        global _qnm_download_attempted
         if self._qnm_data_ready:
             return
-        try:
-            qnm.download_data()
-            self._qnm_data_ready = True
-        except Exception as exc:
-            raise RuntimeError(
-                "Unable to initialize qnm data. "
-                "Please check your network/filesystem access and retry."
-            ) from exc
+        if not _qnm_download_attempted:
+            # Set before the attempt so a raising download is not retried by
+            # the next BOB instance in the same process.
+            _qnm_download_attempted = True
+            try:
+                _download_qnm_tables()
+            except Exception as exc:
+                logger.warning(
+                    "Could not download the precomputed qnm tables (%s). "
+                    "Continuing without them — quasinormal modes will be "
+                    "computed on demand, which is slower on first use but "
+                    "numerically equivalent.", exc,
+                )
+        self._qnm_data_ready = True
 
     @property
     def what_should_BOB_create(self):
@@ -151,7 +258,9 @@ class BOB:
         val = value.lower()
         self._ensure_qnm_data_ready()
 
-        if val in _SIMPLE_MODES:
+        if self._runtime.is_standalone:
+            self._apply_standalone_mode(val)
+        elif val in _SIMPLE_MODES:
             self._apply_simple_mode(val)
         elif val in _QUADRUPOLE_MODES:
             self._apply_quadrupole_mode(val)
@@ -219,6 +328,36 @@ class BOB:
         else:
             self._runtime.tp = tp
 
+    def _apply_standalone_mode(self, val):
+        '''Internal: handle the three psi4/news/strain modes after standalone init.
+
+        Two deliberate differences from ``_apply_simple_mode``:
+
+        1. ``tp`` and ``Ap`` are NOT recomputed — they were captured at
+           ``initialize_standalone`` time from user input, not derived from NR
+           data. The trailing time-grid recompute in the setter still uses
+           ``self._runtime.tp`` correctly because it was set at init.
+
+        2. The ``Omega_0`` fit is gated on ``Omega0_user_override`` so an
+           explicit user-supplied ``Omega_0`` survives mode switches.
+
+        Claude Code: See DESIGN_standalone_init.md "Behavioral changes elsewhere".
+        '''
+        if val not in _STANDALONE_MODES:
+            raise ValueError(
+                f"In standalone mode, what_should_BOB_create must be one of "
+                f"{sorted(_STANDALONE_MODES)}. The mode {val!r} is not supported "
+                "because it requires NR data. Re-initialize with "
+                "initialize_with_sxs_data, initialize_with_cce_data, or "
+                "initialize_with_NR_mode if you need this capability."
+            )
+        canonical, omega_fn = _STANDALONE_MODES[val]
+        self._wf_config.what_to_create = canonical
+        self._runtime.data = None  # explicit: no NR data exists in standalone mode
+        # _runtime.tp and _runtime.Ap were set by initialize_standalone — leave them.
+        if not self._runtime.Omega0_user_override:
+            self._remnant.Omega_0 = omega_fn(self._remnant.mf, self._remnant.chif_with_sign)
+
     @property
     def set_initial_time(self):
         '''Return the configured initial time t0 (in code units relative to peak).'''
@@ -232,6 +371,14 @@ class BOB:
         float, the initial time is set to the value and the frequency is set using the
         data specified by "what_should_BOB_create".
 
+        Standalone-mode behavior (Claude Code: see DESIGN_standalone_init.md):
+        when ``self._runtime.is_standalone`` is True, the NR-frequency lookup
+        is skipped — there is no NR data to read. ``t0`` and ``minf_t0`` are
+        set as usual; ``Omega_0`` retains whatever value it had (the
+        mode-appropriate fit applied at ``what_should_BOB_create`` time, or
+        the user override). The user can set ``Omega_0`` manually if they
+        want a different value for the finite-t0 build.
+
         args:
             value (tuple or float): Initial time and whether to set the frequency using the strain data
         '''
@@ -244,6 +391,19 @@ class BOB:
         else:
             set_freq_using_strain_data = False
         self._wf_config.minf_t0 = False
+
+        if self._runtime.is_standalone:
+            # No NR data — skip the Omega_0 refit entirely. t0 is interpreted
+            # in the same coordinate as the NR-init path: relative to tp.
+            if set_freq_using_strain_data:
+                logger.warning(
+                    "set_initial_time: tuple form (use strain frequency) is "
+                    "ignored in standalone mode — no NR strain data exists. "
+                    "Omega_0 left at its current value."
+                )
+            self._wf_config.t0 = self._runtime.tp + value
+            self._runtime.t0_tp_tau = (self._wf_config.t0 - self._runtime.tp)/self._remnant.tau
+            return
 
         if(set_freq_using_strain_data):
             freq = gen_utils.get_frequency(self._data.strain_data)
@@ -320,6 +480,8 @@ class BOB:
         args:
             value (bool): Optimize initial time and frequency
         '''
+        if value:
+            self._require_NR("optimize_t0_and_Omega0")
         self._wf_config.minf_t0 = False
         self._fit_config.optimize_t0_and_Omega0 = value
 
@@ -337,6 +499,8 @@ class BOB:
         args:
             value (bool): Optimize initial time
         '''
+        if value:
+            self._require_NR("optimize_t0")
         self._wf_config.minf_t0 = False
         self._fit_config.optimize_t0 = value
 
@@ -498,7 +662,10 @@ class BOB:
     @property
     def optimize_Omega0(self): return self._fit_config.optimize_Omega0
     @optimize_Omega0.setter
-    def optimize_Omega0(self, v): self._fit_config.optimize_Omega0 = v
+    def optimize_Omega0(self, v):
+        if v:
+            self._require_NR("optimize_Omega0")
+        self._fit_config.optimize_Omega0 = v
     @property
     def start_fit_before_tpeak(self): return self._fit_config.start_fit_before_tpeak
     @start_fit_before_tpeak.setter
@@ -670,6 +837,7 @@ class BOB:
             np.ndarray: BOB frequency evaluated at ``self.t[start:end]`` for
             the configured fit window.
         '''
+        self._require_NR("fit_omega")
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         if('psi4' in self._wf_config.what_to_create):
@@ -705,6 +873,7 @@ class BOB:
             evaluation failure, returns a flat array of 1e10 to signal a bad
             residual to the optimizer.
         '''
+        self._require_NR("fit_t0_and_omega")
         #this function can be called if X_using_Y.
         self.Omega_0 = Omega_0
         self.t0 = t0
@@ -745,6 +914,7 @@ class BOB:
             float: Sum of squared residuals between the BOB-predicted and NR
             frequencies over the configured fit window.
         '''
+        self._require_NR("residual_t0_and_omega")
         #freq = gen_utils.get_frequency(self.data)
         freq = kuibit_ts(t_freq,y_freq)
         t0,Omega_0 = p
@@ -789,8 +959,9 @@ class BOB:
             float: Sum of squared residuals between BOB and NR frequencies on
             the configured fit window.
         '''
+        self._require_NR("fit_t0_only")
         #freq data passed in is big Omega, where w = m*Omega
-        self.t0 = t00[0] 
+        self.t0 = t00[0]
         self.t0_tp_tau = (self.t0 - self.tp)/self.tau
         self.Omega_0 = freq_data.y[gen_utils.find_nearest_index(freq_data.t,self.t0)] #freq data is already big Omega
         start_index = gen_utils.find_nearest_index(self.t,self.tp+self.start_fit_before_tpeak)
@@ -828,6 +999,7 @@ class BOB:
         Raises:
             ValueError: If ``minf_t0`` is False (use ``fit_t0`` for finite t0).
         '''
+        self._require_NR("fit_Omega0")
         if(self.minf_t0 is False):
             raise ValueError("You are setup for a finite t0 right now. Omega_0 fitting is only defined for t0 = infinity.")
         if(self._wf_config.end_after_tpeak<self.end_fit_after_tpeak):
@@ -860,6 +1032,7 @@ class BOB:
         approach lived here previously but was unreliable; see git history if you
         want to revive it.
         '''
+        self._require_NR("fit_t0_and_Omega0")
         raise NotImplementedError(
             "fit_t0_and_Omega0 is not implemented. Use fit_t0 (with Omega_0 set "
             "from the strain frequency at t0) or fit_Omega0 (for t0 = -infinity)."
@@ -882,7 +1055,7 @@ class BOB:
         Use this when ``minf_t0`` is False. For t0 = -infinity, use
         ``fit_Omega0`` instead.
         '''
-
+        self._require_NR("fit_t0")
         if(self.use_strain_for_t0_optimization):
             freq_data = gen_utils.get_frequency(self.strain_data.resampled(self.t))
         else:
@@ -995,6 +1168,7 @@ class BOB:
             tuple of (kuibit_ts, kuibit_ts): (NR_current, NR_mass) — note the
             order: current first, mass second.
         '''
+        self._require_NR("construct_NR_mass_and_current_quadrupole")
         #construct the mass and current quadrupole waves from the NR data
         what_to_create = what_to_create.lower()
         if(what_to_create=="psi4"):
@@ -1040,6 +1214,7 @@ class BOB:
             the time grid (union of the two mode grids) and the complex
             current-quadrupole waveform on it.
         '''
+        self._require_NR("construct_BOB_current_quadrupole_naturally")
         # Construct the current quadrupole wave I_lm = (i/sqrt(2)) * (h_lm - (-1)^m h*_l,-m)
         # by building the (l, ±m) modes for BOB first.
         # The rest of the code setup isn't ideal for quadrupole construction so we
@@ -1169,6 +1344,7 @@ class BOB:
             the time grid (union of the two mode grids) and the complex
             mass-quadrupole waveform on it.
         '''
+        self._require_NR("construct_BOB_mass_quadrupole_naturally")
         # Construct the mass quadrupole wave I_lm = (1/sqrt(2)) * (h_lm + (-1)^m h*_l,-m)
         # by building the (l, ±m) modes for BOB first.
         # The rest of the code setup isn't ideal for quadrupole construction so we
@@ -1287,7 +1463,13 @@ class BOB:
             BOB_ts = self.construct_BOB_minf_t0(N)
         else:
             BOB_ts = self.construct_BOB_finite_t0(N)
-        
+
+        # Claude Code: Standalone path has no NR data to phase-align against. See
+        # DESIGN_standalone_init.md "Behavioral changes elsewhere".
+        if self._runtime.is_standalone:
+            logger.info("Standalone mode: skipping NR phase-alignment")
+            return BOB_ts.t, BOB_ts.y
+
         #calculate the mismatch (without a time grid search) and perform a phase alignment
         if("using" in self._wf_config.what_to_create):
             mismatch,best_phi0 = gen_utils.mismatch(BOB_ts,self.strain_data,0,75,use_trapz = True,return_best_phi0 = True)
@@ -1705,6 +1887,146 @@ class BOB:
             logger.debug("news_Ap = %s", self.news_Ap)
             logger.debug("psi4_tp = %s", self.psi4_tp)
             logger.debug("psi4_Ap = %s", self.psi4_Ap)
+
+    def initialize_standalone(self, mf, chif, l=2, m=2, *,
+                              tp=0.0, Ap=1.0,
+                              start_before_tpeak=-75.0, end_after_tpeak=75.0,
+                              resample_dt=0.1,
+                              Omega_0=None, t0=None,
+                              w_r=-1, tau=-1, verbose=False):
+        '''
+        Initialize BOB without any NR data — produce a waveform purely from
+        analytic inputs (final mass, final spin, mode numbers, time grid).
+
+        Capabilities that depend on NR data are unavailable after this call
+        and will raise ``RuntimeError``: ``optimize_Omega0``, ``optimize_t0``,
+        ``optimize_t0_and_Omega0``, the ``fit_*`` drivers, and the quadrupole
+        construction helpers. The ``what_should_BOB_create`` setter accepts
+        only ``"psi4"``, ``"news"``, or ``"strain"``; ``"strain_using_*"`` and
+        the quadrupole modes raise ``ValueError`` because they require NR data.
+
+        Claude Code: See DESIGN_standalone_init.md for the full behavioral spec.
+
+        args:
+            mf (float): Final remnant mass.
+            chif (float or array-like of length 3): Final remnant spin. A
+                scalar is treated as the signed z-component. A 3-vector is
+                checked to have negligible x/y components and reduced to a
+                signed magnitude.
+            l (int): Mode number (default 2).
+            m (int): Mode number (default 2). ``m=0`` is not implemented.
+            tp (float): Peak time of the waveform on the output grid (default
+                0.0). User-supplied since no NR peak detection happens.
+            Ap (float): Peak amplitude (default 1.0 for a unit-amplitude
+                template). User-supplied since no NR amplitude calibration
+                happens.
+            start_before_tpeak (float): Start of the output time grid
+                relative to ``tp`` (default -75.0).
+            end_after_tpeak (float): End of the output time grid relative to
+                ``tp`` (default 75.0).
+            resample_dt (float): Output grid spacing (default 0.1). Smaller
+                values produce much larger arrays — be conservative on
+                memory-constrained machines.
+            Omega_0 (float, optional): Initial angular frequency. If None
+                (the default), the mode-appropriate fit
+                ``gen_utils.Omega_0_fit_{psi4,news,strain}(mf, chif_with_sign)``
+                is applied automatically when ``what_should_BOB_create`` is
+                set, and re-applied on every subsequent mode switch. If a
+                float, the user value is used and the fit is never applied;
+                the override is sticky across mode switches.
+            t0 (float, optional): If provided, switches to the finite-t0
+                build with this initial time (relative to ``tp``). The user
+                must call ``what_should_BOB_create`` afterwards to actually
+                build the waveform; the finite-t0 path is selected
+                automatically because ``minf_t0`` is flipped to False here.
+                If None (the default), the BOB stays on the minf-t0 (t0 = -inf)
+                analytic path.
+            w_r (float): Real part of the QNM angular frequency. Negative
+                values (default -1) trigger a Kerr lookup via ``qnm``.
+            tau (float): QNM damping time. Negative values (default -1)
+                trigger a Kerr lookup.
+            verbose (bool): Emit debug-level info about the resolved physics
+                constants.
+
+        Raises:
+            ValueError: For ``m=0``, malformed ``chif``, or non-zero in-plane
+                spin components.
+        '''
+        if m == 0:
+            raise ValueError("m=0 case not implemented yet")
+        if l != abs(m):
+            logger.warning("Warning! l != abs(m). This is not supported currently. Proceed at your own risk!")
+
+        # chif shape handling matches initialize_with_NR_mode.
+        chif_arr = np.atleast_1d(np.asarray(chif, dtype=float))
+        if chif_arr.size == 1:
+            sign = float(np.sign(chif_arr[0])) or 1.0
+            chif_mag = float(np.abs(chif_arr[0]))
+        elif chif_arr.size == 3:
+            if abs(chif_arr[0]) > 0.01 or abs(chif_arr[1]) > 0.01:
+                raise ValueError("Final spin has non-zero x or y component; not supported")
+            sign = float(np.sign(chif_arr[2])) or 1.0
+            chif_mag = float(np.linalg.norm(chif_arr))
+        else:
+            raise ValueError("chif must be a scalar or length-3 array")
+
+        self.mf = mf
+        self.chif = chif_mag
+        self.chif_with_sign = sign * chif_mag
+        self.l = l
+        self.m = m
+
+        self.Omega_ISCO = np.abs(gen_utils.get_Omega_isco(self.mf, self.chif_with_sign))
+        # Claude Code: see DESIGN_standalone_init.md "Omega_0 defaulting".
+        # If user supplied Omega_0, store and mark override; else install
+        # Omega_ISCO as a placeholder (mirrors initialize_with_NR_mode) which
+        # _apply_standalone_mode overwrites with the mode-appropriate fit when
+        # what_should_BOB_create is set.
+        if Omega_0 is None:
+            self.Omega_0 = self.Omega_ISCO
+            self._runtime.Omega0_user_override = False
+        else:
+            self.Omega_0 = float(Omega_0)
+            self._runtime.Omega0_user_override = True
+
+        if w_r < 0 or tau < 0:
+            logger.info("Calculating Kerr QNM parameters from provided mf and chif")
+            w_r_kerr, tau_kerr = gen_utils.get_qnm(self.mf, self.chif, self.l, np.abs(self.m), n=0, sign=sign)
+            self.w_r = np.abs(w_r_kerr)
+            self.tau = np.abs(tau_kerr)
+        else:
+            logger.info("Using user provided w_r and tau!")
+            self.w_r = np.abs(w_r)
+            self.tau = np.abs(tau)
+        self.Omega_QNM = self.w_r / np.abs(self.m)
+
+        # Standalone-specific runtime state. Setting is_standalone last so any
+        # earlier failure leaves the BOB in a non-standalone (and thus
+        # consistent default) state.
+        self._runtime.tp = tp
+        self._runtime.Ap = Ap
+        self._data.resample_dt = resample_dt
+        self._wf_config.start_before_tpeak = start_before_tpeak
+        self._wf_config.end_after_tpeak = end_after_tpeak
+        if t0 is not None:
+            # Flip to the finite-t0 build. t0 is interpreted relative to tp,
+            # matching set_initial_time's coordinate convention. t0_tp_tau is
+            # also pre-computed here so the user can go straight to
+            # construct_BOB() after setting what_should_BOB_create.
+            self._wf_config.t0 = self._runtime.tp + float(t0)
+            self._wf_config.minf_t0 = False
+            self._runtime.t0_tp_tau = (self._wf_config.t0 - self._runtime.tp) / self.tau
+        self._runtime.is_standalone = True
+
+        if verbose:
+            logger.debug("Standalone init: (l, m) = (%s, %s)", self.l, self.m)
+            logger.debug("Omega_ISCO = %s", self.Omega_ISCO)
+            logger.debug("Omega_QNM = %s", self.Omega_QNM)
+            logger.debug("tau = %s", self.tau)
+            logger.debug("tp = %s, Ap = %s", tp, Ap)
+            logger.debug("Omega_0 = %s (user override = %s)",
+                         self.Omega_0, self._runtime.Omega0_user_override)
+
     def _resolve_lm(self, kwargs):
         '''Return ``(l, m)`` from ``kwargs``, falling back to ``self.l`` / ``self.m``.'''
         l = kwargs.get('l', self.l)
@@ -1717,6 +2039,34 @@ class BOB:
             "was not retained at init. Re-initialize with load_all_modes=True "
             "(memory-heavy — see MEMORY.md) to access non-default (l, m) modes."
         )
+
+    def _require_NR(self, capability):
+        '''
+        Raise ``RuntimeError`` if this BOB instance was initialized via the
+        standalone path (no NR data loaded). Called at the top of methods and
+        setters that read NR timeseries — fit drivers, optimize-flag setters,
+        per-mode data getters, and the quadrupole construction helpers.
+
+        In non-standalone mode this is a no-op.
+
+        Claude Code: See DESIGN_standalone_init.md "Disabled capabilities" for
+        the audit list and the rationale for centralizing the gate here.
+
+        args:
+            capability (str): Human-readable name of the operation being
+                guarded; included in the error message so the user can locate
+                the call site.
+
+        Raises:
+            RuntimeError: If ``self._runtime.is_standalone`` is True.
+        '''
+        if self._runtime.is_standalone:
+            raise RuntimeError(
+                f"{capability} requires NR data; not available after "
+                f"initialize_standalone(). Use initialize_with_sxs_data, "
+                f"initialize_with_cce_data, or initialize_with_NR_mode if you "
+                f"need this capability."
+            )
 
     def get_psi4_data(self,**kwargs):
         '''
@@ -1740,6 +2090,7 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested psi4 mode.
         '''
+        self._require_NR("get_psi4_data")
         l, m = self._resolve_lm(kwargs)
         if self.full_psi4_data is None:
             if (l, m) == (self.l,  self.m):  return self.psi4_data.t,    self.psi4_data.y
@@ -1763,6 +2114,7 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested news mode.
         '''
+        self._require_NR("get_news_data")
         l, m = self._resolve_lm(kwargs)
         if self.full_strain_data is None:
             if (l, m) == (self.l,  self.m):  return self.news_data.t,    self.news_data.y
@@ -1785,6 +2137,7 @@ class BOB:
         returns:
             tuple of (np.ndarray, np.ndarray): (t, y) of the requested strain mode.
         '''
+        self._require_NR("get_strain_data")
         l, m = self._resolve_lm(kwargs)
         if self.full_strain_data is None:
             if (l, m) == (self.l,  self.m):  return self.strain_data.t,    self.strain_data.y

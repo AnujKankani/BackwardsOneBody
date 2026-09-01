@@ -28,3 +28,5 @@ tests/coverage_html/
 #   python tests/fetch_data.py
 # once after cloning to populate this directory. Unit tests don't need it.
 tests/sxs_cache/
+
+dist/

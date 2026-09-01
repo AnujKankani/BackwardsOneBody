@@ -102,6 +102,13 @@ class RuntimeState:
     t_tp_tau: Optional[np.ndarray] = None
     t0_tp_tau: Optional[np.ndarray] = None
     NR_based_on_BOB_ts: Any = None
+    # Claude Code: See DESIGN_standalone_init.md. Set by initialize_standalone;
+    # default False preserves all existing NR-init behavior.
+    is_standalone: bool = False
+    # Claude Code: See DESIGN_standalone_init.md. True when the user passed an
+    # explicit Omega_0 to initialize_standalone, signalling that
+    # _apply_standalone_mode must NOT overwrite it with the mode-appropriate fit.
+    Omega0_user_override: bool = False
 
 
 @dataclass(slots=True)

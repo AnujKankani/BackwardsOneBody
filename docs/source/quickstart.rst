@@ -124,3 +124,35 @@ Integrating the news to obtain the strain is a complex problem separate from the
 
 .. image:: images/BOB_strain_0305.png
 
+
+Standalone mode (no NR data required)
+-------------------------------------
+
+Sometimes you just want a BOB waveform for a remnant whose final mass and spin you already know. ``initialize_standalone`` does exactly that.
+
+.. code-block:: python
+
+    BOB = BOB_utils.BOB()
+    BOB.initialize_standalone(mf=0.95, chif=0.7)
+    BOB.what_should_BOB_create = "news"
+    t, y = BOB.construct_BOB()
+
+The peak time defaults to :math:`t_p = 0`, the peak amplitude defaults to :math:`A_p = 1` , the QNM parameters are computed from Kerr via the ``qnm`` package, and :math:`\Omega_0` is set to the mode-appropriate fit value (``Omega_0_fit_psi4``, ``Omega_0_fit_news``, or ``Omega_0_fit_strain``) at the moment you set ``what_should_BOB_create``. Switching modes refits :math:`\Omega_0` automatically.
+
+You can also pass any of these explicitly:
+
+.. code-block:: python
+
+    BOB.initialize_standalone(
+        mf=0.95, chif=0.7, l=2, m=2,
+        tp=0.0, Ap=1.0,                 # peak time and amplitude
+        start_before_tpeak=-75.0,
+        end_after_tpeak=75.0,
+        resample_dt=0.1,                # output grid spacing (default 0.1)
+        Omega_0=0.123,                  # explicit Omega_0; sticky across mode switches
+        t0=-10.0,                       # finite-t0 build, relative to tp
+        w_r=0.5, tau=12.0,              # non-Kerr QNM (e.g., for "Beyond Kerr" experiments)
+    )
+
+Because no NR data is loaded, several capabilities are unavailable in standalone mode and raise a clear error if you try them.
+
