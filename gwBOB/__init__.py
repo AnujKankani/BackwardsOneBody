@@ -9,7 +9,7 @@ from . import BOB_terms_jax
 from . import ascii_funcs
 
 __all__ = ["BOB_utils", "gen_utils", "convert_to_strain_using_series", "mismatch_utils", "BOB_terms", "BOB_terms_jax", "ascii_funcs"]
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # Standard library practice: gwBOB is silent by default so it never
 # pollutes output in scripts or notebooks that don't opt in.
