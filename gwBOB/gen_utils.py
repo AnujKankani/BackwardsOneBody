@@ -627,19 +627,42 @@ def estimate_parameters(BOB,
                 mismatch = np.inf
                 logger.warning("Search failed for %s: %s", x, e)
             return mismatch
+        # Capture the Omega_0 bound ONCE, before any optimizing happens, and only
+        # when a branch below actually uses it. The objective rewrites
+        # BOB.Omega_QNM on every trial, so re-reading it for the second stage (as
+        # this used to) handed the refinement a bound derived from whatever point
+        # the wide search happened to probe last: a different box from the one the
+        # wide search itself used, and a different one on every run, since
+        # differential_evolution is stochastic. Scipy then clips the stage-1 seed
+        # out.x into the narrowed box with only a RuntimeWarning.
+        #
+        # The caller's Omega_QNM is a deterministic proxy, not the physically
+        # exact ceiling: soundness needs Omega_0 < Omega_QNM(mf_trial, chif_trial),
+        # which varies ~4x across the search box and cannot be expressed as a
+        # fixed bound. Enforcing that per trial is a separate change.
+        omega0_bound = None
+        if(include_Omega0_as_parameter):
+            if(BOB.Omega_QNM is None):
+                raise ValueError(
+                    "include_Omega0_as_parameter needs BOB.Omega_QNM, which is "
+                    "unset. Initialize the BOB first (initialize_with_sxs_data, "
+                    "initialize_with_cce_data, initialize_with_NR_mode or "
+                    "initialize_standalone), or set BOB.Omega_QNM yourself."
+                )
+            omega0_bound = (0+1e-10,BOB.Omega_QNM-1e-10)
         #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
         if(include_2Omega0_as_parameters):
             if(start_with_wide_search):
-                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)])
-                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), omega0_bound,omega0_bound])
+                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), omega0_bound,omega0_bound],method='Nelder-Mead')
             else:
-                out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+                out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), omega0_bound,omega0_bound],method='Nelder-Mead')
         elif(include_Omega0_as_parameter):
             if(start_with_wide_search):
-                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)])
-                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), omega0_bound])
+                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), omega0_bound],method='Nelder-Mead')
             else:
-                out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+                out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), omega0_bound],method='Nelder-Mead')
         else:
             if(start_with_wide_search):
                 out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
