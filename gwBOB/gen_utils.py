@@ -1,3 +1,4 @@
+import copy
 import logging
 import numpy as np
 from kuibit.timeseries import TimeSeries as kuibit_ts
@@ -506,143 +507,149 @@ def estimate_parameters(BOB,
         raise ValueError("force_Omega0_optimization and include_2Omega0_as_parameters cannot both be True")
     if(include_2Omega0_as_parameters is True and include_Omega0_as_parameter is False):
         raise ValueError("include_2Omega0_as_parameters is True and include_Omega0_as_parameter is False")
-    #store BOB parameters
-    old_mf = BOB.mf
-    old_chif = BOB.chif
-    old_chif_with_sign = BOB.chif_with_sign
-    old_Omega0 = BOB.Omega_0
-    #we use a scipy optimizer to find the best mass and spin
-    # Dispatch on the quantity being fitted. The Omega_0 fits are the module-level
-    # Omega_0_fit_* helpers rather than coefficients repeated here: the psi4 and
-    # news coefficients used to be inlined at this point, which left "strain" with
-    # no branch at all, so when the objective below needed them it raised a bare
-    # ``NameError: cannot access free variable 'A'`` on the first evaluation.
-    #
-    # The fit is only consulted when force_Omega0_optimization is False. With it
-    # True the objective optimizes Omega_0 directly and never touches the fit, so
-    # modes that have no entry here (strain_using_*, the quadrupole modes — they
-    # do have a canonical fit in BOB_utils._SIMPLE_MODES, just not one usable at
-    # this point) must still be allowed through. Those calls take NR_ts from the
-    # NR_data argument just below; without it NR_ts stays None and the objective's
-    # own try/except turns the failure into np.inf, exactly as the unbound name
-    # did before.
-    omega0_fits = {
-        "psi4":   (Omega_0_fit_psi4,   "psi4_data"),
-        "news":   (Omega_0_fit_news,   "news_data"),
-        "strain": (Omega_0_fit_strain, "strain_data"),
-    }
-    Omega_0_fit = None
-    NR_ts = None
-    if(BOB.what_should_BOB_create in omega0_fits):
-        Omega_0_fit,NR_attr = omega0_fits[BOB.what_should_BOB_create]
-        NR_ts = getattr(BOB,NR_attr)
-    elif(not force_Omega0_optimization):
-        raise ValueError(
-            f"estimate_parameters needs an Omega_0 fit for "
-            f"{BOB.what_should_BOB_create!r}, and one is only defined for "
-            f"{sorted(omega0_fits)}. Either pick one of those, or pass "
-            "force_Omega0_optimization=True to optimize Omega_0 directly."
-        )
+    # Snapshot the whole state before optimizing. The objective below mutates the
+    # BOB it is handed — mf, chif, Omega_0, Omega_QNM, tau, t_tp_tau, Phi_0,
+    # fit_failed, the fit window and optimize_Omega0 — and it used to restore only
+    # the first four. That left the remnant mass and spin at the caller's values
+    # while Omega_QNM and tau kept whatever the last trial wrote, i.e. a BOB
+    # describing a black hole that does not exist, with no error raised. Snapshot
+    # the state containers instead of enumerating attributes, so this cannot drift
+    # out of sync again, and restore in a finally so a raising optimizer cannot
+    # leave the caller's object corrupted either. copy.copy is shallow: the arrays
+    # are shared, not duplicated, so this is cheap.
+    _state_attrs = ("_remnant","_data","_wf_config","_fit_config","_runtime","_fit_result")
+    _saved_state = {name: copy.copy(getattr(BOB,name)) for name in _state_attrs}
+    try:
+        #we use a scipy optimizer to find the best mass and spin
+        # Dispatch on the quantity being fitted. The Omega_0 fits are the module-level
+        # Omega_0_fit_* helpers rather than coefficients repeated here: the psi4 and
+        # news coefficients used to be inlined at this point, which left "strain" with
+        # no branch at all, so when the objective below needed them it raised a bare
+        # ``NameError: cannot access free variable 'A'`` on the first evaluation.
+        #
+        # The fit is only consulted when force_Omega0_optimization is False. With it
+        # True the objective optimizes Omega_0 directly and never touches the fit, so
+        # modes that have no entry here (strain_using_*, the quadrupole modes — they
+        # do have a canonical fit in BOB_utils._SIMPLE_MODES, just not one usable at
+        # this point) must still be allowed through. Those calls take NR_ts from the
+        # NR_data argument just below; without it NR_ts stays None and the objective's
+        # own try/except turns the failure into np.inf, exactly as the unbound name
+        # did before.
+        omega0_fits = {
+            "psi4":   (Omega_0_fit_psi4,   "psi4_data"),
+            "news":   (Omega_0_fit_news,   "news_data"),
+            "strain": (Omega_0_fit_strain, "strain_data"),
+        }
+        Omega_0_fit = None
+        NR_ts = None
+        if(BOB.what_should_BOB_create in omega0_fits):
+            Omega_0_fit,NR_attr = omega0_fits[BOB.what_should_BOB_create]
+            NR_ts = getattr(BOB,NR_attr)
+        elif(not force_Omega0_optimization):
+            raise ValueError(
+                f"estimate_parameters needs an Omega_0 fit for "
+                f"{BOB.what_should_BOB_create!r}, and one is only defined for "
+                f"{sorted(omega0_fits)}. Either pick one of those, or pass "
+                "force_Omega0_optimization=True to optimize Omega_0 directly."
+            )
         
-    if(NR_data is not None):
-        NR_ts = NR_data
+        if(NR_data is not None):
+            NR_ts = NR_data
     
-    def create_guess(x):   
-        '''
-        Objective function: construct BOB for candidate parameters and return mismatch.
+        def create_guess(x):   
+            '''
+            Objective function: construct BOB for candidate parameters and return mismatch.
 
-        Parameters
-        ----------
-        x : numpy.ndarray
-            Parameter vector with order depending on options.
+            Parameters
+            ----------
+            x : numpy.ndarray
+                Parameter vector with order depending on options.
 
-        Returns
-        -------
-        float
-            Mismatch value (lower is better).
-        '''
-        #print("trying",x)
-        mf = x[0]
-        chif = x[1]
-        if(include_Omega0_as_parameter):
-            lm_Omega0_guess = x[2]
-        if(include_2Omega0_as_parameters):
-            lmm_Omega0_guess = x[3]
-        BOB.fit_failed = False
-        BOB.mf = mf
-        BOB.chif_with_sign = chif
-        BOB.chif = np.abs(chif)
-        if(force_Omega0_optimization):
-            BOB.optimize_Omega0 = True
-            BOB.start_fit_before_tpeak = t0
-            BOB.end_fit_after_tpeak = tf
-        else:
-            BOB.optimize_Omega0 = False
-            BOB.Omega_0 = Omega_0_fit(BOB.mf,BOB.chif_with_sign)
-
-        if(include_Omega0_as_parameter):
-            #keep this for ordinary (l,m) &(l,-m) modes
-            BOB.Omega_0 = lm_Omega0_guess
-        w_r,tau = get_qnm(BOB.mf, BOB.chif, BOB.l, np.abs(BOB.m), sign=np.sign(BOB.chif_with_sign))
-        BOB.Omega_QNM = w_r/np.abs(BOB.m)
-        BOB.Phi_0 = 0
-        BOB.tau = tau
-        BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
-        try:
-            if(make_current_naturally is False and make_mass_naturally is False):
-                t,y = BOB.construct_BOB()
-            elif(make_current_naturally):
-                if(include_2Omega0_as_parameters):
-                    t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess,lmm_Omega0=lmm_Omega0_guess)
-                elif(include_Omega0_as_parameter):
-                    t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess)
-                else:
-                    t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first)
-            elif(make_mass_naturally):
-                if(include_2Omega0_as_parameters):
-                    t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess,lmm_Omega0=lmm_Omega0_guess)
-                elif(include_Omega0_as_parameter):  
-                    t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess)
-                else:
-                    t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first)
+            Returns
+            -------
+            float
+                Mismatch value (lower is better).
+            '''
+            #print("trying",x)
+            mf = x[0]
+            chif = x[1]
+            if(include_Omega0_as_parameter):
+                lm_Omega0_guess = x[2]
+            if(include_2Omega0_as_parameters):
+                lmm_Omega0_guess = x[3]
+            BOB.fit_failed = False
+            BOB.mf = mf
+            BOB.chif_with_sign = chif
+            BOB.chif = np.abs(chif)
+            if(force_Omega0_optimization):
+                BOB.optimize_Omega0 = True
+                BOB.start_fit_before_tpeak = t0
+                BOB.end_fit_after_tpeak = tf
             else:
-                raise ValueError("Invalid options for make_current_naturally and make_mass_naturally")
-            BOB_ts = kuibit_ts(t,y)
-            if(BOB.fit_failed):
-                logger.warning("fit failed for %s", x)
+                BOB.optimize_Omega0 = False
+                BOB.Omega_0 = Omega_0_fit(BOB.mf,BOB.chif_with_sign)
+
+            if(include_Omega0_as_parameter):
+                #keep this for ordinary (l,m) &(l,-m) modes
+                BOB.Omega_0 = lm_Omega0_guess
+            w_r,tau = get_qnm(BOB.mf, BOB.chif, BOB.l, np.abs(BOB.m), sign=np.sign(BOB.chif_with_sign))
+            BOB.Omega_QNM = w_r/np.abs(BOB.m)
+            BOB.Phi_0 = 0
+            BOB.tau = tau
+            BOB.t_tp_tau = (BOB.t - BOB.tp)/BOB.tau
+            try:
+                if(make_current_naturally is False and make_mass_naturally is False):
+                    t,y = BOB.construct_BOB()
+                elif(make_current_naturally):
+                    if(include_2Omega0_as_parameters):
+                        t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess,lmm_Omega0=lmm_Omega0_guess)
+                    elif(include_Omega0_as_parameter):
+                        t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess)
+                    else:
+                        t,y = BOB.construct_BOB_current_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first)
+                elif(make_mass_naturally):
+                    if(include_2Omega0_as_parameters):
+                        t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess,lmm_Omega0=lmm_Omega0_guess)
+                    elif(include_Omega0_as_parameter):  
+                        t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first,lm_Omega0=lm_Omega0_guess)
+                    else:
+                        t,y = BOB.construct_BOB_mass_quadrupole_naturally(perform_phase_alignment_first=perform_phase_alignment_first)
+                else:
+                    raise ValueError("Invalid options for make_current_naturally and make_mass_naturally")
+                BOB_ts = kuibit_ts(t,y)
+                if(BOB.fit_failed):
+                    logger.warning("fit failed for %s", x)
+                    mismatch = np.inf
+                else:
+                    #print("fit worked for ",x)
+                    mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf,t_shift_range=t_shift_range)
+            except Exception as e:
                 mismatch = np.inf
+                logger.warning("Search failed for %s: %s", x, e)
+            return mismatch
+        #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
+        if(include_2Omega0_as_parameters):
+            if(start_with_wide_search):
+                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)])
+                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
             else:
-                #print("fit worked for ",x)
-                mismatch = time_grid_mismatch(BOB_ts,NR_ts,t0,tf,t_shift_range=t_shift_range)
-        except Exception as e:
-            mismatch = np.inf
-            logger.warning("Search failed for %s: %s", x, e)
-        return mismatch
-    #we use nelder-mead because the mismatch can return infinity, causing problems with derivatives
-    if(include_2Omega0_as_parameters):
-        if(start_with_wide_search):
-            out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)])
-            out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+                out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+        elif(include_Omega0_as_parameter):
+            if(start_with_wide_search):
+                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)])
+                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
+            else:
+                out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
         else:
-            out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10),(0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
-    elif(include_Omega0_as_parameter):
-        if(start_with_wide_search):
-            out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)])
-            out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
-        else:
-            out = minimize(create_guess,(mf_guess,chif_guess,Omega0_guess),bounds = [(0.8, 0.999), (-0.999,0.999), (0+1e-10,BOB.Omega_QNM-1e-10)],method='Nelder-Mead')
-    else:
-        if(start_with_wide_search):
-            out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
-            out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
-        else:
-            out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
-    #reset parameters in BOB
-    BOB.mf = old_mf
-    BOB.chif = old_chif
-    BOB.chif_with_sign = old_chif_with_sign
-    BOB.Omega_0 = old_Omega0
-    return out
+            if(start_with_wide_search):
+                out = differential_evolution(create_guess,bounds = [(0.8, 0.999), (-0.999,0.999)])
+                out = minimize(create_guess,out.x,bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+            else:
+                out = minimize(create_guess,(mf_guess,chif_guess),bounds = [(0.8, 0.999), (-0.999,0.999)],method='Nelder-Mead')
+        return out
+    finally:
+        for _name,_snap in _saved_state.items():
+            setattr(BOB,_name,_snap)
 
 def create_QNM_comparison(t,y,NR_data,mov_time,tf,mf,chif,n_qnms=7):
     '''
