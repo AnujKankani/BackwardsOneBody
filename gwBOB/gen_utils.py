@@ -512,18 +512,37 @@ def estimate_parameters(BOB,
     old_chif_with_sign = BOB.chif_with_sign
     old_Omega0 = BOB.Omega_0
     #we use a scipy optimizer to find the best mass and spin
-    if(BOB.what_should_BOB_create=="psi4"):
-        #Psi4
-        A = 1.42968337
-        B = 0.08424419
-        C = -1.22848524
-        NR_ts = BOB.psi4_data
-    if(BOB.what_should_BOB_create=="news"):
-        #News
-        A = 0.33568227
-        B = 0.03450997
-        C = -0.18763176  
-        NR_ts = BOB.news_data
+    # Dispatch on the quantity being fitted. The Omega_0 fits are the module-level
+    # Omega_0_fit_* helpers rather than coefficients repeated here: the psi4 and
+    # news coefficients used to be inlined at this point, which left "strain" with
+    # no branch at all, so when the objective below needed them it raised a bare
+    # ``NameError: cannot access free variable 'A'`` on the first evaluation.
+    #
+    # The fit is only consulted when force_Omega0_optimization is False. With it
+    # True the objective optimizes Omega_0 directly and never touches the fit, so
+    # modes that have no entry here (strain_using_*, the quadrupole modes — they
+    # do have a canonical fit in BOB_utils._SIMPLE_MODES, just not one usable at
+    # this point) must still be allowed through. Those calls take NR_ts from the
+    # NR_data argument just below; without it NR_ts stays None and the objective's
+    # own try/except turns the failure into np.inf, exactly as the unbound name
+    # did before.
+    omega0_fits = {
+        "psi4":   (Omega_0_fit_psi4,   "psi4_data"),
+        "news":   (Omega_0_fit_news,   "news_data"),
+        "strain": (Omega_0_fit_strain, "strain_data"),
+    }
+    Omega_0_fit = None
+    NR_ts = None
+    if(BOB.what_should_BOB_create in omega0_fits):
+        Omega_0_fit,NR_attr = omega0_fits[BOB.what_should_BOB_create]
+        NR_ts = getattr(BOB,NR_attr)
+    elif(not force_Omega0_optimization):
+        raise ValueError(
+            f"estimate_parameters needs an Omega_0 fit for "
+            f"{BOB.what_should_BOB_create!r}, and one is only defined for "
+            f"{sorted(omega0_fits)}. Either pick one of those, or pass "
+            "force_Omega0_optimization=True to optimize Omega_0 directly."
+        )
         
     if(NR_data is not None):
         NR_ts = NR_data
@@ -559,7 +578,7 @@ def estimate_parameters(BOB,
             BOB.end_fit_after_tpeak = tf
         else:
             BOB.optimize_Omega0 = False
-            BOB.Omega_0 = A*BOB.mf + B*BOB.chif_with_sign + C 
+            BOB.Omega_0 = Omega_0_fit(BOB.mf,BOB.chif_with_sign)
 
         if(include_Omega0_as_parameter):
             #keep this for ordinary (l,m) &(l,-m) modes
