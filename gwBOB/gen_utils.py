@@ -299,7 +299,9 @@ def mismatch(model_data,NR_data,t0,tf,use_trapz=False,resample_NR_to_model=True,
     Returns
     -------
     float or tuple[float, float]
-        Mismatch in [0, 1]. If ``return_best_phi0`` is True, also returns ``best_phi0``.
+        Mismatch in [0, 1]. If ``return_best_phi0`` is True, also returns
+        ``best_phi0``, the phase that aligns the model: the aligned model is
+        ``model * exp(-1j*best_phi0)``.
     '''
     #simple mismatch function
     if (not(np.array_equal(model_data.t,NR_data.t))):
@@ -353,6 +355,11 @@ def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
     '''
     Search over time shifts to minimize mismatch between model and reference.
 
+    The search runs in two passes: a scan over ``t_shift_range``, then a finer
+    scan over a +/-0.2 window centred on the best shift from the first pass.
+    Note that the refinement window is always applied, so the returned shift
+    can lie up to 0.2 outside ``t_shift_range``.
+
     Parameters
     ----------
     model : Kuibit TimeSeries
@@ -366,65 +373,73 @@ def time_grid_mismatch(model, NR_data, t0, tf, resample_NR_to_model=True,
     resample_NR_to_model : bool, optional
         If True, resample NR data onto model time grid, by default True.
     t_shift_range : numpy.ndarray, optional
-        Range of time shifts to search, by default ``np.arange(-10, 10, 0.1)``.
+        Range of time shifts for the first pass, by default ``np.arange(-10, 10, 0.1)``.
     return_best_t_and_phi0 : bool, optional
         If True, also return the best time shift and phase shift, by default False.
 
     Returns
     -------
     float or tuple
-        Minimum mismatch, and optionally best ``t_shift`` and ``phi0``.
+        Minimum mismatch, and optionally ``(min_mismatch, best_t_shift, best_phi0)``.
+        The three are always consistent with one another: shifting ``model`` by
+        ``best_t_shift`` and rotating it by ``exp(-1j*best_phi0)`` reproduces
+        ``min_mismatch``. Note the sign: the aligned model is
+        ``model * exp(-1j*best_phi0)``, matching ``mismatch(..., return_best_phi0=True)``.
     '''
     if(t_shift_range is None):
         t_shift_range = np.arange(-10,10,0.1)
-    min_mismatch = np.inf
-    def mismatch_search(t_shift_range,min_mismatch):
+
+    def scan(shifts):
         '''
-        Helper to scan a range of time shifts and track the best values.
+        Scan a range of time shifts and return the best triple found.
+
+        Each scan starts from scratch and returns ``(mismatch, t_shift, phi0)``
+        as a unit, so the mismatch can never be reported alongside the shift or
+        phase of a different candidate. An earlier implementation threaded a
+        running minimum between the two passes while re-initialising the shift
+        and phase, which silently returned ``t_shift = phi0 = 0`` whenever the
+        second pass failed to strictly improve on the first.
 
         Parameters
         ----------
-        t_shift_range : numpy.ndarray
+        shifts : numpy.ndarray
             Candidate time shifts to test.
-        min_mismatch : float
-            Current best mismatch (updated in place).
 
         Returns
         -------
         tuple
-            Either ``(min_mismatch, best_t_shift)`` or ``(min_mismatch, best_t_shift, best_phi0)``.
+            ``(mismatch, t_shift, phi0)`` for the best candidate, or
+            ``(np.inf, 0.0, 0.0)`` if no candidate was evaluated.
         '''
-
-        best_t_shift = 0
-        best_phi0 = 0 
-        for t_shift in t_shift_range:
+        best = (np.inf, 0.0, 0.0)
+        for t_shift in shifts:
             model_ = kuibit_ts(model.t + t_shift,model.y)
-            if(return_best_t_and_phi0):
-                mismatch_val,phi0 = mismatch(model_,NR_data,t0,tf,use_trapz=True,resample_NR_to_model=resample_NR_to_model,return_best_phi0=True)
-            else:
-                mismatch_val = mismatch(model_,NR_data,t0,tf,use_trapz=True,resample_NR_to_model=resample_NR_to_model)
-            if mismatch_val < min_mismatch:
-                min_mismatch = mismatch_val
-                best_t_shift = t_shift
-                if(return_best_t_and_phi0):
-                    best_phi0 = phi0
+            mismatch_val,phi0 = mismatch(model_,NR_data,t0,tf,use_trapz=True,
+                                         resample_NR_to_model=resample_NR_to_model,
+                                         return_best_phi0=True)
+            if mismatch_val < best[0]:
+                best = (mismatch_val,t_shift,phi0)
+        return best
 
-        if(return_best_t_and_phi0):
-            return min_mismatch,best_t_shift,best_phi0
-        return min_mismatch,best_t_shift
-    
-    if(return_best_t_and_phi0):
-        min_mismatch,best_t_shift,best_phi0 = mismatch_search(t_shift_range,min_mismatch)
-    else:
-        min_mismatch,best_t_shift = mismatch_search(t_shift_range,min_mismatch)
+    coarse_best = scan(t_shift_range)
+    # linspace, not arange: arange(b-0.2, b+0.2, 0.01) yields 40 points for 80 of
+    # the 200 default coarse winners (dropping the +0.2 side) and lands within
+    # ~1e-14 of b rather than on it. linspace is symmetric and reproduces b to
+    # within 1 ULP (exactly for 198 of those 200). Correctness does not rest on
+    # that, though: the explicit comparison below keeps the coarse result unless
+    # the refinement strictly improves on it.
+    fine_best = scan(np.linspace(coarse_best[1]-0.2,coarse_best[1]+0.2,41))
 
-    t_shift_range = np.arange(best_t_shift-0.2,best_t_shift+0.2,0.01)
+    # Keep the coarse result unless the refinement strictly improves on it.
+    min_mismatch,best_t_shift,best_phi0 = (
+        fine_best if fine_best[0] < coarse_best[0] else coarse_best
+    )
+
     if(return_best_t_and_phi0):
-        min_mismatch,best_t_shift,best_phi0 = mismatch_search(t_shift_range,min_mismatch)
         return min_mismatch,best_t_shift,best_phi0
-    else:
-        min_mismatch,best_t_shift = mismatch_search(t_shift_range,min_mismatch)
-        return min_mismatch
+    return min_mismatch
+
+
 def estimate_parameters(BOB,
                         mf_guess=0.95,
                         chif_guess=0.5,
