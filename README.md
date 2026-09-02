@@ -66,8 +66,14 @@ The **Backwards One Body (BOB) model** is an analytical and physically motivated
 ## Install via pip
 
 ```bash
+python -m pip install --upgrade pip   # see note below
 pip install gwBOB
 ```
+
+> **Upgrade pip first.** Older pip resolvers (roughly pip < 24) can backtrack
+> onto a source release of `h5py`, which then tries to build an old NumPy from
+> C source and fails with compiler errors that look like a gwBOB problem but
+> aren't. Installing with a current pip resolves everything from wheels.
 
 
 ## Running the Tests

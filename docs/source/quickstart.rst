@@ -7,7 +7,16 @@ First we install BOB.
 
 .. code-block:: bash
 
+   python -m pip install --upgrade pip
    pip install gwBOB
+
+
+.. note::
+
+   Upgrade pip before installing. Older pip resolvers (roughly pip < 24)
+   can backtrack onto a source release of ``h5py``, which then fails while
+   building an old NumPy from C source. A current pip installs everything
+   from wheels.
 
 Before we do anything else, let's turn on gwBOB's output so we can see progress messages as we go.
 
