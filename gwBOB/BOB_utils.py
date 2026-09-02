@@ -1,5 +1,6 @@
 # pyright: reportUnreachable=false
 #construct all BOB related quantities here
+import copy
 import logging
 import socket
 import time
@@ -1231,97 +1232,109 @@ class BOB:
         NR_lm = self.data.y
 
         #save settings to restore at the end
-        old_ts = self.t
-        old_m = self.m
+        # The (l,-m) excursion below rewrites a lot of state on self: m, Omega_0,
+        # data, tp, Ap, t and t_tp_tau. Snapshot the containers that hold them and
+        # restore in a finally, rather than resetting a hand-picked few at the end.
+        # The old code restored only t and m, and only on the success path, so a
+        # failure left self.data pointing at the (l,-m) series -- and callers that
+        # swallow exceptions (gen_utils.estimate_parameters turns them into np.inf)
+        # then aligned every later waveform against the wrong mode, silently.
+        # Deliberately NOT snapshotted: _fit_result (create_guess reads fit_failed
+        # right after this returns) and _data (mass/current_quadrupole_data are the
+        # intended outputs and must survive). copy.copy is shallow -- arrays are
+        # shared, not duplicated.
+        _saved_state = {n: copy.copy(getattr(self,n)) for n in ("_runtime","_remnant")}
+        try:
         
-        #construct (l,-m) mode
-        self.m = -self.m
-        if(self._wf_config.what_to_create=="psi4"):
-            self.data = self.psi4_mm_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data)
-            self.Ap = Ap
-            self.tp = tp
-        elif(self._wf_config.what_to_create=="news"):
-            self.data = self.news_mm_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data)
-            self.Ap = Ap
-            self.tp = tp
-        elif(self._wf_config.what_to_create=="strain"):
-            self.data = self.strain_mm_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data)
-            self.Ap = Ap
-            self.tp = tp
-        else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+            #construct (l,-m) mode
+            self.m = -self.m
+            if(self._wf_config.what_to_create=="psi4"):
+                self.data = self.psi4_mm_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            elif(self._wf_config.what_to_create=="news"):
+                self.data = self.news_mm_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            elif(self._wf_config.what_to_create=="strain"):
+                self.data = self.strain_mm_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            else:
+                raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        self.t = np.arange(self.tp + self._wf_config.start_before_tpeak,self.tp + self._wf_config.end_after_tpeak,self.resample_dt)
-        self.t_tp_tau = (self.t - self.tp)/self.tau
+            self.t = np.arange(self.tp + self._wf_config.start_before_tpeak,self.tp + self._wf_config.end_after_tpeak,self.resample_dt)
+            self.t_tp_tau = (self.t - self.tp)/self.tau
         
-        if(lmm_Omega0 is not None):
-            self.Omega_0 = lmm_Omega0
-        t_lmm,y_lmm = self.construct_BOB()
-        #create a common timeseries for both modes
-        if(t_lm[0]>t_lmm[0]): 
-            #lmm starts before lm so we want to start with lm and end with lmm
-            #union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
-            union_ts = np.arange(t_lm[0],t_lmm[-1],self.resample_dt)
-        else:
-            #lm starts before lmm so we want to start with lmm and end with lm
-            #union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
-            union_ts = np.arange(t_lmm[0],t_lm[-1],self.resample_dt)
+            if(lmm_Omega0 is not None):
+                self.Omega_0 = lmm_Omega0
+            t_lmm,y_lmm = self.construct_BOB()
+            #create a common timeseries for both modes
+            if(t_lm[0]>t_lmm[0]): 
+                #lmm starts before lm so we want to start with lm and end with lmm
+                #union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+                union_ts = np.arange(t_lm[0],t_lmm[-1],self.resample_dt)
+            else:
+                #lm starts before lmm so we want to start with lmm and end with lm
+                #union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+                union_ts = np.arange(t_lmm[0],t_lm[-1],self.resample_dt)
 
-        #resample the BOB timeseries to the common timeseries
-        self.t = union_ts
-        BOB_lm = kuibit_ts(t_lm,y_lm).resampled(union_ts)
-        BOB_lmm = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
+            #resample the BOB timeseries to the common timeseries
+            self.t = union_ts
+            BOB_lm = kuibit_ts(t_lm,y_lm).resampled(union_ts)
+            BOB_lmm = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
         
-        NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
-        NR_lmm = self.data.resampled(union_ts)
+            NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
+            NR_lmm = self.data.resampled(union_ts)
 
 
-        current_wave = BOB_lm.y - (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
-        current_wave = 1j*current_wave/np.sqrt(2)
+            current_wave = BOB_lm.y - (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
+            current_wave = 1j*current_wave/np.sqrt(2)
 
-        NR_current = NR_lm.y - (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
-        NR_current = 1j*NR_current/np.sqrt(2)
+            NR_current = NR_lm.y - (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
+            NR_current = 1j*NR_current/np.sqrt(2)
 
         
-        self.current_quadrupole_data = kuibit_ts(union_ts,NR_current)
+            self.current_quadrupole_data = kuibit_ts(union_ts,NR_current)
 
 
 
 
-        temp_ts = kuibit_ts(union_ts,current_wave)
-        t_peak = temp_ts.time_at_maximum()
-        BOB_phase = gen_utils.get_phase(temp_ts)
-        NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_current))
+            temp_ts = kuibit_ts(union_ts,current_wave)
+            t_peak = temp_ts.time_at_maximum()
+            BOB_phase = gen_utils.get_phase(temp_ts)
+            NR_phase = gen_utils.get_phase(kuibit_ts(union_ts,NR_current))
 
-        #restore (l,m) and (l,-m) as automatic data
-        if(self._wf_config.what_to_create=="psi4"):
-            self.data = self.psi4_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data)
-            self.Ap = Ap
-            self.tp = tp
-        elif(self._wf_config.what_to_create=="news"):
-            self.data = self.news_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data)
-            self.Ap = Ap
-            self.tp = tp
-        elif(self._wf_config.what_to_create=="strain"):
-            self.data = self.strain_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data)
-            self.Ap = Ap
-            self.tp = tp
-        else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
-        #revert back to the timeseries for the (l,m) mode
-        self.t = old_ts
-        self.m = old_m
-        self.t_tp_tau = (self.t - self.tp)/self.tau
-        self.Phi_0 = 0
+            #restore (l,m) and (l,-m) as automatic data
+            if(self._wf_config.what_to_create=="psi4"):
+                self.data = self.psi4_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            elif(self._wf_config.what_to_create=="news"):
+                self.data = self.news_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            elif(self._wf_config.what_to_create=="strain"):
+                self.data = self.strain_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            else:
+                raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+            #revert back to the timeseries for the (l,m) mode
+            self.t_tp_tau = (self.t - self.tp)/self.tau
+            self.Phi_0 = 0
         
-        BOB_current_wave = current_wave
-        return union_ts,BOB_current_wave
+            BOB_current_wave = current_wave
+            return union_ts,BOB_current_wave
+        finally:
+            for _name,_snap in _saved_state.items():
+                setattr(self,_name,_snap)
     def construct_BOB_mass_quadrupole_naturally(self,perform_phase_alignment_first = False,lm_Omega0 = None,lmm_Omega0 = None):
         '''
         Construct the mass quadrupole wave
@@ -1360,86 +1373,81 @@ class BOB:
         NR_lm = self.data.y
 
         #save settings to restore at the end
-        old_ts = self.t
-        old_m = self.m
+        # The (l,-m) excursion below rewrites a lot of state on self: m, Omega_0,
+        # data, tp, Ap, t and t_tp_tau. Snapshot the containers that hold them and
+        # restore in a finally, rather than resetting a hand-picked few at the end.
+        # The old code restored only t and m, and only on the success path, so a
+        # failure left self.data pointing at the (l,-m) series -- and callers that
+        # swallow exceptions (gen_utils.estimate_parameters turns them into np.inf)
+        # then aligned every later waveform against the wrong mode, silently.
+        # Deliberately NOT snapshotted: _fit_result (create_guess reads fit_failed
+        # right after this returns) and _data (mass/current_quadrupole_data are the
+        # intended outputs and must survive). copy.copy is shallow -- arrays are
+        # shared, not duplicated.
+        _saved_state = {n: copy.copy(getattr(self,n)) for n in ("_runtime","_remnant")}
+        try:
 
         
-        #construct (l,-m) mode
-        self.m = -self.m
-        if(self._wf_config.what_to_create=="psi4"):
-            self.data = self.psi4_mm_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data)
-            self.Ap = Ap
-            self.tp = tp
-        elif(self._wf_config.what_to_create=="news"):
-            self.data = self.news_mm_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data)
-            self.Ap = Ap
-            self.tp = tp
-        elif(self._wf_config.what_to_create=="strain"):
-            self.data = self.strain_mm_data
-            tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data)
-            self.Ap = Ap
-            self.tp = tp
-        else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
+            #construct (l,-m) mode
+            self.m = -self.m
+            if(self._wf_config.what_to_create=="psi4"):
+                self.data = self.psi4_mm_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.psi4_mm_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            elif(self._wf_config.what_to_create=="news"):
+                self.data = self.news_mm_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.news_mm_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            elif(self._wf_config.what_to_create=="strain"):
+                self.data = self.strain_mm_data
+                tp,Ap = gen_utils.get_tp_Ap_from_spline(self.strain_mm_data.abs())
+                self.Ap = Ap
+                self.tp = tp
+            else:
+                raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
 
-        self.t = np.arange(self.tp + self._wf_config.start_before_tpeak,self.tp + self._wf_config.end_after_tpeak,self.resample_dt)
-        self.t_tp_tau = (self.t - self.tp)/self.tau
+            self.t = np.arange(self.tp + self._wf_config.start_before_tpeak,self.tp + self._wf_config.end_after_tpeak,self.resample_dt)
+            self.t_tp_tau = (self.t - self.tp)/self.tau
         
-        if(lmm_Omega0 is not None):
-            self.Omega_0 = lmm_Omega0
-        t_lmm,y_lmm = self.construct_BOB()
-        #create a common timeseries for both modes
-        if(t_lm[0]>t_lmm[0]): 
-            #lmm starts before lm so we want to start with lm and end with lmm
-            #union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
-            union_ts = np.arange(t_lm[0],t_lmm[-1],self.resample_dt)
-        else:
-            #lm starts before lmm so we want to start with lmm and end with lm
-            #union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
-            union_ts = np.arange(t_lmm[0],t_lm[-1],self.resample_dt)
+            if(lmm_Omega0 is not None):
+                self.Omega_0 = lmm_Omega0
+            t_lmm,y_lmm = self.construct_BOB()
+            #create a common timeseries for both modes
+            if(t_lm[0]>t_lmm[0]): 
+                #lmm starts before lm so we want to start with lm and end with lmm
+                #union_ts = np.linspace(t_lm[0],t_lmm[-1],int((t_lmm[-1]-t_lm[0])*10+1))
+                union_ts = np.arange(t_lm[0],t_lmm[-1],self.resample_dt)
+            else:
+                #lm starts before lmm so we want to start with lmm and end with lm
+                #union_ts = np.linspace(t_lmm[0],t_lm[-1],int((t_lm[-1]-t_lmm[0])*10+1))
+                union_ts = np.arange(t_lmm[0],t_lm[-1],self.resample_dt)
 
-        #resample the BOB timeseries to the common timeseries
-        self.t = union_ts
-        BOB_lm = kuibit_ts(t_lm,y_lm).resampled(union_ts)
-        BOB_lmm = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
+            #resample the BOB timeseries to the common timeseries
+            self.t = union_ts
+            BOB_lm = kuibit_ts(t_lm,y_lm).resampled(union_ts)
+            BOB_lmm = kuibit_ts(t_lmm,y_lmm).resampled(union_ts)
         
-        NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
-        NR_lmm = self.data.resampled(union_ts)
+            NR_lm = kuibit_ts(self.data.t,NR_lm).resampled(union_ts)
+            NR_lmm = self.data.resampled(union_ts)
 
 
-        mass_wave = BOB_lm.y + (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
-        mass_wave = mass_wave/np.sqrt(2)
+            mass_wave = BOB_lm.y + (-1)**np.abs(self.m) * np.conj(BOB_lmm.y)
+            mass_wave = mass_wave/np.sqrt(2)
 
-        NR_mass = NR_lm.y + (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
-        NR_mass = NR_mass/np.sqrt(2)
+            NR_mass = NR_lm.y + (-1)**np.abs(self.m) * np.conj(NR_lmm.y)
+            NR_mass = NR_mass/np.sqrt(2)
 
-        self.mass_quadrupole_data = kuibit_ts(union_ts,NR_mass)
+            self.mass_quadrupole_data = kuibit_ts(union_ts,NR_mass)
 
-        #restore (l,m) and (l,-m) as automatic data
-        if(self._wf_config.what_to_create=="psi4"):
-            self.data = self.psi4_data
-            self.Ap = self.psi4_data.abs_max()
-            self.tp = self.psi4_data.time_at_maximum()
-        elif(self._wf_config.what_to_create=="news"):
-            self.data = self.news_data
-            self.Ap = self.news_data.abs_max()
-            self.tp = self.news_data.time_at_maximum()
-        elif(self._wf_config.what_to_create=="strain"):
-            self.data = self.strain_data
-            self.Ap = self.strain_data.abs_max()
-            self.tp = self.strain_data.time_at_maximum()
-        else:
-            raise ValueError("Invalid option for BOB.what_should_BOB_create. Valid options are 'psi4', 'news', 'strain', 'strain_using_news', or 'strain_using_psi4'.")
-        #revert back to the timeseries for the (l,m) mode
-        self.t = old_ts
-        self.m = old_m
-        self.t_tp_tau = (self.t - self.tp)/self.tau
-        self.Phi_0 = 0
+            self.Phi_0 = 0
         
-        BOB_mass_wave = mass_wave
-        return union_ts,BOB_mass_wave
+            BOB_mass_wave = mass_wave
+            return union_ts,BOB_mass_wave
+        finally:
+            for _name,_snap in _saved_state.items():
+                setattr(self,_name,_snap)
     def construct_BOB(self,N=2):
         '''
         Construct the BOB timeseries.
